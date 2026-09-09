@@ -1,0 +1,29 @@
+{
+    "configurations": [
+        {
+            "name": "ESP32-S3 Arduino",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "C:/Users/njest/Documents/Arduino/libraries/**",
+                "C:/Users/njest/AppData/Local/Arduino15/packages/esp32/hardware/esp32/3.3.11/cores/esp32/**",
+                "C:/Users/njest/AppData/Local/Arduino15/packages/esp32/hardware/esp32/3.3.11/variants/esp32s3/**",
+                "C:/Users/njest/AppData/Local/Arduino15/packages/esp32/hardware/esp32/3.3.11/libraries/**",
+                "C:/Users/njest/AppData/Local/Arduino15/packages/esp32/tools/esp32s3-libs/**/include/**"
+            ],
+            "defines": [
+                "ESP32",
+                "ARDUINO_ARCH_ESP32",
+                "ARDUINO_ESP32S3_DEV",
+                "BOARD_HAS_PSRAM",
+                "CONFIG_SPIRAM_SUPPORT",
+                "LV_CONF_INCLUDE_SIMPLE"
+            ],
+            "compilerPath": "C:/Users/njest/AppData/Local/Arduino15/packages/esp32/tools/s3-gcc/2021r2-p5/bin/xtensa-esp32s3-elf-g++.exe",
+            "cStandard": "c11",
+            "cppStandard": "c++17",
+            "intelliSenseMode": "gcc-x64"
+        }
+    ],
+    "version": 4
+}
+

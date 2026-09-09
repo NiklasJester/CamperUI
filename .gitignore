@@ -1,0 +1,26 @@
+# Arduino / ESP-IDF build output
+build/
+*.bin
+*.elf
+*.hex
+*.map
+.arduino/
+*.log
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.class
+.venv/
+env/
+
+# VS Code
+.vscode/.browse.c_cpp.db*
+.vscode/*.log
+
+# OS generated
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.BIN/
+.DS_Store

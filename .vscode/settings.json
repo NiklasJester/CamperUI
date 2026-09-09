@@ -1,0 +1,18 @@
+{
+    "arduino.path": "C:\\Users\\njest\\AppData\\Local\\Programs\\Arduino IDE",
+    "arduino.commandPath": "resources\\app\\lib\\backend\\resources\\arduino-cli.exe",
+    "arduino.useArduinoCli": true,
+    "arduino.logLevel": "info",
+    "arduino.additionalUrls": [
+        "https://espressif.github.io/arduino-esp32/package_esp32_index.json"
+    ],
+    "C_Cpp.default.cppStandard": "c++17",
+    "C_Cpp.default.cStandard": "c11",
+    "C_Cpp.intelliSenseEngine": "default",
+    "files.associations": {
+        "*.ino": "cpp",
+        "*.h": "cpp",
+        "*.hpp": "cpp"
+    }
+}
+

@@ -1,0 +1,17 @@
+{
+  "sketch": "CamperUI.ino",
+  "board": "esp32:esp32:esp32s3",
+  "configuration": "CDCOnBoot=cdc,MSYS=opi,PSRAM=opi,FlashMode=qio,FlashSize=16M,PartitionScheme=default_16MB",
+  "port": "COM4",
+  "output": "./build",
+  "schemaVersion": 1,
+  "monitorPortSettings": {
+    "port": "COM4",
+    "baudRate": 115200,
+    "lineEnding": "\r\n",
+    "dataBits": 8,
+    "parity": "none",
+    "stopBits": "one"
+  },
+  "optimize_for_debug": false
+}
