@@ -1,5 +1,7 @@
 #include "ui_main.h"
 
+void ui_build_home(lv_obj_t *parent);
+
 lv_obj_t *scr_main;
 lv_obj_t *scr_settings;
 
@@ -20,6 +22,25 @@ static lv_obj_t *badge_fresh;
 static lv_obj_t *badge_waste;
 
 static lv_obj_t *tabview;
+static lv_obj_t *home_nav;
+static lv_obj_t *home_nav_buttons[8] = {};
+
+static void update_home_nav() {
+    uint16_t active = lv_tabview_get_tab_act(tabview);
+    for (int i = 0; i < 8; ++i) {
+        if (!home_nav_buttons[i]) continue;
+        if (i == active) lv_obj_add_state(home_nav_buttons[i], LV_STATE_CHECKED);
+        else lv_obj_clear_state(home_nav_buttons[i], LV_STATE_CHECKED);
+    }
+    if (active < 8 && home_nav_buttons[active])
+        lv_obj_scroll_to_view(home_nav_buttons[active], LV_ANIM_ON);
+}
+
+static void home_nav_clicked(lv_event_t *event) {
+    uintptr_t index = (uintptr_t)lv_event_get_user_data(event);
+    lv_tabview_set_act(tabview, (uint32_t)index, LV_ANIM_OFF);
+    lv_event_send(tabview, LV_EVENT_VALUE_CHANGED, NULL);
+}
 
 // Helper to configure consistent padding across all tab pages
 void ui_setup_tab_page(lv_obj_t *page) {
@@ -82,14 +103,22 @@ void ui_apply_theme() {
     lv_obj_set_style_text_color(tab_btns, ui_theme_muted(), 0);
     lv_obj_set_style_text_color(tab_btns, lv_color_hex(UI_COLOR_PRIMARY), LV_STATE_CHECKED);
     lv_obj_set_style_bg_color(tabview, bg_color, 0);
+    if (home_nav) {
+        lv_obj_set_style_bg_color(home_nav, ui_theme_card(), 0);
+        for (int i = 0; i < 8; ++i) {
+            lv_obj_set_style_bg_color(home_nav_buttons[i], ui_theme_card(), 0);
+            lv_obj_set_style_text_color(home_nav_buttons[i], ui_theme_muted(), 0);
+        }
+    }
 }
 
 static void tab_switch_cb(lv_event_t * e) {
     lv_obj_t * tv = lv_event_get_target(e);
     uint16_t tab = lv_tabview_get_tab_act(tv);
-    // Tab 0: Dimmer, Tab 1: Power, Tab 2: Water, Tab 3: Climate, Tab 4: Switches, Tab 5: Level, Tab 6: Settings
-    if (tab == 1) ui_trigger_power_anim();
-    else if (tab == 2) ui_trigger_water_anim();
+    // Tabs: Home, Dimmer, Power, Water, Climate, Switches, Level, Settings
+    if (tab == 2) ui_trigger_power_anim();
+    else if (tab == 3) ui_trigger_water_anim();
+    update_home_nav();
 }
 
 void ui_init() {
@@ -201,7 +230,8 @@ void ui_init() {
     lv_obj_t *tab_btns = lv_tabview_get_tab_btns(tabview);
     lv_obj_set_style_text_font(tab_btns, &ui_font_mdi_32, 0);
 
-    lv_obj_t *t_dim = lv_tabview_add_tab(tabview, MDI_LIGHTBULB);        // Tab 0: Dimmer / Licht
+    lv_obj_t *t_home = lv_tabview_add_tab(tabview, MDI_HOME);
+    lv_obj_t *t_dim = lv_tabview_add_tab(tabview, MDI_LIGHTBULB);
     lv_obj_t *t1    = lv_tabview_add_tab(tabview, MDI_BATTERY_CHARGING); // Tab 1: Power
     lv_obj_t *t2    = lv_tabview_add_tab(tabview, MDI_WATER);            // Tab 2: Wasser
     lv_obj_t *t3    = lv_tabview_add_tab(tabview, MDI_THERMOMETER);      // Tab 3: Klima
@@ -217,6 +247,7 @@ void ui_init() {
     ui_setup_tab_page(t_lvl);
     ui_setup_tab_page(t5);
 
+    ui_build_home(t_home);
     ui_build_dimmers(t_dim);
     ui_build_power(t1);
     ui_build_water(t2);
@@ -225,6 +256,42 @@ void ui_init() {
     ui_build_level(t_lvl);
     ui_build_settings(t5);
 
+    // Replace the squeezed built-in tab buttons with a scrolling icon strip.
+    // The tabview retains its pages and swipe navigation.
+    lv_obj_add_flag(tab_btns, LV_OBJ_FLAG_HIDDEN);
+    home_nav = lv_obj_create(tabview);
+    lv_obj_set_size(home_nav, LV_PCT(100), 60);
+    lv_obj_set_style_pad_all(home_nav, 3, 0);
+    lv_obj_set_style_pad_column(home_nav, 4, 0);
+    lv_obj_set_style_border_width(home_nav, 0, 0);
+    lv_obj_set_style_radius(home_nav, 0, 0);
+    lv_obj_set_style_bg_color(home_nav, ui_theme_card(), 0);
+    lv_obj_set_flex_flow(home_nav, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(home_nav, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_scroll_dir(home_nav, LV_DIR_HOR);
+    lv_obj_set_scrollbar_mode(home_nav, LV_SCROLLBAR_MODE_AUTO);
+    lv_obj_clear_flag(home_nav, LV_OBJ_FLAG_SCROLL_ELASTIC);
+    lv_obj_clear_flag(home_nav, LV_OBJ_FLAG_SCROLL_CHAIN_HOR);
+    const char *nav_icons[8] = {MDI_HOME, MDI_LIGHTBULB, MDI_BATTERY_CHARGING,
+        MDI_WATER, MDI_THERMOMETER, MDI_TOGGLE_SWITCH, MDI_SPIRIT_LEVEL, MDI_TUNE};
+    for (uintptr_t i = 0; i < 8; ++i) {
+        lv_obj_t *button = lv_btn_create(home_nav);
+        home_nav_buttons[i] = button;
+        lv_obj_set_size(button, 68, 48);
+        lv_obj_set_style_pad_all(button, 0, 0);
+        lv_obj_set_style_radius(button, 10, 0);
+        lv_obj_set_style_shadow_width(button, 0, 0);
+        lv_obj_set_style_bg_color(button, ui_theme_card(), 0);
+        lv_obj_set_style_bg_color(button, lv_color_hex(0x263b52), LV_STATE_CHECKED);
+        lv_obj_set_style_text_color(button, ui_theme_muted(), 0);
+        lv_obj_set_style_text_color(button, lv_color_hex(0xb8ccfa), LV_STATE_CHECKED);
+        lv_obj_add_event_cb(button, home_nav_clicked, LV_EVENT_CLICKED, (void *)i);
+        lv_obj_t *icon = lv_label_create(button);
+        lv_label_set_text(icon, nav_icons[i]);
+        lv_obj_set_style_text_font(icon, &ui_font_mdi_32, 0);
+        lv_obj_center(icon);
+    }
+    update_home_nav();
     ui_apply_theme();
     lv_scr_load(scr_main);
 }
