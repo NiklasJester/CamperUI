@@ -82,6 +82,7 @@ static lv_obj_t *btn_wifi_scan;
 static lv_obj_t *lbl_wifi_scan;
 static lv_obj_t *ta_wifi_pass;
 static lv_obj_t *ta_mqtt_ip;
+static lv_obj_t *dd_out_temp = NULL;
 
 
 
@@ -127,14 +128,26 @@ void ui_update_settings_tab() {
 static void ta_event_cb(lv_event_t * e) {
     lv_event_code_t code = lv_event_get_code(e);
     lv_obj_t * ta = lv_event_get_target(e);
-    if(code == LV_EVENT_FOCUSED) {
+    if(code == LV_EVENT_FOCUSED || code == LV_EVENT_CLICKED) {
         lv_keyboard_set_textarea(kb, ta);
         lv_obj_clear_flag(kb, LV_OBJ_FLAG_HIDDEN);
         lv_obj_move_foreground(kb); // Bring keyboard to front
     }
-    else if(code == LV_EVENT_DEFOCUSED) {
+    else if(code == LV_EVENT_DEFOCUSED || code == LV_EVENT_READY || code == LV_EVENT_CANCEL) {
         lv_keyboard_set_textarea(kb, NULL);
         lv_obj_add_flag(kb, LV_OBJ_FLAG_HIDDEN);
+        if (code == LV_EVENT_READY || code == LV_EVENT_CANCEL) {
+            lv_indev_reset(NULL, ta); // clear focus
+        }
+    }
+}
+
+static void kb_event_cb(lv_event_t * e) {
+    lv_event_code_t code = lv_event_get_code(e);
+    if(code == LV_EVENT_READY || code == LV_EVENT_CANCEL) {
+        lv_keyboard_set_textarea(kb, NULL);
+        lv_obj_add_flag(kb, LV_OBJ_FLAG_HIDDEN);
+        lv_indev_reset(NULL, NULL);
     }
 }
 
@@ -150,6 +163,17 @@ static void wifi_scan_cb(lv_event_t * e) {
     }
 }
 
+static void mbox_save_cb(lv_event_t * e) {
+    lv_event_code_t code = lv_event_get_code(e);
+    lv_obj_t * mbox = lv_event_get_current_target(e);
+    if (code == LV_EVENT_VALUE_CHANGED) {
+        lv_msgbox_close_async(mbox);
+        lv_scr_load(scr_main);
+    } else if (code == LV_EVENT_DELETE) {
+        lv_scr_load(scr_main);
+    }
+}
+
 static void save_settings_cb(lv_event_t * e) {
     char buf[64];
     lv_dropdown_get_selected_str(dd_wifi_ssid, buf, sizeof(buf));
@@ -157,22 +181,40 @@ static void save_settings_cb(lv_event_t * e) {
     state.wifi_pass = String(lv_textarea_get_text(ta_wifi_pass));
     state.vanpi_ip = String(lv_textarea_get_text(ta_mqtt_ip));
     
-            
     state_save();
     
     static const char * btns[] = {"OK", ""};
-    lv_obj_t * mbox = lv_msgbox_create(NULL, "Gespeichert", "Einstellungen gespeichert.\nWechsle zum Hauptmenue...", btns, true);
+    lv_obj_t * mbox = lv_msgbox_create(NULL, "Gespeichert", "Einstellungen erfolgreich gespeichert.", btns, true);
     lv_obj_center(mbox);
+    lv_obj_add_event_cb(mbox, mbox_save_cb, LV_EVENT_ALL, NULL);
     
     // Attempt reconnects
     WiFi.disconnect();
     WiFi.begin(state.wifi_ssid.c_str(), state.wifi_pass.c_str());
     
-    // Load main screen
+    // Load main screen beneath the dialog
     lv_scr_load(scr_main);
 }
 
+static void update_dd_out_temp_options() {
+    if (!dd_out_temp) return;
+    String opts = "";
+    for (int i = 0; i < 4; i++) {
+        if (state.temp_sensor_names[i].length() > 0 && 
+            state.temp_sensor_names[i] != "Sensor " + String(i + 1) && 
+            state.temp_sensor_names[i] != "Temp " + String(i + 1)) {
+            opts += "Sensor " + String(i + 1) + " (" + state.temp_sensor_names[i] + ")";
+        } else {
+            opts += "Sensor " + String(i + 1) + " (Temp " + String(i + 1) + ")";
+        }
+        if (i < 3) opts += "\n";
+    }
+    lv_dropdown_set_options(dd_out_temp, opts.c_str());
+    lv_dropdown_set_selected(dd_out_temp, constrain(state.outdoor_temp_sensor, 0, 3));
+}
+
 static void open_settings_cb(lv_event_t * e) {
+    update_dd_out_temp_options();
     lv_scr_load(scr_settings);
 }
 
@@ -302,8 +344,9 @@ void ui_settings_screen_init() {
     // --- TAB 2: ALLGEMEIN ---
     lv_obj_clear_flag(t_gen, LV_OBJ_FLAG_SCROLLABLE);
     
+    // Left Column: Display Settings
     lv_obj_t *l_disp = lv_label_create(t_gen);
-    lv_label_set_text(l_disp, "Display Einstellungen");
+    lv_label_set_text(l_disp, "Display & System");
     lv_obj_align(l_disp, LV_ALIGN_TOP_LEFT, 0, 0);
     
     lv_obj_t *l_bri = lv_label_create(t_gen);
@@ -312,8 +355,8 @@ void ui_settings_screen_init() {
     lv_obj_t *sl_bri = lv_slider_create(t_gen);
     lv_slider_set_range(sl_bri, 10, 100);
     lv_slider_set_value(sl_bri, state.display_brightness, LV_ANIM_OFF);
-    lv_obj_set_width(sl_bri, 200);
-    lv_obj_align(sl_bri, LV_ALIGN_TOP_LEFT, 100, 30);
+    lv_obj_set_width(sl_bri, 130);
+    lv_obj_align(sl_bri, LV_ALIGN_TOP_LEFT, 90, 30);
     lv_obj_add_event_cb(sl_bri, [](lv_event_t * e) {
         lv_obj_t *slider = lv_event_get_target(e);
         state.display_brightness = lv_slider_get_value(slider);
@@ -345,7 +388,8 @@ void ui_settings_screen_init() {
     else if(state.display_timeout == 60) lv_dropdown_set_selected(dd_time, 2);
     else if(state.display_timeout == 300) lv_dropdown_set_selected(dd_time, 3);
     else lv_dropdown_set_selected(dd_time, 4);
-    lv_obj_align(dd_time, LV_ALIGN_TOP_LEFT, 100, 110);
+    lv_obj_set_width(dd_time, 130);
+    lv_obj_align(dd_time, LV_ALIGN_TOP_LEFT, 90, 110);
     lv_obj_add_event_cb(dd_time, [](lv_event_t * e) {
         lv_obj_t *dd = lv_event_get_target(e);
         int sel = lv_dropdown_get_selected(dd);
@@ -367,12 +411,12 @@ void ui_settings_screen_init() {
         state_save();
     }, LV_EVENT_VALUE_CHANGED, NULL);
     lv_obj_t *l_demo = lv_label_create(t_gen);
-    lv_label_set_text(l_demo, "Simulation / Dummy-Daten");
+    lv_label_set_text(l_demo, "Simulation / Dummy");
     lv_obj_align(l_demo, LV_ALIGN_TOP_LEFT, 60, 165);
 
     // Reboot Button
     lv_obj_t *btn_reboot = lv_btn_create(t_gen);
-    lv_obj_set_size(btn_reboot, 200, 45);
+    lv_obj_set_size(btn_reboot, 180, 42);
     lv_obj_align(btn_reboot, LV_ALIGN_TOP_LEFT, 0, 215);
     lv_obj_set_style_bg_color(btn_reboot, lv_color_hex(0xe74c3c), 0); // Red
     lv_obj_add_event_cb(btn_reboot, [](lv_event_t * e) {
@@ -381,6 +425,36 @@ void ui_settings_screen_init() {
     lv_obj_t *l_reboot = lv_label_create(btn_reboot);
     lv_label_set_text(l_reboot, "Neustart");
     lv_obj_center(l_reboot);
+
+    // Right Column: Sensor Assignment
+    lv_obj_t *l_sens_sec = lv_label_create(t_gen);
+    lv_label_set_text(l_sens_sec, "Temperatursensor");
+    lv_obj_align(l_sens_sec, LV_ALIGN_TOP_LEFT, 240, 0);
+
+    lv_obj_t *l_out_sens = lv_label_create(t_gen);
+    lv_label_set_text(l_out_sens, "Aussentemperatur:");
+    lv_obj_align(l_out_sens, LV_ALIGN_TOP_LEFT, 240, 30);
+
+    dd_out_temp = lv_dropdown_create(t_gen);
+    lv_dropdown_set_options(dd_out_temp, "Sensor 1 (Temp 1)\nSensor 2 (Temp 2)\nSensor 3 (Temp 3)\nSensor 4 (Temp 4)");
+    lv_dropdown_set_selected(dd_out_temp, constrain(state.outdoor_temp_sensor, 0, 3));
+    lv_obj_set_width(dd_out_temp, 200);
+    lv_obj_align(dd_out_temp, LV_ALIGN_TOP_LEFT, 240, 55);
+    lv_obj_add_event_cb(dd_out_temp, [](lv_event_t * e) {
+        lv_obj_t *dd = lv_event_get_target(e);
+        state.outdoor_temp_sensor = lv_dropdown_get_selected(dd);
+        int out_idx = constrain(state.outdoor_temp_sensor, 0, 3);
+        state.outdoor_temp = state.temp_sensors[out_idx];
+        int in_idx = (out_idx == 0) ? 1 : 0;
+        state.indoor_temp = state.temp_sensors[in_idx];
+        state_save();
+    }, LV_EVENT_VALUE_CHANGED, NULL);
+
+    lv_obj_t *l_out_desc = lv_label_create(t_gen);
+    lv_label_set_text(l_out_desc, "Waehlt den Sensor fuer\ndas Aussen-Klima &\ndie Frostwarnung.");
+    lv_obj_set_style_text_color(l_out_desc, ui_theme_muted(), 0);
+    lv_obj_set_style_text_font(l_out_desc, &lv_font_montserrat_12, 0);
+    lv_obj_align(l_out_desc, LV_ALIGN_TOP_LEFT, 240, 115);
     
     // --- TAB 3: SICHTBARKEIT ---
     lv_obj_clear_flag(t_vis, LV_OBJ_FLAG_SCROLLABLE);
@@ -537,7 +611,9 @@ void ui_settings_screen_init() {
 
     // Virtual Keyboard (Global to scr_settings)
     kb = lv_keyboard_create(scr_settings);
+    lv_obj_align(kb, LV_ALIGN_BOTTOM_MID, 0, 0);
     lv_obj_add_flag(kb, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_event_cb(kb, kb_event_cb, LV_EVENT_ALL, NULL);
     
     // Save & Exit Button
     lv_obj_t *btn_save = lv_btn_create(scr_settings);
@@ -553,6 +629,13 @@ void ui_settings_screen_init() {
         if (ta_warn_bat)   state.warn_bat_soc    = String(lv_textarea_get_text(ta_warn_bat)).toInt();
         if (ta_warn_fresh) state.warn_fresh_min  = String(lv_textarea_get_text(ta_warn_fresh)).toInt();
         if (ta_warn_waste) state.warn_waste_max  = String(lv_textarea_get_text(ta_warn_waste)).toInt();
+        if (dd_out_temp) {
+            state.outdoor_temp_sensor = lv_dropdown_get_selected(dd_out_temp);
+            int out_idx = constrain(state.outdoor_temp_sensor, 0, 3);
+            state.outdoor_temp = state.temp_sensors[out_idx];
+            int in_idx = (out_idx == 0) ? 1 : 0;
+            state.indoor_temp = state.temp_sensors[in_idx];
+        }
         save_settings_cb(e);
     }, LV_EVENT_CLICKED, NULL);
     lv_obj_t *l_save = lv_label_create(btn_save);

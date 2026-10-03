@@ -63,12 +63,18 @@ static void relay_btn_event_cb(lv_event_t * e) {
 static void dimmer_slider_event_cb(lv_event_t * e) {
     int idx = (int)(intptr_t)lv_event_get_user_data(e);
     lv_obj_t *slider = lv_event_get_target(e);
+    lv_event_code_t code = lv_event_get_code(e);
     
-    if (lv_event_get_code(e) == LV_EVENT_VALUE_CHANGED) {
+    if (code == LV_EVENT_PRESSED || code == LV_EVENT_PRESSING) {
+        state.dimmer_hold_until[idx] = millis() + 3000;
+    } else if (code == LV_EVENT_VALUE_CHANGED) {
+        state.dimmer_hold_until[idx] = millis() + 3000;
         state.dimmer_val[idx] = lv_slider_get_value(slider);
         update_dimmer_visuals(idx);
-    } else if (lv_event_get_code(e) == LV_EVENT_RELEASED || lv_event_get_code(e) == LV_EVENT_PRESS_LOST) {
+    } else if (code == LV_EVENT_RELEASED || code == LV_EVENT_PRESS_LOST) {
         http_publish_dimmer(idx, state.dimmer_val[idx]);
+        // Give VanPi time to apply the new value before polling overrides it again
+        state.dimmer_hold_until[idx] = millis() + 2000;
         state_save();
     }
 }
@@ -87,11 +93,13 @@ void ui_update_switches_tab() {
 void ui_update_dimmers_tab() {
     for (int i = 0; i < 8; i++) {
         if (dimmers[i]) {
+            // Never move a slider under the user's finger
+            if (lv_obj_has_state(dimmers[i], LV_STATE_PRESSED)) continue;
             if (lv_slider_get_value(dimmers[i]) != state.dimmer_val[i]) {
                 lv_slider_set_value(dimmers[i], state.dimmer_val[i], LV_ANIM_OFF);
             }
             update_dimmer_visuals(i);
-            if (lbl_dim_name[i]) {
+            if (lbl_dim_name[i] && strcmp(lv_label_get_text(lbl_dim_name[i]), state.dimmer_names[i].c_str()) != 0) {
                 lv_label_set_text(lbl_dim_name[i], state.dimmer_names[i].c_str());
             }
         }

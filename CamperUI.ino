@@ -175,9 +175,13 @@ bool init_gt911_with_probe(int sda_pin, int scl_pin) {
 #include <WiFi.h>
 
 void setup() {
+    // 240 MHz full dual-core speed for maximum smooth LVGL UI rendering & touch responsiveness
+    setCpuFrequencyMhz(240);
+
     USBSerial.begin(115200);
     delay(500);
     USBSerial.println("\n--- Waveshare ESP32-S3 CamperUI Starting ---");
+    USBSerial.printf("CPU frequency: %u MHz\n", (unsigned)getCpuFrequencyMhz());
 
     state_init();
     http_init();
@@ -254,6 +258,9 @@ void setup() {
 
     ui_init();
 
+    // Start background network worker on Core 0 (Core 1 is 100% dedicated to UI)
+    http_start_task();
+
     USBSerial.println("CamperUI ready!");
 }
 
@@ -276,8 +283,6 @@ void loop() {
         }
     }
 
-    http_loop();
-
     // Update UI dynamically
     static uint32_t last_ui_ms = 0;
     if (display_is_on && millis() - last_ui_ms > 1000) {
@@ -289,6 +294,7 @@ void loop() {
         extern void ui_update_water_tab();
         extern void ui_update_climate_tab();
         extern void ui_update_switches_tab();
+        extern void ui_update_dimmers_tab();
         extern void ui_update_level_tab();
         extern void ui_update_settings_tab();
         
@@ -296,9 +302,10 @@ void loop() {
         ui_update_water_tab();
         ui_update_climate_tab();
         ui_update_switches_tab();
+        ui_update_dimmers_tab();
         ui_update_level_tab();
         ui_update_settings_tab();
     }
     
-    delay(5);
+    delay(2);
 }

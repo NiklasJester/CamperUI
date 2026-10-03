@@ -4,7 +4,7 @@
         {
             "label": "Arduino: Compile",
             "type": "shell",
-            "command": "& 'C:\\Users\\njest\\AppData\\Local\\Programs\\Arduino IDE\\resources\\app\\lib\\backend\\resources\\arduino-cli.exe' compile --fqbn esp32:esp32:esp32s3:CDCOnBoot=cdc,PSRAM=opi,FlashSize=16M,PartitionScheme=app3M_fat9M_16MB CamperUI.ino",
+            "command": "& 'C:\\Users\\njest\\AppData\\Local\\Programs\\Arduino IDE\\resources\\app\\lib\\backend\\resources\\arduino-cli.exe' compile --fqbn esp32:esp32:esp32s3:CPUFreq=240,CDCOnBoot=cdc,PSRAM=opi,FlashSize=16M,PartitionScheme=app3M_fat9M_16MB CamperUI.ino",
             "group": {
                 "kind": "build",
                 "isDefault": true
@@ -14,14 +14,14 @@
         {
             "label": "Arduino: Upload (Flash)",
             "type": "shell",
-            "command": "& 'C:\\Users\\njest\\AppData\\Local\\Programs\\Arduino IDE\\resources\\app\\lib\\backend\\resources\\arduino-cli.exe' upload -p COM4 --fqbn esp32:esp32:esp32s3:CDCOnBoot=cdc,PSRAM=opi,FlashSize=16M,PartitionScheme=app3M_fat9M_16MB CamperUI.ino",
+            "command": "& 'C:\\Users\\njest\\AppData\\Local\\Programs\\Arduino IDE\\resources\\app\\lib\\backend\\resources\\arduino-cli.exe' upload -p COM4 --fqbn esp32:esp32:esp32s3:CPUFreq=240,CDCOnBoot=cdc,PSRAM=opi,FlashSize=16M,PartitionScheme=app3M_fat9M_16MB CamperUI.ino",
             "group": "none",
             "problemMatcher": []
         },
         {
             "label": "Arduino: Compile & Upload",
             "type": "shell",
-            "command": "& 'C:\\Users\\njest\\AppData\\Local\\Programs\\Arduino IDE\\resources\\app\\lib\\backend\\resources\\arduino-cli.exe' compile --upload -p COM4 --fqbn esp32:esp32:esp32s3:CDCOnBoot=cdc,PSRAM=opi,FlashSize=16M,PartitionScheme=app3M_fat9M_16MB CamperUI.ino",
+            "command": "& 'C:\\Users\\njest\\AppData\\Local\\Programs\\Arduino IDE\\resources\\app\\lib\\backend\\resources\\arduino-cli.exe' compile --upload -p COM4 --fqbn esp32:esp32:esp32s3:CPUFreq=240,CDCOnBoot=cdc,PSRAM=opi,FlashSize=16M,PartitionScheme=app3M_fat9M_16MB CamperUI.ino",
             "group": "none",
             "problemMatcher": []
         },

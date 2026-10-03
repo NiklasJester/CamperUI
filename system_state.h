@@ -27,6 +27,9 @@ struct SystemState {
     int warn_fresh_min;
     int warn_waste_max;
 
+    // Sensor Selection (Persisted)
+    int outdoor_temp_sensor; // 0..3 (index of temp sensor for outdoor temp, default 1)
+
     // Tank Capacities (Liters)
     int tank_max[4]; 
     bool tank_enabled[4];
@@ -40,6 +43,7 @@ struct SystemState {
     // Status
     bool wifi_connected;
     int wifi_rssi;
+    bool vanpi_connected;
     
 
     // Power
@@ -57,10 +61,14 @@ struct SystemState {
     float outdoor_temp;
     float indoor_humidity;
     float target_temp;
+    float temp_sensors[4];
+    String temp_sensor_names[4];
     bool heating_on;
     bool heater_vent_mode;
     bool heater_power_mode;
     int heater_power_level;
+    String heater_status;   // raw "heatstatus" from VanPi (e.g. "standby", "heating")
+    String heater_error;    // raw "heaterror" from VanPi ("no" = no error)
     bool fan_on;
 
     // Inclinometer / Leveling
@@ -72,6 +80,12 @@ struct SystemState {
     // Switches & Dimmers
     bool switch_state[8];
     int dimmer_val[8]; // 0-100%
+
+    // Local-interaction hold-off (millis timestamps, not persisted):
+    // while millis() < *_hold_until, polled values are ignored so the
+    // remote state does not fight with a value the user is just changing.
+    uint32_t dimmer_hold_until[8];
+    uint32_t heater_hold_until;
 
     // Visibility and roles
     bool switch_visible[8];
