@@ -68,6 +68,9 @@ void ui_build_dimmers(lv_obj_t *parent);
 void ui_build_level(lv_obj_t *parent);
 void ui_build_settings(lv_obj_t *parent);
 
+void ui_build_maxxfan(lv_obj_t *parent);
+bool ui_maxxfan_running();
+
 // UI Helper Functions
 lv_obj_t* ui_create_card(lv_obj_t *parent, int w, int h);
 void ui_apply_theme();

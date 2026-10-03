@@ -161,3 +161,52 @@ CamperUI kommuniziert bidirektional über das VanPi HTTP REST-Interface:
 
 ## 📄 Lizenz
 Open-Source (MIT License). Entwickelt für die VanPi Camper-Community.
+
+### Lokale WLAN-Vorgabe
+
+1. `config/wifi_secrets.example.h` nach `config/wifi_secrets.h` kopieren.
+2. SSID und Passwort in die beiden Anführungszeichen eintragen.
+3. Sketch neu kompilieren und hochladen.
+
+Ohne gespeicherte SSID übernimmt CamperUI diese Vorgabe und speichert sie auf
+dem Display. Bereits gespeicherte Zugangsdaten haben Vorrang; Änderungen sind
+weiterhin unter Einstellungen möglich. Das gespeicherte WLAN bleibt auch nach
+einem Scan in der Auswahlliste, wenn es gerade nicht erreichbar ist.
+
+Ohne lokale Datei oder mit leerer Vorgabe funktioniert der bisherige Ablauf.
+`config/wifi_secrets.h` wird von Git ignoriert. Nur die leere Vorlage committen.
+Anführungszeichen im Passwort als `\"`, Backslashes als `\\` schreiben.
+
+### MaxxFan-Layout-Demo
+
+Der MaxxFan-Tab zeigt eine bedienbare Vorschau ohne Hardwarebefehle oder
+Live-Status. AUF/ZU ändern die Klappenzeichnung; EIN/AUS schaltet den
+simulierten Lüfterstatus. Stufe 1–10, OUT/IN, Zieltemperatur 10–40 °C und
+AUTO sind lokale Demo-Werte, keine bestätigten Gerätegrenzen.
+Das Lüftersymbol neben der Heizungsflamme erscheint nur bei simuliertem
+Lüfterbetrieb. Eine allein geöffnete Klappe aktiviert es nicht.
+Reset setzt nur die Vorschau zurück. MaxxFan-Einstellungen und VanPi-Anbindung
+folgen nach Klärung der Befehle und Statusfelder.
+
+### Feste Hauptnavigation (Layout v7)
+
+Die Hauptansicht hat drei getrennte Bereiche: Statusleiste (y=0, Höhe 40),
+Content (y=40, Höhe 380), Navigation (y=420, Höhe 60). Die neun Hauptseiten
+liegen im Content-Container und werden nur ein-/ausgeblendet. Die Navigation
+wird einmal erstellt und bleibt horizontal scrollbar. Das frühere Haupt-Tabview
+mit zusätzlich versteckter Icon-Leiste ist entfernt. Die separaten
+System-Einstellungen behalten ihre eigenen Einstellungsreiter.
+
+Beim Farbmoduswechsel wird der UI-Neuaufbau nach dem Event durchgeführt;
+die alten Screens werden vorher gelöscht. So sammeln sich keine alten Screens an.
+
+MaxxFan verwendet zwei gleich große 140×54-px-Assets mit Transparenz:
+`assets/maxxfan/maxxfan_open.png` und `maxxfan_closed.png`. Die Firmware
+verwendet die eingebetteten Daten in `ui_maxxfan_assets.c`, keine SD-Karte.
+Die SVG-Quellen und `tools/generate_maxxfan_assets.py` ermöglichen reproduzierbare
+Änderungen. Grafikfarben bleiben in beiden Farbmodi identisch.
+
+Hardwareprüfung: alle neun Seiten mehrfach wechseln, die Navigation in beide
+Richtungen scrollen, MaxxFan AUF/ZU/EIN/AUS prüfen, System-Einstellungen öffnen
+und zurückkehren sowie Farbmodus mehrmals wechseln. Die korrekte Darstellung
+auf dem ESP32 ist zusätzlich zu den lokalen Logikprüfungen zu bestätigen.

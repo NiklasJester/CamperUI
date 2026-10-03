@@ -109,12 +109,15 @@ void ui_update_settings_tab() {
         int n = WiFi.scanComplete();
         if (n >= 0) {
             scan_in_progress = false;
-            String options = "";
+            // Keep the saved WLAN selectable even when it is out of range.
+            String options = state.wifi_ssid;
             for (int i = 0; i < n; ++i) {
-                options += WiFi.SSID(i);
-                if (i < n - 1) options += "\n";
+                String ssid = WiFi.SSID(i);
+                if (ssid.length() == 0 || ssid == state.wifi_ssid) continue;
+                if (options.length() > 0) options += "\n";
+                options += ssid;
             }
-            if(n == 0) options = "Keine Netzwerke gefunden";
+            if (options.length() == 0) options = "Keine Netzwerke gefunden";
             lv_dropdown_set_options(dd_wifi_ssid, options.c_str());
             lv_label_set_text(lbl_wifi_scan, "Scan");
             WiFi.scanDelete();

@@ -21,6 +21,7 @@ icons = [
     ('MDI_SOLAR',            0xf0a72, 'solar-power'),
     ('MDI_CHECK',            0xf012c, 'check-bold'),
     ('MDI_HOME',             0xf02dc, 'home'),
+    ('MDI_FAN',              0xf0210, 'fan'),
 ]
 
 def generate_font_c(font_name, size, ttf_path):
@@ -136,7 +137,7 @@ h_content = """#ifndef UI_MDI_ICONS_H
 extern "C" {
 #endif
 
-// Material Design Icons Unicode PUA Mappings (0xE001 .. 0xE010)
+// Material Design Icons Unicode PUA Mappings (0xE001 .. 0xE011)
 #define MDI_LIGHTBULB          "\\xEE\\x80\\x81" // 0xE001: Dimmer / Licht
 #define MDI_BATTERY_CHARGING   "\\xEE\\x80\\x82" // 0xE002: Power
 #define MDI_WATER              "\\xEE\\x80\\x83" // 0xE003: Wasser
@@ -154,6 +155,8 @@ extern "C" {
 #define MDI_CHECK              "\\xEE\\x80\\x8F" // 0xE00F: Check OK
 
 #define MDI_HOME               "\\xEE\\x80\\x90" // 0xE010: Home
+
+#define MDI_FAN                "\\xEE\\x80\\x91" // 0xE011: MaxxFan
 
 LV_FONT_DECLARE(ui_font_mdi_32);
 LV_FONT_DECLARE(ui_font_mdi_18);

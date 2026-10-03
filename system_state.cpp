@@ -1,5 +1,16 @@
 #include "system_state.h"
 
+// Optional local credentials; builds without this file remain supported.
+#if __has_include("config/wifi_secrets.h")
+#include "config/wifi_secrets.h"
+#endif
+#ifndef CAMPERUI_DEFAULT_WIFI_SSID
+#define CAMPERUI_DEFAULT_WIFI_SSID ""
+#endif
+#ifndef CAMPERUI_DEFAULT_WIFI_PASSWORD
+#define CAMPERUI_DEFAULT_WIFI_PASSWORD ""
+#endif
+
 SystemState state;
 Preferences prefs;
 
@@ -9,6 +20,13 @@ void state_init() {
     // Load persisted settings
     state.wifi_ssid = prefs.getString("wifi_ssid", "");
     state.wifi_pass = prefs.getString("wifi_pass", "");
+    // Seed only an unconfigured device. Saved settings always take priority.
+    if (state.wifi_ssid.length() == 0 && CAMPERUI_DEFAULT_WIFI_SSID[0] != '\0') {
+        state.wifi_ssid = CAMPERUI_DEFAULT_WIFI_SSID;
+        state.wifi_pass = CAMPERUI_DEFAULT_WIFI_PASSWORD;
+        prefs.putString("wifi_ssid", state.wifi_ssid);
+        prefs.putString("wifi_pass", state.wifi_pass);
+    }
     state.vanpi_ip = prefs.getString("vanpi_ip", "100.80.161.23");
 
     
