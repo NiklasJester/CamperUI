@@ -29,6 +29,8 @@ state.display_brightness = prefs.getInt("disp_bright", 100);
     state.warn_fresh_min = prefs.getInt("w_fresh", 15);
     state.warn_waste_max = prefs.getInt("w_waste", 85);
 
+    state.outdoor_temp_sensor = prefs.getInt("out_temp_idx", 1); // Default to Temp 2 (Aussen)
+
     for (int i = 0; i < 4; i++) {
         char key_max[16], key_en[16], key_nm[16];
         sprintf(key_max, "tank%d_max", i);
@@ -64,6 +66,7 @@ state.display_brightness = prefs.getInt("disp_bright", 100);
     state.wifi_connected = false;
     
     state.wifi_rssi = 0;
+    state.vanpi_connected = false;
 
     state.bat_voltage = 12.0f;
     state.bat_current = 0.0f;
@@ -71,7 +74,11 @@ state.display_brightness = prefs.getInt("disp_bright", 100);
     state.solar_power = 0.0f;
     state.solar_current = 0.0f;
 
-    for (int i = 0; i < 4; i++) state.tank_level[i] = 0;
+    for (int i = 0; i < 4; i++) {
+        state.tank_level[i] = 0;
+        state.temp_sensors[i] = 0.0f;
+        state.temp_sensor_names[i] = "Sensor " + String(i + 1);
+    }
 
     state.indoor_temp = 0.0f;
     state.outdoor_temp = 0.0f;
@@ -81,6 +88,8 @@ state.display_brightness = prefs.getInt("disp_bright", 100);
     state.heater_vent_mode = false;
     state.heater_power_mode = false;
     state.heater_power_level = 5;
+    state.heater_status = "";
+    state.heater_error = "no";
     state.fan_on = false;
 
     state.pitch_angle = 0.0f;
@@ -89,7 +98,9 @@ state.display_brightness = prefs.getInt("disp_bright", 100);
     for (int i = 0; i < 8; i++) {
         state.switch_state[i] = false;
         state.dimmer_val[i] = 0;
+        state.dimmer_hold_until[i] = 0;
     }
+    state.heater_hold_until = 0;
 }
 
 void state_save() {
@@ -110,6 +121,8 @@ void state_save() {
     prefs.putInt("w_bat", state.warn_bat_soc);
     prefs.putInt("w_fresh", state.warn_fresh_min);
     prefs.putInt("w_waste", state.warn_waste_max);
+
+    prefs.putInt("out_temp_idx", state.outdoor_temp_sensor);
 
     for (int i = 0; i < 4; i++) {
         char key_max[16], key_en[16], key_nm[16];

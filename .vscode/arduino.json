@@ -1,7 +1,7 @@
 {
   "sketch": "CamperUI.ino",
   "board": "esp32:esp32:esp32s3",
-  "configuration": "CDCOnBoot=cdc,MSYS=opi,PSRAM=opi,FlashMode=qio,FlashSize=16M,PartitionScheme=default_16MB",
+  "configuration": "CPUFreq=240,CDCOnBoot=cdc,MSYS=opi,PSRAM=opi,FlashMode=qio,FlashSize=16M,PartitionScheme=default_16MB",
   "port": "COM4",
   "output": "./build",
   "schemaVersion": 1,

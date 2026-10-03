@@ -4,9 +4,25 @@
 #include <ArduinoJson.h>
 #include "system_state.h"
 #include "HWCDC.h"
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+#include <freertos/queue.h>
 
 extern HWCDC USBSerial;
 #define Serial USBSerial
+
+struct HttpCmd {
+    char path[64];
+};
+static QueueHandle_t http_cmd_queue = NULL;
+
+static void queue_cmd(const char* path) {
+    if (!http_cmd_queue) return;
+    HttpCmd cmd;
+    strncpy(cmd.path, path, sizeof(cmd.path) - 1);
+    cmd.path[sizeof(cmd.path) - 1] = '\0';
+    xQueueSend(http_cmd_queue, &cmd, 0);
+}
 
 unsigned long last_http_poll = 0;
 static int poll_step = 0;
@@ -59,7 +75,9 @@ static int jsonInt(JsonVariant v) {
 }
 
 void http_init() {
-    // Nothing special needed
+    if (!http_cmd_queue) {
+        http_cmd_queue = xQueueCreate(16, sizeof(HttpCmd));
+    }
 }
 
 void http_fetch_names() {
@@ -112,7 +130,9 @@ static void parse_dimmer_json(String payload) {
         String key = "dimmer" + String(i + 1);
         if (!doc.containsKey(key)) continue;
         JsonObject d = doc[key];
-        if (d.containsKey("state")) state.dimmer_val[i] = jsonInt(d["state"]);
+        if (d.containsKey("state") && (int32_t)(millis() - state.dimmer_hold_until[i]) >= 0) {
+            state.dimmer_val[i] = constrain(jsonInt(d["state"]), 0, 100);
+        }
         if (d.containsKey("name")) {
             String n = d["name"].as<String>();
             if (n.length() > 0 && n != key) state.dimmer_names[i] = fix_umlauts(n);
@@ -146,49 +166,124 @@ static void parse_temp_json(String payload) {
         String key = "temp" + String(i + 1);
         if (!doc.containsKey(key)) continue;
         JsonObject t = doc[key];
-        if (t.containsKey("state")) {
-            float val = jsonFloat(t["state"]);
-            if (i == 0) state.indoor_temp = val;
-            else if (i == 1) state.outdoor_temp = val;
-            else if (i == 2) state.indoor_humidity = val;
+        if (t.containsKey("name")) {
+            String n = t["name"].as<String>();
+            if (n.length() > 0 && n != key) state.temp_sensor_names[i] = fix_umlauts(n);
         }
+        if (t.containsKey("state")) {
+            state.temp_sensors[i] = jsonFloat(t["state"]);
+        }
+    }
+
+    int out_idx = constrain(state.outdoor_temp_sensor, 0, 3);
+    state.outdoor_temp = state.temp_sensors[out_idx];
+    int in_idx = (out_idx == 0) ? 1 : 0;
+    state.indoor_temp = state.temp_sensors[in_idx];
+    if (out_idx != 2 && in_idx != 2) {
+        state.indoor_humidity = state.temp_sensors[2];
     }
 }
 
-// GET /heater -> { "autoterm1": { "heatertoggle": bool, "heatstatus": str,
-//   "targettemp_vanpi": float, "mode": str, "powerlevel": int, "fanspeed": int }, ... }
+// GET /heater -> { "autoterm1": { "heatertoggle": bool, "heatstatus": str, "heaterror": str,
+//   "targettemp_vanpi": num, "mode": str, "powerlevel": int, "fanspeed": int }, ... }
+// Real VanPi values (see docs/flows.json):
+//   mode:       "temp mode" | "power mode" | "fan only" | "" / "off" (heater not running)
+//   heatstatus: "standby" | "heating" | "ventilation" | "only fan" | "ignition 1" |
+//               "heating glow plug1" | "cooling down" | "shutting down" | ...
 static void parse_heater_json(String payload) {
     DynamicJsonDocument doc(8192);
     if (deserializeJson(doc, payload)) return;
 
-    if (doc.containsKey("autoterm1")) {
-        JsonObject at = doc["autoterm1"];
+    bool has_at = doc.containsKey("autoterm1");
+    JsonObject at;
+    if (has_at) at = doc["autoterm1"];
 
-        // Mode
-        if (at.containsKey("mode")) {
-            String m = at["mode"].as<String>();
-            if (m == "vent") {
-                state.heater_vent_mode = true;
-                state.heater_power_mode = false;
-            } else if (m == "power") {
-                state.heater_vent_mode = false;
-                state.heater_power_mode = true;
-            } else if (m == "temp") {
-                state.heater_vent_mode = false;
-                state.heater_power_mode = false;
-            }
+    // Status text (always updated, never user-controlled)
+    String hs = "";
+    if (has_at && at.containsKey("heatstatus")) {
+        hs = at["heatstatus"].as<String>();
+    } else if (doc.containsKey("heatstatus")) {
+        hs = doc["heatstatus"].as<String>();
+    }
+    hs.trim();
+    state.heater_status = hs;
+
+    if (has_at && at.containsKey("heaterror")) {
+        state.heater_error = at["heaterror"].as<String>();
+    } else if (doc.containsKey("heaterror")) {
+        state.heater_error = doc["heaterror"].as<String>();
+    }
+
+    // User is currently interacting with the heater controls -> don't overwrite
+    if ((int32_t)(millis() - state.heater_hold_until) < 0) return;
+
+    // Mode (only overwrite when the heater reports an active mode, so the
+    // locally selected mode is kept while the heater is off)
+    String m = "";
+    if (has_at && at.containsKey("mode")) m = at["mode"].as<String>();
+    else if (doc.containsKey("mode")) m = doc["mode"].as<String>();
+    m.toLowerCase();
+    if (m.indexOf("fan") >= 0 || m.indexOf("vent") >= 0) {
+        state.heater_vent_mode = true;
+        state.heater_power_mode = false;
+    } else if (m.indexOf("power") >= 0) {
+        state.heater_vent_mode = false;
+        state.heater_power_mode = true;
+    } else if (m.indexOf("temp") >= 0) {
+        state.heater_vent_mode = false;
+        state.heater_power_mode = false;
+    }
+
+    // Running state: Check all indicators from VanPi / Autoterm
+    bool is_on = false;
+
+    // 1. Check autoterm1 heatertoggle
+    if (has_at && at.containsKey("heatertoggle")) {
+        String ht = at["heatertoggle"].as<String>();
+        ht.toLowerCase();
+        if (ht == "true" || ht == "1") is_on = true;
+    }
+    // 2. Check top-level heatertoggle (from main VanPi dashboard/app)
+    if (!is_on && doc.containsKey("heatertoggle")) {
+        String ht = doc["heatertoggle"].as<String>();
+        ht.toLowerCase();
+        if (ht == "true" || ht == "1") is_on = true;
+    }
+
+    // 3. Check heatstatus string (active states: heating, running, ventilation, ignition, etc.)
+    auto is_active_status = [](const String &s) {
+        String l = s; l.toLowerCase();
+        return (l.length() > 0 && l != "standby" && l != "wait" && l != "heater off" &&
+                l != "unknown status" && l != "0" && l.indexOf("shutting") < 0 &&
+                l.indexOf("error") < 0 && l.indexOf("flame-out") < 0 &&
+                l.indexOf("no fuel") < 0);
+    };
+
+    if (is_active_status(hs)) {
+        is_on = true;
+    }
+    if (!is_on && doc.containsKey("heatstatus") && is_active_status(doc["heatstatus"].as<String>())) {
+        is_on = true;
+    }
+
+    state.heating_on = is_on;
+
+    if (has_at && at.containsKey("targettemp_vanpi")) {
+        float t = jsonFloat(at["targettemp_vanpi"]);
+        if (t > 0) state.target_temp = t;
+    } else if (doc.containsKey("targettemp_vanpi")) {
+        float t = jsonFloat(doc["targettemp_vanpi"]);
+        if (t > 0) state.target_temp = t;
+    }
+
+    if (state.heater_vent_mode) {
+        if (has_at && at.containsKey("fanspeed")) {
+            int f = jsonInt(at["fanspeed"]);
+            if (f > 0) state.heater_power_level = f;
         }
-
-        // Running state
-        if (at.containsKey("heatstatus")) {
-            String hs = at["heatstatus"].as<String>();
-            state.heating_on = (hs == "run" || hs == "start" || hs == "ventilation");
-        } else if (at.containsKey("heatertoggle")) {
-            state.heating_on = at["heatertoggle"].as<bool>();
-        }
-
-        if (at.containsKey("targettemp_vanpi")) state.target_temp        = jsonFloat(at["targettemp_vanpi"]);
-        if (at.containsKey("powerlevel"))       state.heater_power_level = jsonInt(at["powerlevel"]);
+    } else if (has_at && at.containsKey("powerlevel")) {
+        int p = jsonInt(at["powerlevel"]);
+        if (p > 0) state.heater_power_level = p;
     }
 }
 
@@ -204,20 +299,40 @@ static void parse_position_json(String payload) {
 
 // --- HTTP transport ---
 
+static unsigned long vanpi_fail_backoff_until = 0;
+
 static void fetch_endpoint(const char* endpoint, void (*parser)(String)) {
-    if (WiFi.status() != WL_CONNECTED) return;
-    if (state.vanpi_ip.length() < 7) return;
+    if (WiFi.status() != WL_CONNECTED) {
+        state.vanpi_connected = false;
+        return;
+    }
+    if (state.vanpi_ip.length() < 7) {
+        state.vanpi_connected = false;
+        return;
+    }
+
+    // If host is unreachable, don't block loop() repeatedly; wait before retrying
+    if (millis() < vanpi_fail_backoff_until) {
+        return;
+    }
 
     HTTPClient http;
     http.begin(get_url() + endpoint);
-    http.setConnectTimeout(800);
-    http.setTimeout(3000);
+    // Short connect timeout (200ms) - in LAN WiFi, 200ms is more than enough
+    // to fail fast if host is unreachable.
+    http.setConnectTimeout(200);
+    http.setTimeout(800);
     int code = http.GET();
     if (code == 200) {
+        state.vanpi_connected = true;
+        vanpi_fail_backoff_until = 0;
         String payload = http.getString();
         parser(payload);
     } else {
-        Serial.printf("[HTTP] GET %s -> %d\n", endpoint, code);
+        state.vanpi_connected = false;
+        // Host unreachable / refused: back off for 5 seconds before next network call
+        vanpi_fail_backoff_until = millis() + 5000;
+        Serial.printf("[HTTP] GET %s -> %d (pause 5s)\n", endpoint, code);
     }
     http.end();
 }
@@ -254,12 +369,12 @@ void http_loop() {
                     break;
                 }
                 case 4: {
-                    String dummy = "{\"temp1\":{\"state\":\"22.4\",\"name\":\"Innen\"},\"temp2\":{\"state\":\"14.6\",\"name\":\"Aussen\"},\"temp3\":{\"state\":\"52.0\",\"name\":\"Feuchte\"}}";
+                    String dummy = "{\"temp1\":{\"state\":\"22.4\",\"name\":\"Innen\"},\"temp2\":{\"state\":\"14.6\",\"name\":\"Aussen\"},\"temp3\":{\"state\":\"52.0\",\"name\":\"Feuchte\"},\"temp4\":{\"state\":\"7.8\",\"name\":\"Kuehlbox\"}}";
                     parse_temp_json(dummy);
                     break;
                 }
                 case 5: {
-                    String dummy = "{\"autoterm1\":{\"heatertoggle\":true,\"heatstatus\":\"run\",\"targettemp_vanpi\":\"21.5\",\"powerlevel\":\"5\",\"mode\":\"temp\"}}";
+                    String dummy = "{\"autoterm1\":{\"heatertoggle\":true,\"heatstatus\":\"heating\",\"heaterror\":\"no\",\"targettemp_vanpi\":\"21.5\",\"powerlevel\":\"5\",\"fanspeed\":0,\"mode\":\"temp mode\"}}";
                     parse_heater_json(dummy);
                     break;
                 }
@@ -301,6 +416,11 @@ void http_loop() {
     state.wifi_connected = true;
     state.wifi_rssi = WiFi.RSSI();
 
+    if (millis() < vanpi_fail_backoff_until) {
+        state.vanpi_connected = false;
+        return;
+    }
+
     if (millis() - last_http_poll > 500) {
         switch (poll_step) {
             case 0: fetch_endpoint("/batt",    parse_batt_json);    break;
@@ -319,6 +439,11 @@ void http_loop() {
                           state.solar_power,
                           state.indoor_temp,
                           state.pitch_angle, state.roll_angle);
+            Serial.printf("[CAMPER_UART] Heater: on=%d status='%s' err='%s' mode=%s target=%.1f lvl=%d | Dim: %d %d %d %d\n",
+                          state.heating_on, state.heater_status.c_str(), state.heater_error.c_str(),
+                          state.heater_vent_mode ? "vent" : (state.heater_power_mode ? "power" : "temp"),
+                          state.target_temp, state.heater_power_level,
+                          state.dimmer_val[0], state.dimmer_val[1], state.dimmer_val[2], state.dimmer_val[3]);
         }
 
         poll_step++;
@@ -327,7 +452,7 @@ void http_loop() {
     }
 }
 
-// --- Publishing ---
+// --- Publishing (Non-blocking: pushes to FreeRTOS queue, processed on Core 0) ---
 
 static void http_put(String endpoint) {
     if (WiFi.status() != WL_CONNECTED) return;
@@ -335,8 +460,8 @@ static void http_put(String endpoint) {
 
     HTTPClient http;
     http.begin(get_url() + endpoint);
-    http.setConnectTimeout(800);
-    http.setTimeout(3000);
+    http.setConnectTimeout(400);
+    http.setTimeout(1500);
     int code = http.PUT("");
     if (code != 200) {
         Serial.printf("[HTTP] PUT %s -> %d\n", endpoint.c_str(), code);
@@ -345,21 +470,58 @@ static void http_put(String endpoint) {
 }
 
 void http_publish_switch(int index, bool on) {
-    String val = on ? "true" : "false";
-    http_put("/relay/" + String(index + 1) + "/" + val);
     state.switch_state[index] = on;
+    char path[64];
+    snprintf(path, sizeof(path), "/relay/%d/%s", index + 1, on ? "true" : "false");
+    queue_cmd(path);
 }
 
 void http_publish_dimmer(int index, int val) {
-    http_put("/dimmer/" + String(index + 1) + "/" + String(val));
     state.dimmer_val[index] = val;
+    char path[64];
+    snprintf(path, sizeof(path), "/dimmer/%d/%d", index + 1, val);
+    queue_cmd(path);
 }
 
 void http_publish_heater_cmd(String mode, int value) {
-    http_put("/autoterm/" + mode + "/" + String(value));
+    char path[64];
+    snprintf(path, sizeof(path), "/autoterm/%s/%d", mode.c_str(), value);
+    queue_cmd(path);
 }
 
 void http_calibrate_position() {
     Serial.println("[HTTP] Calibrate position sensor requested");
-    fetch_endpoint("/position_sensor/?request=calibrate", [](String) {});
+    queue_cmd("/position_sensor/?request=calibrate");
+}
+
+// Dedicated FreeRTOS background task running on Core 0
+static void http_background_task(void *pvParameters) {
+    for (;;) {
+        // 1. Process any pending outgoing commands with immediate priority
+        HttpCmd cmd;
+        while (http_cmd_queue && xQueueReceive(http_cmd_queue, &cmd, 0) == pdTRUE) {
+            http_put(String(cmd.path));
+        }
+
+        // 2. Poll endpoints
+        http_loop();
+
+        // Short sleep so other Core 0 tasks (WiFi driver, idle) get time
+        vTaskDelay(pdMS_TO_TICKS(15));
+    }
+}
+
+void http_start_task() {
+    http_init();
+    // Pin to Core 0 (Core 1 is 100% dedicated to UI / LVGL!)
+    xTaskCreatePinnedToCore(
+        http_background_task,
+        "http_task",
+        10240,       // 10 KB stack
+        NULL,
+        1,           // Priority 1
+        NULL,
+        0            // Core 0
+    );
+    Serial.println("[HTTP] Background worker pinned to Core 0");
 }

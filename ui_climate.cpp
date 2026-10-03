@@ -8,6 +8,57 @@ static lv_obj_t *arc_target;
 static lv_obj_t *btn_start_stop;
 static lv_obj_t *lbl_btn_start_stop;
 static lv_obj_t *dd_mode;
+static lv_obj_t *lbl_heater_status;
+
+#define HEATER_HOLD_MS 5000
+
+// Translate the raw Autoterm "heatstatus" text from VanPi into a short German label.
+// Unknown values are shown as-is.
+static String heater_status_text(const String &raw) {
+    String s = raw; s.trim();
+    String l = s; l.toLowerCase();
+    if (l.length() == 0 || l == "wait")         return "Warte auf Daten...";
+    if (l == "standby" || l == "heater off")    return "Standby";
+    if (l == "heating" || l == "running")       return "Heizt";
+    if (l == "ventilation" || l == "only fan")  return "Lueftet";
+    if (l.indexOf("glow plug") >= 0)            return "Gluehkerze vorheizen";
+    if (l.indexOf("ignition 1") >= 0)           return "Zuendung 1";
+    if (l.indexOf("ignition 2") >= 0)           return "Zuendung 2";
+    if (l == "starting")                        return "Startet";
+    if (l == "warming up")                      return "Aufwaermen";
+    if (l == "cooling flame sensor")            return "Flammsensor kuehlt";
+    if (l == "cooling down")                    return "Abkuehlen";
+    if (l == "shutting down")                   return "Faehrt herunter";
+    if (l == "flame-out")                       return "Flammabriss!";
+    if (l == "no ignition error")               return "Fehler: Keine Zuendung";
+    if (l.indexOf("no fuel") >= 0)              return "Kein Kraftstoff? Neuer Versuch";
+    if (l == "unknown status")                  return "Status unbekannt";
+    return s;
+}
+
+static void update_status_label() {
+    if (!lbl_heater_status) return;
+    String txt = heater_status_text(state.heater_status);
+    String err = state.heater_error; err.trim();
+    bool has_err = err.length() > 0 && err != "no" && err != "0" && err != "null";
+    if (has_err) txt += " | Fehler: " + err;
+
+    if (strcmp(lv_label_get_text(lbl_heater_status), txt.c_str()) != 0) {
+        lv_label_set_text(lbl_heater_status, txt.c_str());
+    }
+
+    String l = state.heater_status; l.toLowerCase();
+    lv_color_t c = ui_theme_muted();
+    if (has_err || l.indexOf("error") >= 0 || l.indexOf("flame-out") >= 0 || l.indexOf("no fuel") >= 0) {
+        c = lv_color_hex(UI_COLOR_DANGER);
+    } else if (l == "heating" || l == "running" || l.indexOf("ignition") >= 0 || l.indexOf("glow") >= 0 ||
+               l == "starting" || l == "warming up") {
+        c = lv_color_hex(UI_COLOR_WARNING);
+    } else if (l == "ventilation" || l == "only fan") {
+        c = lv_color_hex(UI_COLOR_PRIMARY);
+    }
+    lv_obj_set_style_text_color(lbl_heater_status, c, 0);
+}
 
 static void update_arc_color(lv_obj_t *arc) {
     int val = lv_arc_get_value(arc);
@@ -53,8 +104,9 @@ static void update_ui_from_mode() {
     } else {
         lv_dropdown_set_selected(dd_mode, 0);
         lv_arc_set_range(arc_target, 10, 35);
-        int t = (int)state.target_temp;
+        int t = (int)(state.target_temp + 0.5f);
         if (t < 10) t = 20;
+        if (t > 35) t = 35;
         lv_arc_set_value(arc_target, t);
         lv_label_set_text_fmt(lbl_target, "Ziel: %d C", t);
     }
@@ -78,15 +130,26 @@ static void update_ui_from_mode() {
 static void dd_mode_event_cb(lv_event_t * e) {
     lv_obj_t * dd = lv_event_get_target(e);
     int sel = lv_dropdown_get_selected(dd);
+    state.heater_hold_until = millis() + HEATER_HOLD_MS;
     
     if (sel == 0) { state.heater_vent_mode = false; state.heater_power_mode = false; }
     else if (sel == 1) { state.heater_vent_mode = false; state.heater_power_mode = true; }
     else if (sel == 2) { state.heater_vent_mode = true; state.heater_power_mode = false; }
     
     update_ui_from_mode();
+
+    // Heater already running -> switch mode immediately
+    if (state.heating_on) {
+        String m = "temp";
+        int val = (int)state.target_temp;
+        if (state.heater_vent_mode) { m = "vent"; val = state.heater_power_level; }
+        else if (state.heater_power_mode) { m = "power"; val = state.heater_power_level; }
+        http_publish_heater_cmd(m, val);
+    }
 }
 
 static void btn_start_stop_event_cb(lv_event_t * e) {
+    state.heater_hold_until = millis() + HEATER_HOLD_MS;
     if (state.heating_on) {
         http_publish_heater_cmd("stop", 0);
         state.heating_on = false;
@@ -105,6 +168,7 @@ static void btn_start_stop_event_cb(lv_event_t * e) {
 static void arc_target_event_cb(lv_event_t * e) {
     lv_obj_t * arc = lv_event_get_target(e);
     int val = lv_arc_get_value(arc);
+    state.heater_hold_until = millis() + HEATER_HOLD_MS;
     
     if (state.heater_vent_mode) {
         state.heater_power_level = val;
@@ -136,16 +200,28 @@ void ui_update_climate_tab() {
     if (lbl_outdoor) {
         ui_label_set_float(lbl_outdoor, "%.1f C", state.outdoor_temp);
     }
+
+    update_status_label();
+
+    // Don't touch controls while the user is interacting with them
+    if (lv_obj_has_state(arc_target, LV_STATE_PRESSED) || lv_dropdown_is_open(dd_mode)) return;
     
     int expected_sel = 0;
     if (state.heater_vent_mode) expected_sel = 2;
     else if (state.heater_power_mode) expected_sel = 1;
+
+    int expected_val;
+    if (expected_sel == 0) {
+        expected_val = (int)(state.target_temp + 0.5f);
+        if (expected_val < 10) expected_val = 20;
+        if (expected_val > 35) expected_val = 35;
+    } else {
+        expected_val = constrain(state.heater_power_level, 1, 10);
+    }
     
     bool arc_needs_update = false;
-    if (expected_sel != lv_dropdown_get_selected(dd_mode)) arc_needs_update = true;
-    
-    if (expected_sel == 0 && lv_arc_get_value(arc_target) != (int)state.target_temp) arc_needs_update = true;
-    if (expected_sel > 0 && lv_arc_get_value(arc_target) != state.heater_power_level) arc_needs_update = true;
+    if (expected_sel != (int)lv_dropdown_get_selected(dd_mode)) arc_needs_update = true;
+    if (lv_arc_get_value(arc_target) != expected_val) arc_needs_update = true;
     
     if (arc_needs_update) {
         update_ui_from_mode();
@@ -201,6 +277,10 @@ void ui_build_climate(lv_obj_t *parent) {
     lv_obj_set_style_border_width(dd_mode, 1, 0);
     lv_obj_set_style_text_color(dd_mode, ui_theme_text(), 0);
     lv_obj_set_style_text_font(dd_mode, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_pad_top(dd_mode, 19, LV_PART_MAIN);
+    lv_obj_set_style_pad_bottom(dd_mode, 19, LV_PART_MAIN);
+    lv_obj_set_style_pad_left(dd_mode, 14, LV_PART_MAIN);
+    lv_obj_set_style_pad_right(dd_mode, 36, LV_PART_MAIN);
     lv_obj_set_style_shadow_width(dd_mode, 8, 0);
     lv_obj_set_style_shadow_ofs_y(dd_mode, 3, 0);
     
@@ -249,6 +329,19 @@ void ui_build_climate(lv_obj_t *parent) {
     lv_obj_set_style_text_font(lbl_target, &lv_font_montserrat_18, 0);
     lv_obj_set_style_text_color(lbl_target, ui_theme_muted(), 0);
     lv_obj_align_to(lbl_target, arc_target, LV_ALIGN_CENTER, 0, 26);
+
+    // Heater Status Text (below the arc, e.g. "Standby", "Heizt", "Zuendung 1")
+    lbl_heater_status = lv_label_create(parent);
+    lv_obj_set_width(lbl_heater_status, 400);
+    lv_label_set_long_mode(lbl_heater_status, LV_LABEL_LONG_DOT);
+    lv_obj_set_style_text_align(lbl_heater_status, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_style_text_font(lbl_heater_status, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_color(lbl_heater_status, ui_theme_muted(), 0);
+    lv_label_set_text(lbl_heater_status, "");
+    // Arc bottom = 56 + 230 = 286; the arc ends + knob reach down to ~267,
+    // the Start/Stop button starts at 306 -> place label at ~268..288.
+    lv_obj_align_to(lbl_heater_status, arc_target, LV_ALIGN_OUT_BOTTOM_MID, 0, -18);
+    update_status_label();
 
     // ==========================================
     // 3. Controls (Bottom Row: Centered Start/Stop Button)
