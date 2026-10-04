@@ -1,4 +1,7 @@
 #include "ui_main.h"
+#include "HWCDC.h"
+
+extern HWCDC USBSerial;
 
 void ui_build_home(lv_obj_t *parent);
 
@@ -23,12 +26,80 @@ static lv_obj_t *badge_fresh;
 static lv_obj_t *badge_waste;
 
 static constexpr uint8_t PAGE_COUNT = 9;
+static constexpr lv_coord_t SCREEN_WIDTH = 480;
+static constexpr lv_coord_t SCREEN_HEIGHT = 480;
+static constexpr lv_coord_t STATUS_HEIGHT = 40;
+static constexpr lv_coord_t NAV_HEIGHT = 60;
+static constexpr lv_coord_t CONTENT_HEIGHT = SCREEN_HEIGHT - STATUS_HEIGHT - NAV_HEIGHT;
+static constexpr lv_coord_t NAV_BUTTON_WIDTH = 68;
+static constexpr lv_coord_t NAV_BUTTON_HEIGHT = 48;
+static constexpr lv_coord_t NAV_PADDING = 3;
+static constexpr lv_coord_t NAV_GAP = 4;
 static lv_obj_t *content;
 static lv_obj_t *pages[PAGE_COUNT] = {};
 static uint8_t active_page = 0;
 static bool rebuild_pending = false;
 static lv_obj_t *home_nav;
 static lv_obj_t *home_nav_buttons[PAGE_COUNT] = {};
+static lv_coord_t nav_scroll_x = 0;
+
+// Observe coordinates; never hide a failure by repositioning the strip in a timer.
+void ui_debug_navigation(const char *stage, bool force) {
+    if (!scr_main || !home_nav || !content || !status_bar || rebuild_pending) return;
+    static uint8_t last_faults = 0;
+    static lv_area_t last_nav_area = {};
+    if (!lv_obj_is_valid(home_nav) || !lv_obj_is_valid(content) || !lv_obj_is_valid(status_bar)) {
+        USBSerial.printf("[NAV v8] %s: invalid UI object\n", stage);
+        return;
+    }
+
+    lv_area_t nav_area, content_area, status_area, screen_area;
+    lv_obj_get_coords(home_nav, &nav_area);
+    lv_obj_get_coords(content, &content_area);
+    lv_obj_get_coords(status_bar, &status_area);
+    lv_obj_get_coords(scr_main, &screen_area);
+    uint8_t faults = 0;
+    auto region_ok = [&screen_area](const lv_area_t &area, lv_coord_t y, lv_coord_t height) {
+        return area.x1 == screen_area.x1 && area.y1 == screen_area.y1 + y &&
+               lv_area_get_width(&area) == SCREEN_WIDTH && lv_area_get_height(&area) == height;
+    };
+    if (!region_ok(nav_area, SCREEN_HEIGHT - NAV_HEIGHT, NAV_HEIGHT)) faults |= 1;
+    if (!region_ok(content_area, STATUS_HEIGHT, CONTENT_HEIGHT)) faults |= 2;
+    if (!region_ok(status_area, 0, STATUS_HEIGHT)) faults |= 4;
+    if (lv_obj_get_scroll_y(home_nav) != 0) faults |= 8;
+    if (lv_obj_get_parent(home_nav) != scr_main || lv_obj_has_flag(home_nav, LV_OBJ_FLAG_HIDDEN)) faults |= 16;
+    if (screen_area.x1 != 0 || screen_area.y1 != 0 ||
+        lv_area_get_width(&screen_area) != SCREEN_WIDTH || lv_area_get_height(&screen_area) != SCREEN_HEIGHT) faults |= 32;
+
+    const bool moved = nav_area.x1 != last_nav_area.x1 || nav_area.y1 != last_nav_area.y1 ||
+                       nav_area.x2 != last_nav_area.x2 || nav_area.y2 != last_nav_area.y2;
+    if (force || faults != last_faults || (faults && moved)) {
+        lv_mem_monitor_t memory;
+        lv_mem_monitor(&memory);
+        USBSerial.printf("[NAV v8] %s page=%u faults=%u nav=(%d,%d) %dx%d scroll=(%d,%d) "
+                         "content=(%d,%d) %dx%d lvgl_free=%u frag=%u%%\n",
+                         stage, (unsigned)active_page, (unsigned)faults,
+                         (int)nav_area.x1, (int)nav_area.y1,
+                         (int)lv_area_get_width(&nav_area), (int)lv_area_get_height(&nav_area),
+                         (int)lv_obj_get_scroll_x(home_nav), (int)lv_obj_get_scroll_y(home_nav),
+                         (int)content_area.x1, (int)content_area.y1,
+                         (int)lv_area_get_width(&content_area), (int)lv_area_get_height(&content_area),
+                         (unsigned)memory.free_size, (unsigned)memory.frag_pct);
+    }
+    last_faults = faults;
+    last_nav_area = nav_area;
+}
+
+// The screen chrome is independent of theme layouts and parent scrolling.
+static void setup_fixed_region(lv_obj_t *obj, lv_coord_t y, lv_coord_t height) {
+    lv_obj_remove_style_all(obj);
+    lv_obj_set_pos(obj, 0, y);
+    lv_obj_set_size(obj, SCREEN_WIDTH, height);
+    lv_obj_set_style_bg_opa(obj, LV_OPA_COVER, 0);
+    lv_obj_add_flag(obj, LV_OBJ_FLAG_FLOATING);
+    lv_obj_clear_flag(obj, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_SCROLL_CHAIN |
+                          LV_OBJ_FLAG_GESTURE_BUBBLE | LV_OBJ_FLAG_OVERFLOW_VISIBLE);
+}
 
 static void update_home_nav() {
     uint16_t active = active_page;
@@ -37,8 +108,7 @@ static void update_home_nav() {
         if (i == active) lv_obj_add_state(home_nav_buttons[i], LV_STATE_CHECKED);
         else lv_obj_clear_state(home_nav_buttons[i], LV_STATE_CHECKED);
     }
-    if (active < PAGE_COUNT && home_nav_buttons[active])
-        lv_obj_scroll_to_view(home_nav_buttons[active], LV_ANIM_ON);
+    // A tap changes only the selected page. Scrolling belongs to the user.
 }
 
 static void select_page(uint8_t index) {
@@ -51,6 +121,9 @@ static void select_page(uint8_t index) {
     if (index == 2) ui_trigger_power_anim();
     else if (index == 3) ui_trigger_water_anim();
     update_home_nav();
+    // Refresh newly selected controls immediately, rather than waiting for
+    // the next periodic update after leaving them dormant in the background.
+    ui_update_visible_page();
 }
 
 static void home_nav_clicked(lv_event_t *event) {
@@ -114,8 +187,12 @@ void ui_apply_theme() {
     if (home_nav) {
         lv_obj_set_style_bg_color(home_nav, ui_theme_card(), 0);
         for (int i = 0; i < PAGE_COUNT; ++i) {
+            if (!home_nav_buttons[i]) continue;
             lv_obj_set_style_bg_color(home_nav_buttons[i], ui_theme_card(), 0);
             lv_obj_set_style_text_color(home_nav_buttons[i], ui_theme_muted(), 0);
+            lv_obj_set_style_bg_color(home_nav_buttons[i], ui_theme_track(), LV_STATE_PRESSED);
+            lv_obj_set_style_bg_color(home_nav_buttons[i], lv_color_hex(UI_COLOR_PRIMARY), LV_STATE_CHECKED);
+            lv_obj_set_style_text_color(home_nav_buttons[i], lv_color_hex(0xffffff), LV_STATE_CHECKED);
         }
     }
 }
@@ -125,6 +202,7 @@ static void rebuild_ui(void *) {
     rebuild_pending = false;
     lv_obj_t *old_main = scr_main;
     lv_obj_t *old_settings = scr_settings;
+    if (home_nav) nav_scroll_x = lv_obj_get_scroll_x(home_nav);
     lv_obj_t *temporary = lv_obj_create(nullptr);
     lv_scr_load(temporary);
     if (old_main) lv_obj_del(old_main);
@@ -139,7 +217,10 @@ void ui_init() {
     if (scr_main) {
         if (!rebuild_pending) {
             rebuild_pending = true;
-            lv_async_call(rebuild_ui, nullptr);
+            if (lv_async_call(rebuild_ui, nullptr) != LV_RES_OK) {
+                rebuild_pending = false;
+                LV_LOG_WARN("Could not schedule UI rebuild");
+            }
         }
         return;
     }
@@ -157,10 +238,10 @@ void ui_init() {
     
     // Create Main Screen
     scr_main = lv_obj_create(NULL);
+    lv_obj_remove_style_all(scr_main);
     lv_obj_clear_flag(scr_main, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_set_size(scr_main, 480, 480);
-    lv_obj_set_style_pad_all(scr_main, 0, 0);
-    lv_obj_set_style_border_width(scr_main, 0, 0);
+    lv_obj_set_size(scr_main, SCREEN_WIDTH, SCREEN_HEIGHT);
+    lv_obj_set_style_bg_opa(scr_main, LV_OPA_COVER, 0);
     lv_obj_set_style_bg_color(scr_main, ui_theme_bg(), 0);
 
     // Initialize Settings Screen
@@ -168,10 +249,7 @@ void ui_init() {
 
     // 1. Status Bar (Height = 40px)
     status_bar = lv_obj_create(scr_main);
-    lv_obj_set_size(status_bar, 480, 40);
-    lv_obj_set_style_pad_all(status_bar, 0, 0);
-    lv_obj_align(status_bar, LV_ALIGN_TOP_MID, 0, 0);
-    lv_obj_set_style_radius(status_bar, 0, 0);
+    setup_fixed_region(status_bar, 0, STATUS_HEIGHT);
     lv_obj_set_style_border_width(status_bar, 1, 0);
     lv_obj_set_style_border_side(status_bar, LV_BORDER_SIDE_BOTTOM, 0);
     lv_obj_clear_flag(status_bar, LV_OBJ_FLAG_SCROLLABLE);
@@ -257,17 +335,12 @@ void ui_init() {
 
     // One fixed viewport. Pages cannot move or recreate the global bars.
     content = lv_obj_create(scr_main);
-    lv_obj_set_pos(content, 0, 40);
-    lv_obj_set_size(content, 480, 380);
-    lv_obj_set_style_pad_all(content, 0, 0);
-    lv_obj_set_style_border_width(content, 0, 0);
-    lv_obj_set_style_radius(content, 0, 0);
-    lv_obj_clear_flag(content, LV_OBJ_FLAG_SCROLLABLE);
+    setup_fixed_region(content, STATUS_HEIGHT, CONTENT_HEIGHT);
     lv_obj_set_style_bg_color(content, ui_theme_bg(), 0);
     for (uint8_t i = 0; i < PAGE_COUNT; ++i) {
         pages[i] = lv_obj_create(content);
         lv_obj_set_pos(pages[i], 0, 0);
-        lv_obj_set_size(pages[i], 480, 380);
+        lv_obj_set_size(pages[i], SCREEN_WIDTH, CONTENT_HEIGHT);
         lv_obj_set_style_radius(pages[i], 0, 0);
         lv_obj_set_style_border_width(pages[i], 0, 0);
         lv_obj_set_style_bg_opa(pages[i], LV_OPA_TRANSP, 0);
@@ -300,66 +373,84 @@ void ui_init() {
 
     // The only navigation strip: a fixed sibling of status bar and content.
     home_nav = lv_obj_create(scr_main);
-    lv_obj_set_pos(home_nav, 0, 420);
-    lv_obj_set_size(home_nav, 480, 60);
-    lv_obj_add_flag(home_nav, LV_OBJ_FLAG_FLOATING);
-    lv_obj_set_style_pad_all(home_nav, 3, 0);
-    lv_obj_set_style_pad_column(home_nav, 4, 0);
-    lv_obj_set_style_border_width(home_nav, 0, 0);
-    lv_obj_set_style_radius(home_nav, 0, 0);
+    setup_fixed_region(home_nav, SCREEN_HEIGHT - NAV_HEIGHT, NAV_HEIGHT);
+    lv_obj_set_style_pad_hor(home_nav, NAV_PADDING, 0);
     lv_obj_set_style_bg_color(home_nav, ui_theme_card(), 0);
-    lv_obj_set_flex_flow(home_nav, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(home_nav, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    // Explicit positions keep button geometry identical in every state/theme.
+    lv_obj_add_flag(home_nav, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_scroll_dir(home_nav, LV_DIR_HOR);
-    lv_obj_set_scrollbar_mode(home_nav, LV_SCROLLBAR_MODE_AUTO);
-    lv_obj_clear_flag(home_nav, LV_OBJ_FLAG_SCROLL_ELASTIC);
-    lv_obj_clear_flag(home_nav, LV_OBJ_FLAG_SCROLL_CHAIN_HOR);
-    const char *nav_icons[9] = {MDI_HOME, MDI_LIGHTBULB, MDI_BATTERY_CHARGING,
+    lv_obj_set_scrollbar_mode(home_nav, LV_SCROLLBAR_MODE_OFF);
+    lv_obj_clear_flag(home_nav, LV_OBJ_FLAG_SCROLL_ELASTIC | LV_OBJ_FLAG_SCROLL_MOMENTUM);
+    const char *nav_icons[PAGE_COUNT] = {MDI_HOME, MDI_LIGHTBULB, MDI_BATTERY_CHARGING,
         MDI_WATER, MDI_THERMOMETER, MDI_FAN, MDI_TOGGLE_SWITCH, MDI_SPIRIT_LEVEL, MDI_TUNE};
     for (uintptr_t i = 0; i < PAGE_COUNT; ++i) {
         lv_obj_t *button = lv_btn_create(home_nav);
         home_nav_buttons[i] = button;
-        lv_obj_set_size(button, 68, 48);
-        lv_obj_set_style_pad_all(button, 0, 0);
+        // Remove the default button grow/transition and focus-autoscroll effects.
+        lv_obj_remove_style_all(button);
+        lv_obj_clear_flag(button, LV_OBJ_FLAG_SCROLL_ON_FOCUS);
+        lv_obj_set_pos(button, i * (NAV_BUTTON_WIDTH + NAV_GAP),
+                       (NAV_HEIGHT - NAV_BUTTON_HEIGHT) / 2);
+        lv_obj_set_size(button, NAV_BUTTON_WIDTH, NAV_BUTTON_HEIGHT);
+        lv_obj_set_style_bg_opa(button, LV_OPA_COVER, 0);
         lv_obj_set_style_radius(button, 10, 0);
-        lv_obj_set_style_shadow_width(button, 0, 0);
-        lv_obj_set_style_bg_color(button, ui_theme_card(), 0);
-        lv_obj_set_style_bg_color(button, lv_color_hex(0x263b52), LV_STATE_CHECKED);
-        lv_obj_set_style_text_color(button, ui_theme_muted(), 0);
-        lv_obj_set_style_text_color(button, lv_color_hex(0xb8ccfa), LV_STATE_CHECKED);
+        lv_obj_set_style_outline_width(button, 2, LV_STATE_FOCUS_KEY);
+        lv_obj_set_style_outline_color(button, lv_color_hex(UI_COLOR_PRIMARY), LV_STATE_FOCUS_KEY);
         lv_obj_add_event_cb(button, home_nav_clicked, LV_EVENT_CLICKED, (void *)i);
         lv_obj_t *icon = lv_label_create(button);
         lv_label_set_text(icon, nav_icons[i]);
         lv_obj_set_style_text_font(icon, &ui_font_mdi_32, 0);
         lv_obj_center(icon);
     }
+    ui_apply_theme();
+    lv_obj_update_layout(scr_main);
+    lv_obj_scroll_to_x(home_nav, nav_scroll_x, LV_ANIM_OFF);
     select_page(active_page);
     lv_obj_move_foreground(status_bar);
     lv_obj_move_foreground(home_nav);
-    ui_apply_theme();
     lv_scr_load(scr_main);
+    ui_update_data();
+    ui_update_visible_page();
+    ui_debug_navigation("init", true);
+}
+
+void ui_update_visible_page() {
+    if (lv_scr_act() != scr_main) return;
+    switch (active_page) {
+        case 1: ui_update_dimmers_tab(); break;
+        case 2: ui_update_power_tab(); break;
+        case 3: ui_update_water_tab(); break;
+        case 4: ui_update_climate_tab(); break;
+        case 6: ui_update_switches_tab(); break;
+        case 7: ui_update_level_tab(); break;
+        // Home and MaxxFan previews update through their own event handlers.
+        default: break;
+    }
 }
 
 void ui_update_data() {
+    if (lv_scr_act() != scr_main) return;
     // Update Status Bar
     if (state.wifi_connected) {
         lv_obj_clear_flag(lbl_wifi, LV_OBJ_FLAG_HIDDEN);
-        if (state.wifi_rssi > -60) lv_obj_set_style_text_color(lbl_wifi, lv_color_hex(UI_COLOR_SUCCESS), 0);
-        else if (state.wifi_rssi > -80) lv_obj_set_style_text_color(lbl_wifi, lv_color_hex(UI_COLOR_WARNING), 0);
-        else lv_obj_set_style_text_color(lbl_wifi, lv_color_hex(UI_COLOR_DANGER), 0);
+        if (state.wifi_rssi > -60) ui_text_color_if_changed(lbl_wifi, lv_color_hex(UI_COLOR_SUCCESS), 0);
+        else if (state.wifi_rssi > -80) ui_text_color_if_changed(lbl_wifi, lv_color_hex(UI_COLOR_WARNING), 0);
+        else ui_text_color_if_changed(lbl_wifi, lv_color_hex(UI_COLOR_DANGER), 0);
     } else {
         lv_obj_add_flag(lbl_wifi, LV_OBJ_FLAG_HIDDEN);
     }
 
-    lv_label_set_text_fmt(lbl_soc, "%d%%", state.bat_soc);
+    char soc_text[16];
+    snprintf(soc_text, sizeof(soc_text), "%d%%", state.bat_soc);
+    ui_label_set_text_if_changed(lbl_soc, soc_text);
     if (state.battery_icon_mode) {
         lv_obj_clear_flag(lbl_soc_icon, LV_OBJ_FLAG_HIDDEN);
         if (state.bat_soc <= state.warn_bat_soc) {
-            lv_obj_set_style_text_color(lbl_soc_icon, lv_color_hex(UI_COLOR_DANGER), 0);
+            ui_text_color_if_changed(lbl_soc_icon, lv_color_hex(UI_COLOR_DANGER), 0);
         } else if (state.bat_soc <= 40) {
-            lv_obj_set_style_text_color(lbl_soc_icon, lv_color_hex(UI_COLOR_WARNING), 0);
+            ui_text_color_if_changed(lbl_soc_icon, lv_color_hex(UI_COLOR_WARNING), 0);
         } else {
-            lv_obj_set_style_text_color(lbl_soc_icon, lv_color_hex(UI_COLOR_SUCCESS), 0);
+            ui_text_color_if_changed(lbl_soc_icon, lv_color_hex(UI_COLOR_SUCCESS), 0);
         }
     } else {
         lv_obj_add_flag(lbl_soc_icon, LV_OBJ_FLAG_HIDDEN);
@@ -419,11 +510,11 @@ void ui_update_data() {
     }
     
     // Update Debug Info
-    if (lbl_debug_info != NULL) {
+    if (active_page == 8 && lbl_debug_info != NULL) {
         String debug_txt = "WLAN: ";
         if (state.wifi_connected) debug_txt += "Verbunden (" + String(state.wifi_rssi) + " dBm)\n";
         else debug_txt += "Getrennt (Suche '" + state.wifi_ssid + "')\n";
         
-        lv_label_set_text(lbl_debug_info, debug_txt.c_str());
+        ui_label_set_text_if_changed(lbl_debug_info, debug_txt.c_str());
     }
 }

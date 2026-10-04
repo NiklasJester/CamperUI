@@ -92,7 +92,8 @@ void ui_build_maxxfan(lv_obj_t *parent) {
     lv_obj_set_scroll_dir(parent, LV_DIR_VER);
     lv_obj_set_scrollbar_mode(parent, LV_SCROLLBAR_MODE_AUTO);
     text(parent, "MAXXFAN", 0, 0);
-    text(parent, "Demo", 414, 0, &lv_font_montserrat_12);
+    lv_obj_t *version = text(parent, "Demo " CAMPERUI_VERSION, 0, 0, &lv_font_montserrat_12);
+    lv_obj_align(version, LV_ALIGN_TOP_RIGHT, 0, 0);
 
     lv_obj_t *lid = panel(parent, 0, 26, 464, 80);
     lid_image = lv_img_create(lid);

@@ -28,7 +28,8 @@ void ui_build_home(lv_obj_t *parent) {
     lv_obj_add_flag(parent, LV_OBJ_FLAG_SCROLLABLE);
 
     label(parent, "HOME", 0, 0, &lv_font_montserrat_12, 0x94a3b8);
-    label(parent, "Demo", 396, 0, &lv_font_montserrat_12, 0x94a3b8);
+    lv_obj_t *version = label(parent, "Demo " CAMPERUI_VERSION, 0, 0, &lv_font_montserrat_12, 0x94a3b8);
+    lv_obj_align(version, LV_ALIGN_TOP_RIGHT, 0, 0);
 
     const char *names[] = {"Taster Favorit 1", "Taster Favorit 2"};
     for (int i = 0; i < 2; ++i) {

@@ -188,14 +188,23 @@ Lüfterbetrieb. Eine allein geöffnete Klappe aktiviert es nicht.
 Reset setzt nur die Vorschau zurück. MaxxFan-Einstellungen und VanPi-Anbindung
 folgen nach Klärung der Befehle und Statusfelder.
 
-### Feste Hauptnavigation (Layout v7)
+### Feste Hauptnavigation (Layout v8)
 
 Die Hauptansicht hat drei getrennte Bereiche: Statusleiste (y=0, Höhe 40),
 Content (y=40, Höhe 380), Navigation (y=420, Höhe 60). Die neun Hauptseiten
 liegen im Content-Container und werden nur ein-/ausgeblendet. Die Navigation
-wird einmal erstellt und bleibt horizontal scrollbar. Das frühere Haupt-Tabview
+wird einmal erstellt und bleibt per Finger horizontal scrollbar. Ein Seitenklick
+verschiebt die Leiste nicht automatisch; Nachlauf, elastisches Scrollen und
+Fokus-Autoscroll sind deaktiviert. Die feste Geometrie der Leiste und ihrer
+Buttons ist unabhängig vom Standard-Theme; Buttons wachsen beim Drücken nicht.
+Die Leistenposition bleibt beim Farbmoduswechsel erhalten. Das frühere Haupt-Tabview
 mit zusätzlich versteckter Icon-Leiste ist entfernt. Die separaten
 System-Einstellungen behalten ihre eigenen Einstellungsreiter.
+
+Die Testanleitung steht in `TEST-HOME.md`. Die serielle Startmeldung `[NAV v8]`
+kennzeichnet diesen Stand. Mit `n` im seriellen Monitor lassen sich die aktuelle
+Geometrie und der LVGL-Speicher prüfen. Vor und nach den regulären Datenupdates
+werden Geometrieabweichungen protokolliert, ohne die Leiste zurückzusetzen.
 
 Beim Farbmoduswechsel wird der UI-Neuaufbau nach dem Event durchgeführt;
 die alten Screens werden vorher gelöscht. So sammeln sich keine alten Screens an.

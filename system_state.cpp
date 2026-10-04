@@ -1,4 +1,5 @@
 #include "system_state.h"
+#include "display_sync.h"
 
 // Optional local credentials; builds without this file remain supported.
 #if __has_include("config/wifi_secrets.h")
@@ -166,5 +167,6 @@ void state_save() {
     }
     prefs.putInt("pump_relay", state.pump_relay);
     prefs.putInt("drain_relay", state.drain_relay);
+    display_request_resync();
 }
 

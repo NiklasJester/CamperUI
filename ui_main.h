@@ -4,6 +4,8 @@
 #include <lvgl.h>
 #include "system_state.h"
 #include "ui_mdi_icons.h"
+#include <string.h>
+#define CAMPERUI_VERSION "V8.5"
 
 // ==========================================
 // Modern Automotive / Camper Color Palette
@@ -34,19 +36,32 @@ static inline lv_color_t ui_theme_text() { return state.dark_mode ? lv_color_hex
 static inline lv_color_t ui_theme_muted() { return state.dark_mode ? lv_color_hex(UI_COLOR_MUTED_DARK) : lv_color_hex(UI_COLOR_MUTED_LIGHT); }
 static inline lv_color_t ui_theme_track() { return state.dark_mode ? lv_color_hex(UI_COLOR_TRACK_DARK) : lv_color_hex(UI_COLOR_TRACK_LIGHT); }
 
+// Avoid reallocating text and invalidating a label when its display is unchanged.
+static inline void ui_label_set_text_if_changed(lv_obj_t *lbl, const char *text) {
+    if (lbl && strcmp(lv_label_get_text(lbl), text) != 0) lv_label_set_text(lbl, text);
+}
+
+static inline void ui_text_color_if_changed(lv_obj_t *obj, lv_color_t color,
+                                            lv_style_selector_t selector = 0) {
+    if (obj && lv_obj_get_style_text_color(obj, selector & LV_PART_ANY).full != color.full)
+        lv_obj_set_style_text_color(obj, color, selector);
+}
+
 // Robust float-to-label formatter using C runtime snprintf
 static inline void ui_label_set_float(lv_obj_t *lbl, const char *fmt, float val) {
     if (!lbl) return;
     char buf[64];
     snprintf(buf, sizeof(buf), fmt, val);
-    lv_label_set_text(lbl, buf);
+    ui_label_set_text_if_changed(lbl, buf);
 }
 
 // Global UI Initialization
 void ui_init();
+void ui_debug_navigation(const char *stage, bool force = false);
 
 // Tab Updates
 void ui_update_data();
+void ui_update_visible_page();
 void ui_update_power_tab();
 void ui_update_water_tab();
 void ui_update_climate_tab();

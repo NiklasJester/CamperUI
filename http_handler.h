@@ -4,7 +4,7 @@
 #include <Arduino.h>
 
 void http_init();
-void http_start_task();
+bool http_start_task();
 void http_loop();
 
 void http_fetch_names();

@@ -511,17 +511,29 @@ static void http_background_task(void *pvParameters) {
     }
 }
 
-void http_start_task() {
+bool http_start_task() {
+    static TaskHandle_t worker = NULL;
+    if (worker) return true;
     http_init();
+    if (!http_cmd_queue) {
+        Serial.println("[HTTP] ERROR: command queue allocation failed; data worker not started");
+        return false;
+    }
     // Pin to Core 0 (Core 1 is 100% dedicated to UI / LVGL!)
-    xTaskCreatePinnedToCore(
+    BaseType_t result = xTaskCreatePinnedToCore(
         http_background_task,
         "http_task",
         10240,       // 10 KB stack
         NULL,
         1,           // Priority 1
-        NULL,
+        &worker,
         0            // Core 0
     );
+    if (result != pdPASS) {
+        worker = NULL;
+        Serial.println("[HTTP] ERROR: worker allocation failed; Demo/Live data unavailable");
+        return false;
+    }
     Serial.println("[HTTP] Background worker pinned to Core 0");
+    return true;
 }
