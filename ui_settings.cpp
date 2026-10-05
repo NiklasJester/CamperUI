@@ -3,6 +3,7 @@
 #include <ArduinoJson.h>
 #include <WiFi.h>
 
+static lv_obj_t *sw_debug = NULL, *sw_demo = NULL;
 static lv_obj_t * http_test_win = NULL;
 static lv_obj_t * http_lbl_result = NULL;
 
@@ -104,7 +105,17 @@ lv_obj_t *lbl_debug_info = NULL;
 
 static bool scan_in_progress = false;
 
+void ui_sync_demo_controls() {
+    lv_obj_t *controls[] = {sw_debug, sw_demo};
+    for (lv_obj_t *control : controls) {
+        if (!control || !lv_obj_is_valid(control)) continue;
+        if (state.debug_mode) lv_obj_add_state(control, LV_STATE_CHECKED);
+        else lv_obj_clear_state(control, LV_STATE_CHECKED);
+    }
+}
 void ui_update_settings_tab() {
+    ui_sync_demo_controls();
+    if (ui_home_settings_is_active()) ui_home_settings_refresh();
     if (scan_in_progress) {
         int n = WiFi.scanComplete();
         if (n >= 0) {
@@ -247,16 +258,28 @@ void ui_build_settings(lv_obj_t *parent) {
     lv_obj_set_style_text_color(lbl_open, lv_color_hex(0xffffff), 0);
     lv_obj_center(lbl_open);
     
+    lv_obj_t *btn_home = lv_btn_create(parent);
+    lv_obj_set_size(btn_home, 320, 48);
+    lv_obj_set_style_radius(btn_home, 14, 0);
+    lv_obj_set_style_bg_color(btn_home, lv_color_hex(UI_COLOR_PRIMARY), 0);
+    lv_obj_add_event_cb(btn_home, [](lv_event_t *) { ui_open_home_settings(); }, LV_EVENT_CLICKED, nullptr);
+    lv_obj_t *lbl_home = lv_label_create(btn_home);
+    lv_label_set_text(lbl_home, LV_SYMBOL_HOME " Home-Einstellungen");
+    lv_obj_set_style_text_font(lbl_home, &lv_font_montserrat_18, 0);
+    lv_obj_set_style_text_color(lbl_home, lv_color_hex(0xffffff), 0);
+    lv_obj_center(lbl_home);
+
     // Simulation / Debug Toggle Card
     lv_obj_t *card_dbg = ui_create_card(parent, 360, 56);
     lv_obj_set_style_pad_all(card_dbg, 10, 0);
     
-    lv_obj_t *sw_debug = lv_switch_create(card_dbg);
+    sw_debug = lv_switch_create(card_dbg);
     if (state.debug_mode) lv_obj_add_state(sw_debug, LV_STATE_CHECKED);
     lv_obj_align(sw_debug, LV_ALIGN_LEFT_MID, 0, 0);
     lv_obj_add_event_cb(sw_debug, [](lv_event_t * e) {
         lv_obj_t *sw = lv_event_get_target(e);
         state.debug_mode = lv_obj_has_state(sw, LV_STATE_CHECKED);
+        ui_sync_demo_controls();
         state_save();
     }, LV_EVENT_VALUE_CHANGED, NULL);
     
@@ -405,12 +428,13 @@ void ui_settings_screen_init() {
     }, LV_EVENT_VALUE_CHANGED, NULL);
     
     // Demo Mode Switch
-    lv_obj_t *sw_demo = lv_switch_create(t_gen);
+    sw_demo = lv_switch_create(t_gen);
     if(state.debug_mode) lv_obj_add_state(sw_demo, LV_STATE_CHECKED);
     lv_obj_align(sw_demo, LV_ALIGN_TOP_LEFT, 0, 160);
     lv_obj_add_event_cb(sw_demo, [](lv_event_t * e) {
         lv_obj_t *sw = lv_event_get_target(e);
         state.debug_mode = lv_obj_has_state(sw, LV_STATE_CHECKED);
+        ui_sync_demo_controls();
         state_save();
     }, LV_EVENT_VALUE_CHANGED, NULL);
     lv_obj_t *l_demo = lv_label_create(t_gen);

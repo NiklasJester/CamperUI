@@ -205,6 +205,7 @@ static void rebuild_ui(void *) {
     if (home_nav) nav_scroll_x = lv_obj_get_scroll_x(home_nav);
     lv_obj_t *temporary = lv_obj_create(nullptr);
     lv_scr_load(temporary);
+    ui_home_settings_destroy();
     if (old_main) lv_obj_del(old_main);
     if (old_settings) lv_obj_del(old_settings);
     scr_main = scr_settings = nullptr;
@@ -417,13 +418,14 @@ void ui_init() {
 void ui_update_visible_page() {
     if (lv_scr_act() != scr_main) return;
     switch (active_page) {
+        case 0: ui_update_home(); break;
         case 1: ui_update_dimmers_tab(); break;
         case 2: ui_update_power_tab(); break;
         case 3: ui_update_water_tab(); break;
         case 4: ui_update_climate_tab(); break;
         case 6: ui_update_switches_tab(); break;
         case 7: ui_update_level_tab(); break;
-        // Home and MaxxFan previews update through their own event handlers.
+        // MaxxFan remains a local preview with its own event handlers.
         default: break;
     }
 }
