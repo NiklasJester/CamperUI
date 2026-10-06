@@ -36,8 +36,8 @@ void layout() {
     if (count) y += 78;
     visible(battery, state.home_show_battery); visible(solar, state.home_show_solar);
     bool both = state.home_show_battery && state.home_show_solar;
-    lv_obj_set_pos(battery, 0, y); lv_obj_set_width(battery, both ? 240 : 464);
-    lv_obj_set_pos(solar, both ? 248 : 0, y); lv_obj_set_width(solar, both ? 216 : 464);
+    lv_obj_set_pos(battery, 0, y); lv_obj_set_width(battery, both ? 228 : 464);
+    lv_obj_set_pos(solar, both ? 236 : 0, y); lv_obj_set_width(solar, both ? 228 : 464);
     visible(starter, state.home_show_starter);
     if (state.home_show_battery || state.home_show_solar) y += 130;
     visible(water, state.home_show_water); lv_obj_set_pos(water, 0, y);
@@ -99,6 +99,8 @@ void ui_update_home() {
     }
     String soc = ready && (state.battery_fields & 4) ? String(state.bat_soc) : "--";
     snprintf(text, sizeof(text), "Batterie %s%%", soc.c_str()); ui_label_set_text_if_changed(bat_title, text);
+    ui_text_color_if_changed(bat_title, ready && (state.battery_fields & 4) ?
+        lv_color_hex(state.bat_soc < 20 ? UI_COLOR_DANGER : state.bat_soc <= 40 ? 0xffdf00 : UI_COLOR_SUCCESS) : ui_theme_muted());
     value(bat_power, "%.1f W", state.bat_voltage * state.bat_current, ready && (state.battery_fields & 3) == 3);
     String volts = ready && (state.battery_fields & 1) ? String(state.bat_voltage, 1) : "--";
     String amps = ready && (state.battery_fields & 2) ? String(state.bat_current, 1) : "--";
@@ -149,6 +151,7 @@ void ui_build_home(lv_obj_t *parent) {
     starter = label(battery, "Starter -- V", 0, 80, &lv_font_montserrat_12);
     solar = ui_create_card(parent, 216, 122); label(solar, "Solar", 0, 0, &lv_font_montserrat_16);
     solar_power = label(solar, "--", 0, 25, &lv_font_montserrat_28);
+    lv_obj_set_style_text_color(solar_power, lv_color_hex(UI_COLOR_WARNING), 0);
     solar_detail = label(solar, "-- V   -- A", 0, 58, &lv_font_montserrat_16);
     label(solar, "PV-Leistung", 0, 80, &lv_font_montserrat_12);
     water = ui_create_card(parent, 464, 60);

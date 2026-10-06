@@ -49,3 +49,27 @@ keine horizontale Wischnavigation.
 
 Erst nach bestandenem Ruhe- und Bedienungstest ist die Hardwarestabilitaet
 bestaetigt. Ein erfolgreicher Build allein bestaetigt sie nicht.
+
+
+# CamperUI V8.7
+
+## Aenderungen
+
+- Home: Batterie- und Solar-Karte nebeneinander gleich breit (228 Pixel; 8 Pixel Abstand).
+- Solar-Leistung verwendet dieselbe orange Farbe wie Batterie-Leistung.
+- Batterie-Ueberschrift: ueber 40 % gruen, 20 bis einschliesslich 40 % gelb, unter 20 % rot; ohne empfangenen SOC neutral.
+- Alle vier Home-Checkboxen haben feste, groessere Touchflaechen (212 × 40 Pixel) mit Abstand. Die LVGL-Checkbox selbst schaltet; es gibt keinen zweiten umschaltenden Klickhandler.
+- WLAN-Passwort: Auge zeigt/versteckt den eingegebenen Text. Beim erneuten Oeffnen der System-Einstellungen ist das Passwort wieder verdeckt.
+- Netzwerkseite: tatsaechlicher WLAN-Status, Netzwerkname, IP, Signalstaerke, Hostname, letzte Trennungsursache und Hinweise. Dummy-Daten simulieren keinen WLAN-Verbindungsstatus mehr.
+- WLAN und VanPi sind getrennt erkennbar. Eine funktionierende WLAN-Verbindung bedeutet noch nicht, dass VanPi erreichbar ist.
+- WLAN-Fehlercodes werden als Hinweise dargestellt. Ein Anmeldefehler beweist kein falsches Passwort: auch Signal oder Router-Regeln kommen infrage.
+
+## Pruefung auf dem Display
+
+1. Solar/Batterie nebeneinander vergleichen. Im Dummy-Modus muss Batterie 88 % gruen sein und Solar-Leistung orange erscheinen.
+2. Alle vier Checkboxen einzeln mehrfach am Kaestchen und am Text antippen; beim Scrollen darf keine versehentliche Umschaltung auftreten. Einstellungen nach Neustart pruefen.
+3. Auge zweimal betaetigen, Passwort bearbeiten, Seite verlassen und erneut oeffnen: Text wieder verdeckt. Das Passwort wird nicht in Diagnosemeldungen ausgegeben.
+4. WLAN-Verbindung und zugewiesene IP auf Netzwerkseite pruefen, auch wenn Dummy-Modus aktiv ist.
+5. Bei nicht erreichbarem WLAN die Fehleranzeige pruefen. Nach erfolgreicher Wiederverbindung soll der alte Fehler verschwinden. Danach echten VanPi-Zugriff separat pruefen.
+
+Das sporadische Schwarzbild beim Start ist mit diesem Update nicht als behoben nachgewiesen. Display-Treiber, RGB-Timing und Zeichenpuffer bleiben unveraendert; die WLAN-Diagnose kann bei der weiteren Eingrenzung helfen.

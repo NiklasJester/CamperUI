@@ -346,6 +346,8 @@ static void fetch_endpoint(const char* endpoint, void (*parser)(String)) {
 }
 
 void http_loop() {
+    state.wifi_connected = WiFi.status() == WL_CONNECTED;
+    state.wifi_rssi = state.wifi_connected ? WiFi.RSSI() : 0;
     static bool demo_relays_seeded = false;
     static bool demo_dimmers_seeded = false;
     if (state.data_is_demo != state.debug_mode) {
@@ -371,8 +373,6 @@ void http_loop() {
     // Simulation / Debug Mode: Use realistic dummy JSON payloads with strings
     // =========================================================================
     if (state.debug_mode) {
-        state.wifi_connected = true;
-        state.wifi_rssi = -55;
 
         if (millis() - last_http_poll > 500) {
             switch (poll_step) {
@@ -440,6 +440,7 @@ void http_loop() {
     // =========================================================================
     if (WiFi.status() != WL_CONNECTED) {
         state.wifi_connected = false;
+        state.vanpi_connected = false;
         return;
     }
     state.wifi_connected = true;

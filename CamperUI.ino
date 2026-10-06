@@ -2,6 +2,7 @@
 #include "Arduino_GFX_Library.h"
 #include "CamperRGBDisplay.h"
 #include "display_sync.h"
+#include "wifi_diagnostics.h"
 #include "lv_conf.h"
 #include "HWCDC.h"
 #include "TouchDrvGT911.hpp"
@@ -70,7 +71,7 @@ void my_disp_flush(lv_disp_drv_t *disp_drv, const lv_area_t *area, lv_color_t *c
         static bool error_reported = false;
         if (result != ESP_OK && !error_reported) {
             error_reported = true;
-            USBSerial.printf("[DISPLAY v8.6] Refresh resync failed: %s\n", esp_err_to_name(result));
+            USBSerial.printf("[DISPLAY v8.7] Refresh resync failed: %s\n", esp_err_to_name(result));
         }
     }
     lv_disp_flush_ready(disp_drv);
@@ -103,7 +104,7 @@ void my_touchpad_read(lv_indev_drv_t *indev_driver, lv_indev_data_t *data) {
             if (!invalid_logged || millis() - last_invalid_log >= 1000) {
                 invalid_logged = true;
                 last_invalid_log = millis();
-                USBSerial.printf("[TOUCH v8.6] Rejected sample: count=%u raw=(%d,%d)\n",
+                USBSerial.printf("[TOUCH v8.7] Rejected sample: count=%u raw=(%d,%d)\n",
                                  (unsigned)touched, (int)x[0], (int)y[0]);
             }
             data->state = LV_INDEV_STATE_REL;
@@ -242,7 +243,7 @@ void setup() {
 
     // Initialize Display
     if (!gfx->begin()) {
-        USBSerial.println("[DISPLAY v8.6] FATAL: RGB display initialization failed");
+        USBSerial.println("[DISPLAY v8.7] FATAL: RGB display initialization failed");
         while (true) delay(1000);
     }
     screenWidth = gfx->width();
@@ -252,11 +253,10 @@ void setup() {
     // draw buffer. Otherwise the UI may start while its data task cannot.
     // Credentials already persist in CamperUI Preferences; avoid a second
     // Flash write by the WiFi driver when reconnecting from Settings.
-    WiFi.setHostname("esp32s3-camper-ui");
-    WiFi.persistent(false);
-    WiFi.begin(state.wifi_ssid.c_str(), state.wifi_pass.c_str());
+    wifi_diagnostics_init();
+    wifi_connect_configured();
     const bool data_worker_started = http_start_task();
-    USBSerial.printf("[DATA v8.6] Source=%s worker=%s\n",
+    USBSerial.printf("[DATA v8.7] Source=%s worker=%s\n",
                      state.debug_mode ? "DEMO" : "LIVE HTTP",
                      data_worker_started ? "RUNNING" : "FAILED");
 
@@ -278,11 +278,11 @@ void setup() {
         buf1 = (lv_color_t *)heap_caps_malloc(buf_size * sizeof(lv_color_t), internal_caps);
     }
     if (!buf1) {
-        USBSerial.println("[DISPLAY v8.6] FATAL: internal LVGL draw buffer allocation failed");
+        USBSerial.println("[DISPLAY v8.7] FATAL: internal LVGL draw buffer allocation failed");
         // Never register a null buffer or silently increase PSRAM contention.
         while (true) delay(1000);
     }
-    USBSerial.printf("[DISPLAY v8.6] LVGL draw buffer: %u bytes, internal RAM only\n",
+    USBSerial.printf("[DISPLAY v8.7] LVGL draw buffer: %u bytes, internal RAM only\n",
                      (unsigned)(buf_size * sizeof(lv_color_t)));
 
 #if LV_USE_LOG != 0
@@ -323,14 +323,14 @@ void setup() {
 
     // Report memory after UI construction; the data worker started earlier.
 
-    USBSerial.printf("[DISPLAY v8.6] Internal heap after startup: free=%u largest=%u bytes\n",
+    USBSerial.printf("[DISPLAY v8.7] Internal heap after startup: free=%u largest=%u bytes\n",
                      (unsigned)heap_caps_get_free_size(internal_caps),
                      (unsigned)heap_caps_get_largest_free_block(internal_caps));
 
     USBSerial.println("CamperUI ready!");
-    USBSerial.println("[DISPLAY v8.6] Adaptive internal draw buffer active; f=framebuffer cache flush, s=RGB resync");
-    USBSerial.println("[DISPLAY v8.6] RGB pixel clock: 12 MHz (original panel timing)");
-    USBSerial.println("[TOUCH v8.6] n=geometry/memory, t=touch on/off, r=full screen redraw");
+    USBSerial.println("[DISPLAY v8.7] Adaptive internal draw buffer active; f=framebuffer cache flush, s=RGB resync");
+    USBSerial.println("[DISPLAY v8.7] RGB pixel clock: 12 MHz (original panel timing)");
+    USBSerial.println("[TOUCH v8.7] n=geometry/memory, t=touch on/off, r=full screen redraw");
 }
 
 static uint32_t last_ui_update = 0;
@@ -347,7 +347,7 @@ void loop() {
         // The IDF driver applies the restart at the next VSYNC, not mid-frame.
         gfx->flush(true);
         esp_err_t result = rgbpanel->restartTransmission();
-        USBSerial.printf("[DISPLAY v8.6] RGB resync scheduled after save/manual command: %s\n",
+        USBSerial.printf("[DISPLAY v8.7] RGB resync scheduled after save/manual command: %s\n",
                          esp_err_to_name(result));
     }
     lv_timer_handler();
@@ -363,17 +363,17 @@ void loop() {
             touch_input_enabled = !touch_input_enabled;
             ignore_touch_until_release = true;
             lv_indev_reset(NULL, NULL);
-            USBSerial.printf("[TOUCH v8.6] Touch %s (temporary, until reboot)\n",
+            USBSerial.printf("[TOUCH v8.7] Touch %s (temporary, until reboot)\n",
                              touch_input_enabled ? "ON" : "OFF");
         }
         if (c == 's' || c == 'S') display_request_resync();
         if (c == 'f' || c == 'F') {
             gfx->flush(true);
-            USBSerial.println("[DISPLAY v8.6] Framebuffer cache flush requested (no redraw)");
+            USBSerial.println("[DISPLAY v8.7] Framebuffer cache flush requested (no redraw)");
         }
         if (c == 'r' || c == 'R') {
             lv_obj_invalidate(lv_scr_act());
-            USBSerial.println("[NAV v8.6] Full screen redraw requested");
+            USBSerial.println("[NAV v8.7] Full screen redraw requested");
         }
         if (c == 'n' || c == 'N') {
             ui_debug_navigation("serial", true);

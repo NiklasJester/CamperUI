@@ -1,4 +1,6 @@
 #include "ui_main.h"
+#include "wifi_diagnostics.h"
+#include <WiFi.h>
 #include "HWCDC.h"
 
 extern HWCDC USBSerial;
@@ -513,10 +515,9 @@ void ui_update_data() {
     
     // Update Debug Info
     if (active_page == 8 && lbl_debug_info != NULL) {
-        String debug_txt = "WLAN: ";
-        if (state.wifi_connected) debug_txt += "Verbunden (" + String(state.wifi_rssi) + " dBm)\n";
-        else debug_txt += "Getrennt (Suche '" + state.wifi_ssid + "')\n";
-        
+        String debug_txt = wifi_connection_summary();
+        if (WiFi.status() == WL_CONNECTED) debug_txt += "\nIP: " + WiFi.localIP().toString();
+        debug_txt += state.debug_mode ? "\nDaten: Dummy" : "\nDaten: Live";
         ui_label_set_text_if_changed(lbl_debug_info, debug_txt.c_str());
     }
 }

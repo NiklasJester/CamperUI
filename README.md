@@ -219,3 +219,39 @@ Hardwareprüfung: alle neun Seiten mehrfach wechseln, die Navigation in beide
 Richtungen scrollen, MaxxFan AUF/ZU/EIN/AUS prüfen, System-Einstellungen öffnen
 und zurückkehren sowie Farbmodus mehrmals wechseln. Die korrekte Darstellung
 auf dem ESP32 ist zusätzlich zu den lokalen Logikprüfungen zu bestätigen.
+
+### Home und WLAN in V8.7
+
+Home nutzt die gemeinsamen Dummy-/Live-Daten statt eigener statischer Messwerte.
+Temperaturquellen, zwei Relais-/Dimmer-Favoriten, Tankquelle und sichtbare Karten
+lassen sich auf einer eigenen Home-Einstellungsseite zuweisen; der Zugang liegt
+unter dem System-Einstellungen-Button. Die Auswahl wird dauerhaft gespeichert.
+Vorhandene Dummy-Daten werden wiederverwendet, fehlende Kanaele ergaenzt.
+Fehlende Messwerte erscheinen als `--`. Starterspannung ist eine optionale
+`starter_voltage`-Erweiterung in `/batt`; ohne API-Wert bleibt die Live-Anzeige leer.
+MaxxFan bleibt eine lokale Vorschau ohne belegte Live-Anbindung.
+
+Batterie und Solar sind nebeneinander gleich breit. Solar-Watt erscheint orange;
+die Batterie-Ueberschrift ist ueber 40 % gruen, bei 20–40 % gelb und unter 20 % rot.
+Die Home-Checkboxen haben groessere, getrennte Touchflaechen.
+
+Die Netzwerkseite besitzt einen Passwort-Anzeigen/Verbergen-Taster und zeigt
+realen WLAN-Status, IP, RSSI, Hostname und den letzten Trennungsgrund mit Hinweisen.
+Auch im Dummy-Modus wird eine WLAN-Verbindung nicht mehr simuliert. WLAN und
+VanPi-Erreichbarkeit werden getrennt dargestellt. Passwortwerte erscheinen nicht
+in Diagnosemeldungen. Der Hostname lautet `esp32s3-camper-ui`.
+
+Die RGB-Ausgabe nutzt projektlokale Anpassungen aus Arduino_GFX 1.5.3 mit
+beibehaltenem BSD-Lizenztext. Sie erfordern Arduino-ESP32 3.x; die Ueberpruefung
+lief mit Core 3.3.12, LVGL 8.4.0 und Arduino_GFX 1.5.3. RGB-Timing bleibt 12 MHz,
+der LVGL-Zeichenpuffer liegt im internen RAM. Eine Resynchronisierung wird am
+Frame-Ende und nach Einstellungs-Speichervorgaengen angefordert.
+
+**Teststand und Grenzen:** V8.7 kompiliert erfolgreich fuer ESP32-S3 mit OPI-PSRAM
+und 16-MB-Flash. Der Hardwaretester berichtet mehrere erfolgreiche Resets und
+Aus-/Einstecktests an einer Powerbank sowie eine leichtere WLAN-Einrichtung.
+Die gelegentliche Bildverschiebung ist deutlich reduziert, aber nicht als
+vollstaendig behoben bestaetigt. Ein schwarzes/verzoegertes Bild beim PC-Betrieb
+bzw. Schliessen der Arduino IDE bleibt offen; beim Powerbank-Test wurde ein
+anderes Kabel verwendet. Langzeittest, Live-Daten und Live-Schaltbefehle sind
+noch gesondert zu validieren. Dies ist keine Freigabe als fertige stabile Firmware.

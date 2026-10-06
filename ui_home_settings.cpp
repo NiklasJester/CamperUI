@@ -25,7 +25,13 @@ void visibility_changed(lv_event_t *event) {
 }
 void checkbox(lv_obj_t *parent, const char *text, int x, int y, bool *setting) {
     lv_obj_t *obj = lv_checkbox_create(parent); lv_checkbox_set_text(obj, text);
-    lv_obj_set_pos(obj, x, y);
+    lv_obj_set_pos(obj, x, y); lv_obj_set_size(obj, 212, 40);
+    lv_obj_clear_flag(obj, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_style_pad_all(obj, 8, 0);
+    lv_obj_set_style_text_font(obj, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_bg_color(obj, ui_theme_card(), 0);
+    lv_obj_set_style_bg_opa(obj, LV_OPA_COVER, 0);
+    lv_obj_set_style_radius(obj, 8, 0);
     if (*setting) lv_obj_add_state(obj, LV_STATE_CHECKED);
     lv_obj_add_event_cb(obj, visibility_changed, LV_EVENT_VALUE_CHANGED, setting);
 }
@@ -63,16 +69,16 @@ void ui_build_home_settings(lv_obj_t *parent) {
     lv_obj_set_style_text_font(title, &lv_font_montserrat_18, 0);
     checkbox(parent, "Batterie", 0, 38, &state.home_show_battery);
     checkbox(parent, "Solar", 220, 38, &state.home_show_solar);
-    checkbox(parent, "Wassertank", 0, 76, &state.home_show_water);
-    checkbox(parent, "Starterspannung", 220, 76, &state.home_show_starter);
+    checkbox(parent, "Wassertank", 0, 86, &state.home_show_water);
+    checkbox(parent, "Starterspannung", 220, 86, &state.home_show_starter);
     lv_obj_t *note = lv_label_create(parent);
-    lv_obj_set_pos(note, 0, 118); lv_obj_set_width(note, 426);
+    lv_obj_set_pos(note, 0, 138); lv_obj_set_width(note, 426);
     lv_label_set_text(note, "Sofort gespeichert. Dummy/Live gilt fuer alle Seiten.\nTemp 3 ist im Dummy Feuchte; Anzeige dann in %.");
     lv_obj_set_style_text_font(note, &lv_font_montserrat_12, 0);
     const char *names[3] = {"Temperaturfeld 1", "Temperaturfeld 2", "Temperaturfeld 3"};
-    for (int i = 0; i < 3; ++i) temp_select[i] = choice(parent, names[i], 174 + i * 48, i);
-    for (int i = 0; i < 2; ++i) favorite_select[i] = choice(parent, i ? "Favorit 2" : "Favorit 1", 328 + i * 48, 3 + i);
-    tank_select = choice(parent, "Tankquelle", 432, 5);
+    for (int i = 0; i < 3; ++i) temp_select[i] = choice(parent, names[i], 194 + i * 48, i);
+    for (int i = 0; i < 2; ++i) favorite_select[i] = choice(parent, i ? "Favorit 2" : "Favorit 1", 348 + i * 48, 3 + i);
+    tank_select = choice(parent, "Tankquelle", 452, 5);
     ui_home_settings_refresh();
 }
 bool ui_home_settings_is_active() {
