@@ -12,6 +12,7 @@
 #include "ui_main.h"
 #include "http_handler.h"
 #include "system_state.h"
+#include "ota_updater.h"
 
 // Hardware and Touch Controller
 TouchDrvGT911 GT911;
@@ -320,6 +321,7 @@ void setup() {
 
 
     ui_init();
+    ota_updater_init();
 
     // Report memory after UI construction; the data worker started earlier.
 
@@ -399,5 +401,6 @@ void loop() {
         ui_debug_navigation("after-data");
     }
     
+    ota_updater_loop();
     delay(2);
 }

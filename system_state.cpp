@@ -326,6 +326,13 @@ state.display_brightness = prefs.getInt("disp_bright", 100);
     }
     state.wrelay_fields = 0;
 
+    state.auto_update_check = prefs.getBool("ota_auto", true);
+    state.ota_state = OTA_STATE_IDLE;
+    state.ota_progress = 0;
+    state.ota_latest_version = "";
+    state.ota_download_url = "";
+    state.ota_status_msg = "Bereit";
+
     time_apply_configuration();
 }
 
@@ -404,6 +411,8 @@ void state_save() {
         prefs.putString(key_w_nm, state.wrelay_names[i]);
         prefs.putBool(key_w_vis, state.wrelay_visible[i]);
     }
+
+    prefs.putBool("ota_auto", state.auto_update_check);
 
     display_request_resync();
 }

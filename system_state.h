@@ -17,6 +17,17 @@ enum TabId : uint8_t {
     TAB_COUNT = 9
 };
 
+enum OtaState : uint8_t {
+    OTA_STATE_IDLE = 0,
+    OTA_STATE_CHECKING,
+    OTA_STATE_AVAILABLE,
+    OTA_STATE_UP_TO_DATE,
+    OTA_STATE_DOWNLOADING,
+    OTA_STATE_FLASHING,
+    OTA_STATE_SUCCESS,
+    OTA_STATE_FAILED
+};
+
 // Global State Structure to hold all sensor data and system settings
 struct SystemState {
     // --- Settings (Persisted) ---
@@ -73,7 +84,17 @@ struct SystemState {
     bool show_wrelay;
     bool wrelay_visible[8];
     String wrelay_names[8];
-    
+
+    // Software Updates / OTA (Persisted)
+    bool auto_update_check;
+
+    // OTA State (Volatile)
+    int ota_state;
+    int ota_progress;
+    String ota_latest_version;
+    String ota_download_url;
+    String ota_status_msg;
+
     // --- Live Sensor Data (Volatile) ---
     // Status
     bool wifi_connected;

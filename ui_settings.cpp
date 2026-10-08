@@ -4,6 +4,8 @@
 #include <ArduinoJson.h>
 #include <WiFi.h>
 
+#include "ota_updater.h"
+
 static lv_obj_t *sw_debug = NULL, *sw_demo = NULL;
 static lv_obj_t * http_test_win = NULL;
 static lv_obj_t * http_lbl_result = NULL;
@@ -12,6 +14,11 @@ static lv_obj_t *dd_time_m = NULL;
 static lv_obj_t *dd_tz = NULL;
 static lv_obj_t *cont_man_time = NULL;
 static lv_obj_t *lbl_time_status = NULL;
+static lv_obj_t *sw_auto_update = NULL;
+static lv_obj_t *lbl_ota_status = NULL;
+static lv_obj_t *btn_ota_check = NULL;
+static lv_obj_t *btn_ota_install = NULL;
+static lv_obj_t *bar_ota = NULL;
 
 static void close_http_test_cb(lv_event_t * e) {
     if (http_test_win) {
@@ -135,6 +142,41 @@ void ui_update_settings_tab() {
                  tm_now.tm_hour, tm_now.tm_min, tm_now.tm_sec,
                  state.time_auto_ntp ? "NTP Internet" : "Manuell");
         ui_label_set_text_if_changed(lbl_time_status, buf);
+    }
+    if (lv_scr_act() == scr_settings && lbl_ota_status) {
+        char buf[128];
+        if (state.ota_state == OTA_STATE_CHECKING) {
+            snprintf(buf, sizeof(buf), "Installiert: %s | Status: Suche nach Updates...", CAMPERUI_VERSION);
+        } else if (state.ota_state == OTA_STATE_AVAILABLE) {
+            snprintf(buf, sizeof(buf), "Installiert: %s | Neu: %s verfuegbar!", CAMPERUI_VERSION, state.ota_latest_version.c_str());
+        } else if (state.ota_state == OTA_STATE_UP_TO_DATE) {
+            snprintf(buf, sizeof(buf), "Installiert: %s | System ist aktuell.", CAMPERUI_VERSION);
+        } else if (state.ota_state == OTA_STATE_DOWNLOADING) {
+            snprintf(buf, sizeof(buf), "Installiert: %s | Lade Update: %d%%", CAMPERUI_VERSION, state.ota_progress);
+        } else if (state.ota_state == OTA_STATE_SUCCESS) {
+            snprintf(buf, sizeof(buf), "Update erfolgreich! Neustart...");
+        } else if (state.ota_state == OTA_STATE_FAILED) {
+            snprintf(buf, sizeof(buf), "Fehler: %s", state.ota_status_msg.c_str());
+        } else {
+            snprintf(buf, sizeof(buf), "Installiert: %s | Status: Bereit", CAMPERUI_VERSION);
+        }
+        ui_label_set_text_if_changed(lbl_ota_status, buf);
+
+        if (btn_ota_install) {
+            if (state.ota_state == OTA_STATE_AVAILABLE) {
+                lv_obj_clear_flag(btn_ota_install, LV_OBJ_FLAG_HIDDEN);
+            } else {
+                lv_obj_add_flag(btn_ota_install, LV_OBJ_FLAG_HIDDEN);
+            }
+        }
+        if (bar_ota) {
+            if (state.ota_state == OTA_STATE_DOWNLOADING || state.ota_state == OTA_STATE_FLASHING) {
+                lv_obj_clear_flag(bar_ota, LV_OBJ_FLAG_HIDDEN);
+                lv_bar_set_value(bar_ota, state.ota_progress, LV_ANIM_OFF);
+            } else {
+                lv_obj_add_flag(bar_ota, LV_OBJ_FLAG_HIDDEN);
+            }
+        }
     }
     if (ui_home_settings_is_active()) ui_home_settings_refresh();
     if (scan_in_progress) {
@@ -371,7 +413,9 @@ void ui_settings_screen_init() {
     }
     
     // --- TAB 1: NETZWERK ---
-    lv_obj_clear_flag(t_net, LV_OBJ_FLAG_SCROLLABLE); // Fit entirely
+    lv_obj_add_flag(t_net, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_scroll_dir(t_net, LV_DIR_VER);
+    lv_obj_set_style_pad_bottom(t_net, 40, 0);
     
     // WLAN Row
     lv_obj_t *l_w = lv_label_create(t_net);
@@ -423,14 +467,63 @@ void ui_settings_screen_init() {
     lv_obj_align(ta_mqtt_ip, LV_ALIGN_TOP_LEFT, 0, 120);
     lv_obj_add_event_cb(ta_mqtt_ip, ta_event_cb, LV_EVENT_ALL, NULL);
     
-        
-        
-        
     wifi_status_label = lv_label_create(t_net);
     lv_obj_set_pos(wifi_status_label, 0, 178); lv_obj_set_width(wifi_status_label, 440);
     lv_obj_set_style_text_font(wifi_status_label, &lv_font_montserrat_12, 0);
     lv_label_set_long_mode(wifi_status_label, LV_LABEL_LONG_WRAP);
     lv_label_set_text(wifi_status_label, wifi_connection_details().c_str());
+
+    // Software-Update (OTA) Section
+    lv_obj_t *l_ota = lv_label_create(t_net);
+    lv_label_set_text(l_ota, "Software-Update (OTA)");
+    lv_obj_set_style_text_font(l_ota, &lv_font_montserrat_16, 0);
+    lv_obj_align(l_ota, LV_ALIGN_TOP_LEFT, 0, 230);
+
+    sw_auto_update = lv_switch_create(t_net);
+    if (state.auto_update_check) lv_obj_add_state(sw_auto_update, LV_STATE_CHECKED);
+    lv_obj_align(sw_auto_update, LV_ALIGN_TOP_LEFT, 0, 262);
+    lv_obj_add_event_cb(sw_auto_update, [](lv_event_t * e) {
+        lv_obj_t *sw = lv_event_get_target(e);
+        state.auto_update_check = lv_obj_has_state(sw, LV_STATE_CHECKED);
+        state_save();
+    }, LV_EVENT_VALUE_CHANGED, NULL);
+
+    lv_obj_t *l_sw_ota = lv_label_create(t_net);
+    lv_label_set_text(l_sw_ota, "Automatisch nach Updates suchen");
+    lv_obj_align(l_sw_ota, LV_ALIGN_TOP_LEFT, 60, 267);
+
+    lbl_ota_status = lv_label_create(t_net);
+    lv_obj_set_pos(lbl_ota_status, 0, 305);
+    lv_obj_set_width(lbl_ota_status, 440);
+    lv_label_set_long_mode(lbl_ota_status, LV_LABEL_LONG_WRAP);
+    lv_obj_set_style_text_font(lbl_ota_status, &lv_font_montserrat_14, 0);
+    lv_label_set_text_fmt(lbl_ota_status, "Installiert: %s | Status: Bereit", CAMPERUI_VERSION);
+
+    btn_ota_check = lv_btn_create(t_net);
+    lv_obj_set_size(btn_ota_check, 180, 42);
+    lv_obj_align(btn_ota_check, LV_ALIGN_TOP_LEFT, 0, 345);
+    lv_obj_set_style_bg_color(btn_ota_check, lv_color_hex(UI_COLOR_PRIMARY), 0);
+    lv_obj_add_event_cb(btn_ota_check, [](lv_event_t *) { ota_check_now(); }, LV_EVENT_CLICKED, NULL);
+    lv_obj_t *l_b_chk = lv_label_create(btn_ota_check);
+    lv_label_set_text(l_b_chk, LV_SYMBOL_REFRESH " Update pruefen");
+    lv_obj_center(l_b_chk);
+
+    btn_ota_install = lv_btn_create(t_net);
+    lv_obj_set_size(btn_ota_install, 200, 42);
+    lv_obj_align(btn_ota_install, LV_ALIGN_TOP_LEFT, 195, 345);
+    lv_obj_set_style_bg_color(btn_ota_install, lv_color_hex(UI_COLOR_SUCCESS), 0);
+    lv_obj_add_flag(btn_ota_install, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_event_cb(btn_ota_install, [](lv_event_t *) { ota_start_update(); }, LV_EVENT_CLICKED, NULL);
+    lv_obj_t *l_b_inst = lv_label_create(btn_ota_install);
+    lv_label_set_text(l_b_inst, LV_SYMBOL_DOWNLOAD " Jetzt aktualisieren");
+    lv_obj_center(l_b_inst);
+
+    bar_ota = lv_bar_create(t_net);
+    lv_obj_set_size(bar_ota, 400, 14);
+    lv_obj_align(bar_ota, LV_ALIGN_TOP_LEFT, 0, 400);
+    lv_bar_set_range(bar_ota, 0, 100);
+    lv_bar_set_value(bar_ota, 0, LV_ANIM_OFF);
+    lv_obj_add_flag(bar_ota, LV_OBJ_FLAG_HIDDEN);
 
     // --- TAB 2: ALLGEMEIN ---
     lv_obj_clear_flag(t_gen, LV_OBJ_FLAG_SCROLLABLE);
