@@ -2,6 +2,7 @@
 #include "wifi_diagnostics.h"
 #include <WiFi.h>
 #include "HWCDC.h"
+#include <time.h>
 
 extern HWCDC USBSerial;
 
@@ -272,7 +273,7 @@ void ui_init() {
     
     // Left: Time
     lbl_time = lv_label_create(status_bar);
-    lv_label_set_text(lbl_time, "12:00");
+    lv_label_set_text(lbl_time, "--:--");
     lv_obj_set_style_text_font(lbl_time, &lv_font_montserrat_16, 0);
     lv_obj_align(lbl_time, LV_ALIGN_LEFT_MID, 16, 0);
 
@@ -469,6 +470,20 @@ void ui_update_visible_page() {
 
 void ui_update_data() {
     if (lv_scr_act() != scr_main) return;
+
+    // Update Status Bar Time
+    if (lbl_time) {
+        time_t now = time(nullptr);
+        struct tm timeinfo;
+        if (now > 1700000000 && localtime_r(&now, &timeinfo)) {
+            char time_str[16];
+            snprintf(time_str, sizeof(time_str), "%02d:%02d", timeinfo.tm_hour, timeinfo.tm_min);
+            ui_label_set_text_if_changed(lbl_time, time_str);
+        } else {
+            ui_label_set_text_if_changed(lbl_time, "--:--");
+        }
+    }
+
     // Update Status Bar
     if (state.wifi_connected) {
         lv_obj_clear_flag(lbl_wifi, LV_OBJ_FLAG_HIDDEN);

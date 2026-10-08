@@ -3,6 +3,8 @@
 #include <WiFi.h>
 #include <esp_wifi_types.h>
 #include <atomic>
+#include <time.h>
+#include <esp_sntp.h>
 namespace {
 std::atomic<unsigned> last_reason{0};
 std::atomic<uint32_t> attempt_started{0};
@@ -25,11 +27,13 @@ void wifi_diagnostics_init() {
     static bool registered = false;
     if (registered) return;
     registered = true;
+    configTzTime("CET-1CEST,M3.5.0,M10.5.0/3", "pool.ntp.org", "time.google.com", "time.cloudflare.com");
     WiFi.onEvent([](WiFiEvent_t, WiFiEventInfo_t info) {
         last_reason.store(info.wifi_sta_disconnected.reason);
     }, ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
     WiFi.onEvent([](WiFiEvent_t, WiFiEventInfo_t) {
         last_reason.store(0);
+        configTzTime("CET-1CEST,M3.5.0,M10.5.0/3", "pool.ntp.org", "time.google.com", "time.cloudflare.com");
     }, ARDUINO_EVENT_WIFI_STA_GOT_IP);
 }
 void wifi_connect_configured() {
