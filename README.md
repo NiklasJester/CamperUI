@@ -94,6 +94,27 @@
 | **Partition Scheme** | 16M Flash (3MB APP/9.9MB FATFS) (pp3M_fat9M_16MB) |
 | **PSRAM** | OPI PSRAM |
 
+### LVGL-Konfiguration installieren
+
+Die getestete Konfiguration für LVGL 8.4 liegt unter `config/lv_conf.h`.
+
+1. Den Sketchbook-Speicherort unter **Datei → Voreinstellungen** in der Arduino IDE prüfen.
+2. Eine vorhandene `libraries/lv_conf.h` sichern.
+3. `config/lv_conf.h` in den `libraries`-Ordner des Sketchbooks kopieren, direkt neben den Ordner `lvgl`.
+4. CamperUI erneut kompilieren und hochladen.
+
+Die Konfiguration verwendet 128 KiB LVGL-Speicher statt der 48 KiB
+aus dem getesteten Waveshare-Paket. Auf einem Waveshare Rev04 behob
+diese Änderung einen Startabsturz beim Aufbau der CamperUI-Oberfläche.
+
+LVGL-Logging ist für die Diagnose aktiviert. Die serielle Ausgabe
+kann mit 115200 Baud gelesen werden.
+
+Die Datei unter `config/` wird nicht automatisch von Arduino verwendet.
+Nach Änderungen muss sie erneut in den Sketchbook-Ordner kopiert werden.
+
+
+
 ### Flashen via Arduino CLI
 
 `powershell
