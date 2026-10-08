@@ -94,6 +94,7 @@ struct SystemState {
     String ota_latest_version;
     String ota_download_url;
     String ota_status_msg;
+    bool ota_manual_check;
 
     // --- Live Sensor Data (Volatile) ---
     // Status

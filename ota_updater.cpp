@@ -29,9 +29,13 @@ static bool is_version_newer(const String &cur_ver, const String &new_ver) {
 }
 
 static void ota_check_task(void *pvParameters) {
+    Serial.println("[OTA] Starte Update-Pruefung...");
+    Serial.printf("[OTA] Installierte Version: %s\n", CAMPERUI_VERSION);
+
     if (WiFi.status() != WL_CONNECTED) {
         state.ota_state = OTA_STATE_FAILED;
         state.ota_status_msg = "WLAN nicht verbunden";
+        Serial.println("[OTA] Abbruch: WLAN nicht verbunden");
         ota_task_handle = NULL;
         vTaskDelete(NULL);
         return;
@@ -45,18 +49,21 @@ static void ota_check_task(void *pvParameters) {
 
     HTTPClient http;
     http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-    http.setTimeout(8000);
+    http.setTimeout(10000);
     http.begin(client, "https://api.github.com/repos/NiklasJester/CamperUI/releases/latest");
     http.setUserAgent("CamperUI-ESP32");
     http.addHeader("Accept", "application/vnd.github.v3+json");
 
     int httpCode = http.GET();
+    Serial.printf("[OTA] GitHub API HTTP Code: %d\n", httpCode);
+
     if (httpCode == 200) {
         String payload = http.getString();
         DynamicJsonDocument doc(12288);
         DeserializationError err = deserializeJson(doc, payload);
         if (!err) {
             String tag = doc["tag_name"].as<String>();
+            Serial.printf("[OTA] Gefundenes Release: %s\n", tag.c_str());
             if (tag.length() > 0) {
                 String download_url = "";
                 JsonArray assets = doc["assets"].as<JsonArray>();
@@ -68,11 +75,13 @@ static void ota_check_task(void *pvParameters) {
                         name.indexOf("partitions") < 0 && 
                         name.indexOf("boot_app") < 0) {
                         download_url = a["browser_download_url"].as<String>();
+                        Serial.printf("[OTA] Asset gewaehlt: %s (%s)\n", name.c_str(), download_url.c_str());
                         break;
                     }
                 }
                 if (download_url.length() == 0) {
                     download_url = "https://github.com/NiklasJester/CamperUI/releases/download/" + tag + "/CamperUI-" + tag + ".bin";
+                    Serial.printf("[OTA] Fallback Asset-URL: %s\n", download_url.c_str());
                 }
 
                 state.ota_latest_version = tag;
@@ -81,24 +90,30 @@ static void ota_check_task(void *pvParameters) {
                 if (is_version_newer(CAMPERUI_VERSION, tag)) {
                     state.ota_state = OTA_STATE_AVAILABLE;
                     state.ota_status_msg = "Update verfuegbar: " + tag;
+                    Serial.printf("[OTA] Neue Version verfuegbar! (%s > %s)\n", tag.c_str(), CAMPERUI_VERSION);
                 } else {
                     state.ota_state = OTA_STATE_UP_TO_DATE;
                     state.ota_status_msg = "System ist aktuell (" + String(CAMPERUI_VERSION) + ")";
+                    Serial.printf("[OTA] System ist aktuell (%s)\n", CAMPERUI_VERSION);
                 }
             } else {
                 state.ota_state = OTA_STATE_UP_TO_DATE;
                 state.ota_status_msg = "Keine Version gefunden";
+                Serial.println("[OTA] Keine Versionsnummer im Release gefunden");
             }
         } else {
             state.ota_state = OTA_STATE_FAILED;
             state.ota_status_msg = "JSON Antwort fehlerhaft";
+            Serial.printf("[OTA] JSON Deserialization Fehler: %s\n", err.c_str());
         }
     } else if (httpCode == 404) {
         state.ota_state = OTA_STATE_UP_TO_DATE;
         state.ota_status_msg = "Kein neueres Release vorhanden";
+        Serial.println("[OTA] HTTP 404: Kein Release vorhanden");
     } else {
         state.ota_state = OTA_STATE_FAILED;
         state.ota_status_msg = "Server-Fehler: HTTP " + String(httpCode);
+        Serial.printf("[OTA] Fehler bei GitHub-Abfrage: HTTP %d\n", httpCode);
     }
 
     http.end();
@@ -107,9 +122,13 @@ static void ota_check_task(void *pvParameters) {
 }
 
 static void ota_download_task(void *pvParameters) {
+    Serial.println("[OTA] Starte Download und Flash...");
+    Serial.printf("[OTA] Ziel-URL: %s\n", state.ota_download_url.c_str());
+
     if (WiFi.status() != WL_CONNECTED || state.ota_download_url.length() < 10) {
         state.ota_state = OTA_STATE_FAILED;
         state.ota_status_msg = "Keine gueltige Download-URL";
+        Serial.println("[OTA] Abbruch: Keine gueltige Download-URL oder WLAN nicht verbunden");
         ota_task_handle = NULL;
         vTaskDelete(NULL);
         return;
@@ -129,9 +148,11 @@ static void ota_download_task(void *pvParameters) {
     http.setUserAgent("CamperUI-ESP32");
 
     int httpCode = http.GET();
+    Serial.printf("[OTA] Download HTTP Code: %d\n", httpCode);
     if (httpCode != 200) {
         state.ota_state = OTA_STATE_FAILED;
         state.ota_status_msg = "Download fehlgeschlagen (HTTP " + String(httpCode) + ")";
+        Serial.printf("[OTA] Abbruch: HTTP %d\n", httpCode);
         http.end();
         ota_task_handle = NULL;
         vTaskDelete(NULL);
@@ -139,9 +160,11 @@ static void ota_download_task(void *pvParameters) {
     }
 
     int contentLength = http.getSize();
+    Serial.printf("[OTA] Datei-Groesse: %d Bytes\n", contentLength);
     if (contentLength <= 0) {
         state.ota_state = OTA_STATE_FAILED;
         state.ota_status_msg = "Ungueltige Dateigroesse";
+        Serial.println("[OTA] Abbruch: Ungueltige Groesse");
         http.end();
         ota_task_handle = NULL;
         vTaskDelete(NULL);
@@ -151,6 +174,7 @@ static void ota_download_task(void *pvParameters) {
     if (!Update.begin(contentLength, U_FLASH)) {
         state.ota_state = OTA_STATE_FAILED;
         state.ota_status_msg = "Flash-Fehler: " + String(Update.errorString());
+        Serial.printf("[OTA] Update.begin Fehler: %s\n", Update.errorString());
         http.end();
         ota_task_handle = NULL;
         vTaskDelete(NULL);
@@ -184,16 +208,19 @@ static void ota_download_task(void *pvParameters) {
             state.ota_state = OTA_STATE_SUCCESS;
             state.ota_progress = 100;
             state.ota_status_msg = "Update erfolgreich! Neustart...";
+            Serial.println("[OTA] Flash erfolgreich beendet! Neustart in 1.5s...");
             vTaskDelay(pdMS_TO_TICKS(1500));
             ESP.restart();
         } else {
             state.ota_state = OTA_STATE_FAILED;
             state.ota_status_msg = "Flash-Ende nicht bestaetigt";
+            Serial.println("[OTA] Flash-Ende nicht bestaetigt");
         }
     } else {
         Update.abort();
         state.ota_state = OTA_STATE_FAILED;
         state.ota_status_msg = "Download unvollstaendig";
+        Serial.printf("[OTA] Abbruch: Geschrieben %u von %d Bytes\n", written, contentLength);
     }
 
     http.end();
@@ -207,11 +234,13 @@ void ota_updater_init() {
     state.ota_latest_version = "";
     state.ota_download_url = "";
     state.ota_status_msg = "Bereit";
+    state.ota_manual_check = false;
 }
 
-void ota_check_now() {
+void ota_check_now(bool manual_trigger) {
     if (ota_task_handle != NULL) return;
     if (state.ota_state == OTA_STATE_DOWNLOADING || state.ota_state == OTA_STATE_FLASHING) return;
+    state.ota_manual_check = manual_trigger;
     xTaskCreatePinnedToCore(ota_check_task, "ota_check", 8192, NULL, 1, &ota_task_handle, 0);
 }
 

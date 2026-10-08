@@ -332,6 +332,7 @@ state.display_brightness = prefs.getInt("disp_bright", 100);
     state.ota_latest_version = "";
     state.ota_download_url = "";
     state.ota_status_msg = "Bereit";
+    state.ota_manual_check = false;
 
     time_apply_configuration();
 }
