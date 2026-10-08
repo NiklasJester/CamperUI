@@ -4,7 +4,7 @@
 #include "HWCDC.h"
 #include <time.h>
 
-extern HWCDC USBSerial;
+#include "debug_log.h"
 
 void ui_build_home(lv_obj_t *parent);
 

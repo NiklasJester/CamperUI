@@ -4,7 +4,7 @@
 #include <ArduinoJson.h>
 #include <WiFi.h>
 
-#include "ota_updater.h"
+#include "web_ota.h"
 
 static lv_obj_t *sw_debug = NULL, *sw_demo = NULL;
 static lv_obj_t * http_test_win = NULL;
@@ -14,31 +14,8 @@ static lv_obj_t *dd_time_m = NULL;
 static lv_obj_t *dd_tz = NULL;
 static lv_obj_t *cont_man_time = NULL;
 static lv_obj_t *lbl_time_status = NULL;
-static lv_obj_t *sw_auto_update = NULL;
-static lv_obj_t *lbl_ota_status = NULL;
-static lv_obj_t *btn_ota_check = NULL;
-static lv_obj_t *lbl_btn_ota_check = NULL;
-static lv_obj_t *btn_ota_install = NULL;
-static lv_obj_t *bar_ota = NULL;
-static lv_obj_t *mbox_ota = NULL;
-
-static void ota_msgbox_cb(lv_event_t * e) {
-    lv_event_code_t code = lv_event_get_code(e);
-    lv_obj_t * mbox = lv_event_get_current_target(e);
-    if (code == LV_EVENT_VALUE_CHANGED) {
-        const char * txt = lv_msgbox_get_active_btn_text(mbox);
-        if (txt && strcmp(txt, "Installieren") == 0) {
-            lv_msgbox_close_async(mbox);
-            mbox_ota = NULL;
-            ota_start_update();
-        } else {
-            lv_msgbox_close_async(mbox);
-            mbox_ota = NULL;
-        }
-    } else if (code == LV_EVENT_DELETE) {
-        mbox_ota = NULL;
-    }
-}
+static lv_obj_t *lbl_web_ota_url = NULL;
+static lv_obj_t *lbl_web_ota_status = NULL;
 
 static void close_http_test_cb(lv_event_t * e) {
     if (http_test_win) {
@@ -163,87 +140,21 @@ void ui_update_settings_tab() {
                  state.time_auto_ntp ? "NTP Internet" : "Manuell");
         ui_label_set_text_if_changed(lbl_time_status, buf);
     }
-    if (lv_scr_act() == scr_settings && lbl_ota_status) {
+    if (lv_scr_act() == scr_settings && lbl_web_ota_url) {
+        String ip = (WiFi.status() == WL_CONNECTED) ? WiFi.localIP().toString() : "...";
         char buf[128];
-        if (state.ota_state == OTA_STATE_CHECKING) {
-            snprintf(buf, sizeof(buf), "Installiert: %s | Status: Suche nach Updates...", CAMPERUI_VERSION);
-            if (btn_ota_check) {
-                lv_obj_add_state(btn_ota_check, LV_STATE_DISABLED);
-                if (lbl_btn_ota_check) lv_label_set_text(lbl_btn_ota_check, LV_SYMBOL_REFRESH " Pruefe...");
-            }
-        } else if (state.ota_state == OTA_STATE_AVAILABLE) {
-            snprintf(buf, sizeof(buf), "Installiert: %s | Neu: %s verfuegbar!", CAMPERUI_VERSION, state.ota_latest_version.c_str());
-            if (btn_ota_check) {
-                lv_obj_clear_state(btn_ota_check, LV_STATE_DISABLED);
-                if (lbl_btn_ota_check) lv_label_set_text(lbl_btn_ota_check, LV_SYMBOL_REFRESH " Update pruefen");
-            }
-        } else if (state.ota_state == OTA_STATE_UP_TO_DATE) {
-            snprintf(buf, sizeof(buf), "Installiert: %s | System ist aktuell.", CAMPERUI_VERSION);
-            if (btn_ota_check) {
-                lv_obj_clear_state(btn_ota_check, LV_STATE_DISABLED);
-                if (lbl_btn_ota_check) lv_label_set_text(lbl_btn_ota_check, LV_SYMBOL_REFRESH " Update pruefen");
-            }
-        } else if (state.ota_state == OTA_STATE_DOWNLOADING) {
-            snprintf(buf, sizeof(buf), "Installiert: %s | Lade Update: %d%%", CAMPERUI_VERSION, state.ota_progress);
-        } else if (state.ota_state == OTA_STATE_SUCCESS) {
-            snprintf(buf, sizeof(buf), "Update erfolgreich! Neustart...");
-        } else if (state.ota_state == OTA_STATE_FAILED) {
-            snprintf(buf, sizeof(buf), "Fehler: %s", state.ota_status_msg.c_str());
-            if (btn_ota_check) {
-                lv_obj_clear_state(btn_ota_check, LV_STATE_DISABLED);
-                if (lbl_btn_ota_check) lv_label_set_text(lbl_btn_ota_check, LV_SYMBOL_REFRESH " Update pruefen");
+        snprintf(buf, sizeof(buf), "Adresse: http://%s/update", ip.c_str());
+        ui_label_set_text_if_changed(lbl_web_ota_url, buf);
+
+        if (state.web_ota_active) {
+            if (lbl_web_ota_status) {
+                ui_label_set_text_if_changed(lbl_web_ota_status, state.web_ota_msg.c_str());
             }
         } else {
-            snprintf(buf, sizeof(buf), "Installiert: %s | Status: Bereit", CAMPERUI_VERSION);
-            if (btn_ota_check) {
-                lv_obj_clear_state(btn_ota_check, LV_STATE_DISABLED);
-                if (lbl_btn_ota_check) lv_label_set_text(lbl_btn_ota_check, LV_SYMBOL_REFRESH " Update pruefen");
-            }
-        }
-        ui_label_set_text_if_changed(lbl_ota_status, buf);
-
-        if (btn_ota_install) {
-            if (state.ota_state == OTA_STATE_AVAILABLE) {
-                lv_obj_clear_flag(btn_ota_install, LV_OBJ_FLAG_HIDDEN);
-            } else {
-                lv_obj_add_flag(btn_ota_install, LV_OBJ_FLAG_HIDDEN);
-            }
-        }
-        if (bar_ota) {
-            if (state.ota_state == OTA_STATE_DOWNLOADING || state.ota_state == OTA_STATE_FLASHING) {
-                lv_obj_clear_flag(bar_ota, LV_OBJ_FLAG_HIDDEN);
-                lv_bar_set_value(bar_ota, state.ota_progress, LV_ANIM_OFF);
-            } else {
-                lv_obj_add_flag(bar_ota, LV_OBJ_FLAG_HIDDEN);
-            }
-        }
-
-        // Popup nach manueller Update-Pruefung anzeigen
-        if (state.ota_manual_check && state.ota_state != OTA_STATE_CHECKING) {
-            state.ota_manual_check = false;
-            if (mbox_ota == NULL) {
-                if (state.ota_state == OTA_STATE_AVAILABLE) {
-                    static const char * btns[] = {"Installieren", "Abbrechen", ""};
-                    String msg = "Eine neue Version ist verfuegbar!\n\n"
-                                 "Aktuell: " + String(CAMPERUI_VERSION) + "\n"
-                                 "Neu: " + state.ota_latest_version + "\n\n"
-                                 "Moechtest du das Update jetzt installieren?";
-                    mbox_ota = lv_msgbox_create(NULL, "Update verfuegbar", msg.c_str(), btns, false);
-                    lv_obj_center(mbox_ota);
-                    lv_obj_add_event_cb(mbox_ota, ota_msgbox_cb, LV_EVENT_ALL, NULL);
-                } else if (state.ota_state == OTA_STATE_UP_TO_DATE) {
-                    static const char * btns[] = {"OK", ""};
-                    String msg = "Das System ist auf dem neuesten Stand.\n\nInstallierte Version: " + String(CAMPERUI_VERSION);
-                    mbox_ota = lv_msgbox_create(NULL, "Kein Update", msg.c_str(), btns, false);
-                    lv_obj_center(mbox_ota);
-                    lv_obj_add_event_cb(mbox_ota, ota_msgbox_cb, LV_EVENT_ALL, NULL);
-                } else if (state.ota_state == OTA_STATE_FAILED) {
-                    static const char * btns[] = {"OK", ""};
-                    String msg = "Pruefung fehlgeschlagen:\n\n" + state.ota_status_msg;
-                    mbox_ota = lv_msgbox_create(NULL, "Update-Fehler", msg.c_str(), btns, false);
-                    lv_obj_center(mbox_ota);
-                    lv_obj_add_event_cb(mbox_ota, ota_msgbox_cb, LV_EVENT_ALL, NULL);
-                }
+            if (lbl_web_ota_status) {
+                char st_buf[128];
+                snprintf(st_buf, sizeof(st_buf), "Installiert: %s | Status: Bereit fuer Upload", CAMPERUI_VERSION);
+                ui_label_set_text_if_changed(lbl_web_ota_status, st_buf);
             }
         }
     }
@@ -261,12 +172,18 @@ void ui_update_settings_tab() {
                 options += ssid;
             }
             if (options.length() == 0) options = "Keine Netzwerke gefunden";
-            lv_dropdown_set_options(dd_wifi_ssid, options.c_str());
-            lv_label_set_text(lbl_wifi_scan, "Scan");
+            if (dd_wifi_ssid) lv_dropdown_set_options(dd_wifi_ssid, options.c_str());
+            if (lbl_wifi_scan) lv_label_set_text(lbl_wifi_scan, "Scan");
             WiFi.scanDelete();
+            if (WiFi.status() != WL_CONNECTED && !state.wifi_ssid.isEmpty()) {
+                wifi_connect_configured();
+            }
         } else if (n == WIFI_SCAN_FAILED) {
             scan_in_progress = false;
-            lv_label_set_text(lbl_wifi_scan, "Scan Fehler");
+            if (lbl_wifi_scan) lv_label_set_text(lbl_wifi_scan, "Scan");
+            if (WiFi.status() != WL_CONNECTED && !state.wifi_ssid.isEmpty()) {
+                wifi_connect_configured();
+            }
         }
     }
 }
@@ -299,11 +216,8 @@ static void kb_event_cb(lv_event_t * e) {
 
 static void wifi_scan_cb(lv_event_t * e) {
     if(!scan_in_progress) {
-        if (WiFi.status() != WL_CONNECTED) {
-            WiFi.disconnect();
-            delay(50);
-        }
-        lv_label_set_text(lbl_wifi_scan, "Scanne...");
+        WiFi.mode(WIFI_STA);
+        if (lbl_wifi_scan) lv_label_set_text(lbl_wifi_scan, "Scanne...");
         WiFi.scanNetworks(true); // async
         scan_in_progress = true;
     }
@@ -543,62 +457,31 @@ void ui_settings_screen_init() {
     lv_label_set_long_mode(wifi_status_label, LV_LABEL_LONG_WRAP);
     lv_label_set_text(wifi_status_label, wifi_connection_details().c_str());
 
-    // Software-Update (OTA) Section
-    lv_obj_t *l_ota = lv_label_create(t_net);
-    lv_label_set_text(l_ota, "Software-Update (OTA)");
-    lv_obj_set_style_text_font(l_ota, &lv_font_montserrat_16, 0);
-    lv_obj_align(l_ota, LV_ALIGN_TOP_LEFT, 0, 260);
+    // Web-Update Card
+    lv_obj_t *card_web_ota = ui_create_card(t_net, 440, 85);
+    lv_obj_align(card_web_ota, LV_ALIGN_TOP_LEFT, 0, 255);
+    lv_obj_set_style_pad_all(card_web_ota, 12, 0);
 
-    sw_auto_update = lv_switch_create(t_net);
-    if (state.auto_update_check) lv_obj_add_state(sw_auto_update, LV_STATE_CHECKED);
-    lv_obj_align(sw_auto_update, LV_ALIGN_TOP_LEFT, 0, 292);
-    lv_obj_add_event_cb(sw_auto_update, [](lv_event_t * e) {
-        lv_obj_t *sw = lv_event_get_target(e);
-        state.auto_update_check = lv_obj_has_state(sw, LV_STATE_CHECKED);
-        state_save();
-    }, LV_EVENT_VALUE_CHANGED, NULL);
+    lv_obj_t *l_web_head = lv_label_create(card_web_ota);
+    lv_label_set_text(l_web_head, LV_SYMBOL_DOWNLOAD " Firmware-Update (Browser)");
+    lv_obj_set_style_text_font(l_web_head, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_color(l_web_head, lv_color_hex(UI_COLOR_PRIMARY), 0);
+    lv_obj_align(l_web_head, LV_ALIGN_TOP_LEFT, 0, 0);
 
-    lv_obj_t *l_sw_ota = lv_label_create(t_net);
-    lv_label_set_text(l_sw_ota, "Automatisch nach Updates suchen");
-    lv_obj_align(l_sw_ota, LV_ALIGN_TOP_LEFT, 60, 297);
+    lbl_web_ota_url = lv_label_create(card_web_ota);
+    lv_obj_set_width(lbl_web_ota_url, 416);
+    lv_obj_set_style_text_font(lbl_web_ota_url, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_color(lbl_web_ota_url, lv_color_hex(UI_COLOR_SUCCESS), 0);
+    lv_obj_align(lbl_web_ota_url, LV_ALIGN_TOP_LEFT, 0, 26);
+    lv_label_set_text(lbl_web_ota_url, "Browser-Adresse: http://.../update");
 
-    lbl_ota_status = lv_label_create(t_net);
-    lv_obj_set_pos(lbl_ota_status, 0, 335);
-    lv_obj_set_width(lbl_ota_status, 440);
-    lv_label_set_long_mode(lbl_ota_status, LV_LABEL_LONG_WRAP);
-    lv_obj_set_style_text_font(lbl_ota_status, &lv_font_montserrat_14, 0);
-    lv_label_set_text_fmt(lbl_ota_status, "Installiert: %s | Status: Bereit", CAMPERUI_VERSION);
-
-    btn_ota_check = lv_btn_create(t_net);
-    lv_obj_set_size(btn_ota_check, 180, 42);
-    lv_obj_align(btn_ota_check, LV_ALIGN_TOP_LEFT, 0, 375);
-    lv_obj_set_style_bg_color(btn_ota_check, lv_color_hex(UI_COLOR_PRIMARY), 0);
-    lv_obj_add_event_cb(btn_ota_check, [](lv_event_t *) {
-        ota_check_now(true);
-        if (btn_ota_check) lv_obj_add_state(btn_ota_check, LV_STATE_DISABLED);
-        if (lbl_btn_ota_check) lv_label_set_text(lbl_btn_ota_check, LV_SYMBOL_REFRESH " Pruefe...");
-        if (lbl_ota_status) lv_label_set_text_fmt(lbl_ota_status, "Installiert: %s | Status: Suche nach Updates...", CAMPERUI_VERSION);
-    }, LV_EVENT_CLICKED, NULL);
-    lbl_btn_ota_check = lv_label_create(btn_ota_check);
-    lv_label_set_text(lbl_btn_ota_check, LV_SYMBOL_REFRESH " Update pruefen");
-    lv_obj_center(lbl_btn_ota_check);
-
-    btn_ota_install = lv_btn_create(t_net);
-    lv_obj_set_size(btn_ota_install, 200, 42);
-    lv_obj_align(btn_ota_install, LV_ALIGN_TOP_LEFT, 195, 375);
-    lv_obj_set_style_bg_color(btn_ota_install, lv_color_hex(UI_COLOR_SUCCESS), 0);
-    lv_obj_add_flag(btn_ota_install, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_add_event_cb(btn_ota_install, [](lv_event_t *) { ota_start_update(); }, LV_EVENT_CLICKED, NULL);
-    lv_obj_t *l_b_inst = lv_label_create(btn_ota_install);
-    lv_label_set_text(l_b_inst, LV_SYMBOL_DOWNLOAD " Jetzt aktualisieren");
-    lv_obj_center(l_b_inst);
-
-    bar_ota = lv_bar_create(t_net);
-    lv_obj_set_size(bar_ota, 400, 14);
-    lv_obj_align(bar_ota, LV_ALIGN_TOP_LEFT, 0, 430);
-    lv_bar_set_range(bar_ota, 0, 100);
-    lv_bar_set_value(bar_ota, 0, LV_ANIM_OFF);
-    lv_obj_add_flag(bar_ota, LV_OBJ_FLAG_HIDDEN);
+    lbl_web_ota_status = lv_label_create(card_web_ota);
+    lv_obj_set_width(lbl_web_ota_status, 416);
+    lv_label_set_long_mode(lbl_web_ota_status, LV_LABEL_LONG_WRAP);
+    lv_obj_set_style_text_font(lbl_web_ota_status, &lv_font_montserrat_12, 0);
+    lv_obj_set_style_text_color(lbl_web_ota_status, ui_theme_muted(), 0);
+    lv_obj_align(lbl_web_ota_status, LV_ALIGN_TOP_LEFT, 0, 52);
+    lv_label_set_text_fmt(lbl_web_ota_status, "Installiert: %s | Status: Bereit fuer Upload", CAMPERUI_VERSION);
 
     // --- TAB 2: ALLGEMEIN ---
     lv_obj_clear_flag(t_gen, LV_OBJ_FLAG_SCROLLABLE);
@@ -686,44 +569,32 @@ void ui_settings_screen_init() {
     lv_label_set_text(l_reboot, "Neustart");
     lv_obj_center(l_reboot);
 
-    // Right Column: Sensor Assignment
-    lv_obj_t *l_sens_sec = lv_label_create(t_gen);
-    lv_label_set_text(l_sens_sec, "Temperatursensor");
-    lv_obj_align(l_sens_sec, LV_ALIGN_TOP_LEFT, 240, 0);
-
-    lv_obj_t *l_out_sens = lv_label_create(t_gen);
-    lv_label_set_text(l_out_sens, "Aussentemperatur:");
-    lv_obj_align(l_out_sens, LV_ALIGN_TOP_LEFT, 240, 30);
-
-    dd_out_temp = lv_dropdown_create(t_gen);
-    lv_dropdown_set_options(dd_out_temp, "Sensor 1 (Temp 1)\nSensor 2 (Temp 2)\nSensor 3 (Temp 3)\nSensor 4 (Temp 4)");
-    lv_dropdown_set_selected(dd_out_temp, constrain(state.outdoor_temp_sensor, 0, 3));
-    lv_obj_set_width(dd_out_temp, 200);
-    lv_obj_align(dd_out_temp, LV_ALIGN_TOP_LEFT, 240, 55);
-    lv_obj_add_event_cb(dd_out_temp, [](lv_event_t * e) {
-        lv_obj_t *dd = lv_event_get_target(e);
-        state.outdoor_temp_sensor = lv_dropdown_get_selected(dd);
-        int out_idx = constrain(state.outdoor_temp_sensor, 0, 3);
-        state.outdoor_temp = state.temp_sensors[out_idx];
-        int in_idx = (out_idx == 0) ? 1 : 0;
-        state.indoor_temp = state.temp_sensors[in_idx];
-        state_save();
-    }, LV_EVENT_VALUE_CHANGED, NULL);
-
-    lv_obj_t *l_out_desc = lv_label_create(t_gen);
-    lv_label_set_text(l_out_desc, "Waehlt den Sensor fuer\ndas Aussen-Klima &\ndie Frostwarnung.");
-    lv_obj_set_style_text_color(l_out_desc, ui_theme_muted(), 0);
-    lv_obj_set_style_text_font(l_out_desc, &lv_font_montserrat_12, 0);
-    lv_obj_align(l_out_desc, LV_ALIGN_TOP_LEFT, 240, 115);
+    // Right Column: Navigation & Touch
+    lv_obj_t *l_ui_sec = lv_label_create(t_gen);
+    lv_label_set_text(l_ui_sec, "Navigation & Feedback");
+    lv_obj_align(l_ui_sec, LV_ALIGN_TOP_LEFT, 240, 0);
 
     lv_obj_t *btn_nav_modal = lv_btn_create(t_gen);
     lv_obj_set_size(btn_nav_modal, 200, 42);
-    lv_obj_align(btn_nav_modal, LV_ALIGN_TOP_LEFT, 240, 168);
+    lv_obj_align(btn_nav_modal, LV_ALIGN_TOP_LEFT, 240, 30);
     lv_obj_set_style_bg_color(btn_nav_modal, lv_color_hex(UI_COLOR_PRIMARY), 0);
     lv_obj_add_event_cb(btn_nav_modal, [](lv_event_t *) { ui_open_nav_settings(); }, LV_EVENT_CLICKED, nullptr);
     lv_obj_t *lbl_nav_m = lv_label_create(btn_nav_modal);
     lv_label_set_text(lbl_nav_m, LV_SYMBOL_LIST " Tabs anpassen");
     lv_obj_center(lbl_nav_m);
+
+    // Buzzer Feedback Switch
+    lv_obj_t *sw_buzzer = lv_switch_create(t_gen);
+    if(state.buzzer_enabled) lv_obj_add_state(sw_buzzer, LV_STATE_CHECKED);
+    lv_obj_align(sw_buzzer, LV_ALIGN_TOP_LEFT, 240, 95);
+    lv_obj_add_event_cb(sw_buzzer, [](lv_event_t * e) {
+        lv_obj_t *sw = lv_event_get_target(e);
+        state.buzzer_enabled = lv_obj_has_state(sw, LV_STATE_CHECKED);
+        state_save();
+    }, LV_EVENT_VALUE_CHANGED, NULL);
+    lv_obj_t *l_buzzer = lv_label_create(t_gen);
+    lv_label_set_text(l_buzzer, "Touch-Ton");
+    lv_obj_align(l_buzzer, LV_ALIGN_TOP_LEFT, 300, 100);
     
     // --- TAB 3: SICHTBARKEIT ---
     lv_obj_add_flag(t_vis, LV_OBJ_FLAG_SCROLLABLE);
@@ -805,66 +676,93 @@ void ui_settings_screen_init() {
     // --- TAB 4: WERTE ---
     lv_obj_clear_flag(t_val, LV_OBJ_FLAG_SCROLLABLE);
     
+    // Row 1: Relais (Pumpe & Abwasser)
     lv_obj_t *l_pump = lv_label_create(t_val);
-    lv_label_set_text(l_pump, "Wasserpumpe Relais:");
-    lv_obj_align(l_pump, LV_ALIGN_TOP_LEFT, 0, 20);
+    lv_label_set_text(l_pump, "Pumpe Relais:");
+    lv_obj_align(l_pump, LV_ALIGN_TOP_LEFT, 0, 12);
     
     lv_obj_t *dd_pump = lv_dropdown_create(t_val);
     String opts_p = "Keins\n";
     for(int i=0; i<8; i++) { opts_p += "Relais " + String(i+1); if (i!=7) opts_p+="\n"; }
     lv_dropdown_set_options(dd_pump, opts_p.c_str());
     lv_dropdown_set_selected(dd_pump, state.pump_relay + 1);
-    lv_obj_align(dd_pump, LV_ALIGN_TOP_LEFT, 180, 10);
+    lv_obj_set_width(dd_pump, 110);
+    lv_obj_align(dd_pump, LV_ALIGN_TOP_LEFT, 105, 5);
     lv_obj_add_event_cb(dd_pump, [](lv_event_t * e) {
         lv_obj_t *dd = lv_event_get_target(e);
         state.pump_relay = lv_dropdown_get_selected(dd) - 1;
     }, LV_EVENT_VALUE_CHANGED, NULL);
     
-    // Solar Max
-    lv_obj_t *l_solar = lv_label_create(t_val);
-    lv_label_set_text(l_solar, "Solar (W):");
-    lv_obj_align(l_solar, LV_ALIGN_TOP_LEFT, 290, 20);
-    
-    ta_solar_max = lv_textarea_create(t_val);
-    lv_textarea_set_one_line(ta_solar_max, true);
-    lv_textarea_set_text(ta_solar_max, String((int)state.solar_max_w).c_str());
-    lv_obj_set_width(ta_solar_max, 70);
-    lv_obj_align(ta_solar_max, LV_ALIGN_TOP_LEFT, 370, 10);
-    lv_obj_add_event_cb(ta_solar_max, ta_event_cb, LV_EVENT_ALL, NULL);
-    
-    
     lv_obj_t *l_drain = lv_label_create(t_val);
     lv_label_set_text(l_drain, "Abwasser Relais:");
-    lv_obj_align(l_drain, LV_ALIGN_TOP_LEFT, 0, 70);
+    lv_obj_align(l_drain, LV_ALIGN_TOP_LEFT, 230, 12);
     
     lv_obj_t *dd_drain = lv_dropdown_create(t_val);
     lv_dropdown_set_options(dd_drain, opts_p.c_str());
     lv_dropdown_set_selected(dd_drain, state.drain_relay + 1);
-    lv_obj_align(dd_drain, LV_ALIGN_TOP_LEFT, 180, 60);
+    lv_obj_set_width(dd_drain, 100);
+    lv_obj_align(dd_drain, LV_ALIGN_TOP_LEFT, 340, 5);
     lv_obj_add_event_cb(dd_drain, [](lv_event_t * e) {
         lv_obj_t *dd = lv_event_get_target(e);
         state.drain_relay = lv_dropdown_get_selected(dd) - 1;
     }, LV_EVENT_VALUE_CHANGED, NULL);
 
-    // Tank Limits
+    // Row 2: Aussentemperatursensor & Solar Max
+    lv_obj_t *l_out_sens = lv_label_create(t_val);
+    lv_label_set_text(l_out_sens, "Aussensensor:");
+    lv_obj_align(l_out_sens, LV_ALIGN_TOP_LEFT, 0, 65);
+
+    dd_out_temp = lv_dropdown_create(t_val);
+    lv_dropdown_set_options(dd_out_temp, "Sensor 1 (Temp 1)\nSensor 2 (Temp 2)\nSensor 3 (Temp 3)\nSensor 4 (Temp 4)");
+    lv_dropdown_set_selected(dd_out_temp, constrain(state.outdoor_temp_sensor, 0, 3));
+    lv_obj_set_width(dd_out_temp, 160);
+    lv_obj_align(dd_out_temp, LV_ALIGN_TOP_LEFT, 105, 58);
+    lv_obj_add_event_cb(dd_out_temp, [](lv_event_t * e) {
+        lv_obj_t *dd = lv_event_get_target(e);
+        state.outdoor_temp_sensor = lv_dropdown_get_selected(dd);
+        int out_idx = constrain(state.outdoor_temp_sensor, 0, 3);
+        state.outdoor_temp = state.temp_sensors[out_idx];
+        int in_idx = (out_idx == 0) ? 1 : 0;
+        state.indoor_temp = state.temp_sensors[in_idx];
+        state_save();
+    }, LV_EVENT_VALUE_CHANGED, NULL);
+
+    lv_obj_t *l_solar = lv_label_create(t_val);
+    lv_label_set_text(l_solar, "Solar (W):");
+    lv_obj_align(l_solar, LV_ALIGN_TOP_LEFT, 280, 65);
+
+    ta_solar_max = lv_textarea_create(t_val);
+    lv_textarea_set_one_line(ta_solar_max, true);
+    lv_textarea_set_text(ta_solar_max, String((int)state.solar_max_w).c_str());
+    lv_obj_set_width(ta_solar_max, 80);
+    lv_obj_align(ta_solar_max, LV_ALIGN_TOP_LEFT, 360, 58);
+    lv_obj_add_event_cb(ta_solar_max, ta_event_cb, LV_EVENT_ALL, NULL);
+
+    // Row 3: Tank Limits
     lv_obj_t *l_tanks = lv_label_create(t_val);
     lv_label_set_text(l_tanks, "Tank Max (Liter):");
-    lv_obj_align(l_tanks, LV_ALIGN_TOP_LEFT, 0, 120);
+    lv_obj_align(l_tanks, LV_ALIGN_TOP_LEFT, 0, 115);
     
     for (int i = 0; i < 4; i++) {
-        int row = i / 2;
-        int col = i % 2;
+        int col = i;
         lv_obj_t *l_t = lv_label_create(t_val);
         lv_label_set_text_fmt(l_t, "T%d:", i+1);
-        lv_obj_align(l_t, LV_ALIGN_TOP_LEFT, col * 120, 155 + (row * 50));
+        lv_obj_align(l_t, LV_ALIGN_TOP_LEFT, col * 110, 146);
         
         ta_tank_max[i] = lv_textarea_create(t_val);
         lv_textarea_set_one_line(ta_tank_max[i], true);
         lv_textarea_set_text(ta_tank_max[i], String(state.tank_max[i]).c_str());
         lv_obj_set_width(ta_tank_max[i], 70);
-        lv_obj_align(ta_tank_max[i], LV_ALIGN_TOP_LEFT, 35 + (col * 120), 145 + (row * 50));
+        lv_obj_align(ta_tank_max[i], LV_ALIGN_TOP_LEFT, 26 + (col * 110), 138);
         lv_obj_add_event_cb(ta_tank_max[i], ta_event_cb, LV_EVENT_ALL, NULL);
     }
+
+    // Row 4: Info Note
+    lv_obj_t *l_out_desc = lv_label_create(t_val);
+    lv_label_set_text(l_out_desc, "Hinweis: Der gewaehlte Aussensensor steuert die Frostwarnung & das Aussenklima.");
+    lv_obj_set_style_text_color(l_out_desc, ui_theme_muted(), 0);
+    lv_obj_set_style_text_font(l_out_desc, &lv_font_montserrat_12, 0);
+    lv_obj_align(l_out_desc, LV_ALIGN_TOP_LEFT, 0, 195);
     
     // --- TAB 5: ALARME ---
     lv_obj_clear_flag(t_alm, LV_OBJ_FLAG_SCROLLABLE);

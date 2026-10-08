@@ -74,7 +74,7 @@ uint16_t *CamperRGBPanel::getFrameBuffer(int16_t w, int16_t h)
 #else
       .bits_per_pixel = 16,
       .num_fbs = 1,
-      .bounce_buffer_size_px = 40 * w,
+      .bounce_buffer_size_px = 20 * w,
 #endif
       .sram_trans_align = 8,
       .psram_trans_align = 64,

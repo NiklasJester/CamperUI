@@ -19,6 +19,7 @@ const char *reason_text(unsigned reason) {
         case WIFI_REASON_NO_AP_FOUND_IN_RSSI_THRESHOLD: return "WLAN-Signal zu schwach.";
         case WIFI_REASON_BEACON_TIMEOUT: return "Verbindung verloren: Signal oder Router pruefen.";
         case WIFI_REASON_ASSOC_LEAVE: return "Verbindung getrennt; neuer Verbindungsversuch.";
+        case WIFI_REASON_ASSOC_EXPIRE: return "Zeitueberschreitung bei Verbindung (Signal oder Router pruefen).";
         default: return "Verbindung fehlgeschlagen: Router, Signal und Zugang pruefen.";
     }
 }
@@ -40,8 +41,11 @@ void wifi_diagnostics_init() {
 }
 void wifi_connect_configured() {
     last_reason.store(0); attempt_started.store(millis());
-    WiFi.setHostname("esp32s3-camper-ui");
     WiFi.persistent(false);
+    WiFi.mode(WIFI_STA);
+    WiFi.setSleep(false);
+    WiFi.setAutoReconnect(true);
+    WiFi.setHostname("esp32s3-camper-ui");
     if (state.wifi_ssid.isEmpty()) return;
     WiFi.begin(state.wifi_ssid.c_str(), state.wifi_pass.c_str());
 }

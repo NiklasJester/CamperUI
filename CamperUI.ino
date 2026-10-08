@@ -7,12 +7,13 @@
 #include "HWCDC.h"
 #include "TouchDrvGT911.hpp"
 #include <Wire.h>
-#include <SPI.h>
 #include "WS_CH32_IO.h"
 #include "ui_main.h"
 #include "http_handler.h"
 #include "system_state.h"
-#include "ota_updater.h"
+#include "web_ota.h"
+#include "buzzer.h"
+#include "debug_log.h"
 
 // Hardware and Touch Controller
 TouchDrvGT911 GT911;
@@ -21,7 +22,6 @@ uint8_t gt911_i2c_addr = 0;
 bool gt911_available = false;
 bool display_is_on = true;
 
-HWCDC USBSerial;
 #define EXAMPLE_LVGL_TICK_PERIOD_MS 2
 
 uint32_t screenWidth;
@@ -49,7 +49,6 @@ CamperRGBDisplay *gfx = new CamperRGBDisplay(
 #if LV_USE_LOG != 0
 void my_print(const char *buf) {
     USBSerial.printf("%s", buf);
-    USBSerial.flush();
 }
 #endif
 
@@ -84,6 +83,13 @@ void example_increase_lvgl_tick(void *arg) {
 
 bool ignore_touch_until_release = false;
 bool touch_input_enabled = true;
+
+// Feedback on valid touch interactions (buttons, switches, tabs)
+static void my_touchpad_feedback(lv_indev_drv_t *indev_driver, uint8_t event_code) {
+    if (event_code == LV_EVENT_CLICKED) {
+        buzzer_beep(3);
+    }
+}
 
 // Read touch coordinates from GT911
 void my_touchpad_read(lv_indev_drv_t *indev_driver, lv_indev_data_t *data) {
@@ -213,25 +219,25 @@ void setup() {
     setCpuFrequencyMhz(240);
 
     USBSerial.begin(115200);
-    delay(500);
+    USBSerial.setTxTimeoutMs(0); // Never block if USB CDC host is not actively reading
+    delay(200);
     USBSerial.println("\n--- Waveshare ESP32-S3 CamperUI Starting ---");
     USBSerial.printf("CPU frequency: %u MHz\n", (unsigned)getCpuFrequencyMhz());
 
     state_init();
     http_init();
 
-    // Initialize CH32V003 IO expander
+    // Initialize CH32V003 IO expander (powers on LCD and resets GT911/ST7701S)
     if (!WS_CH32_IO::begin(Wire, WS_CH32_IO::DEFAULT_I2C_SDA, WS_CH32_IO::DEFAULT_I2C_SCL,
                            WS_CH32_IO::DEFAULT_I2C_FREQ, &USBSerial)) {
         USBSerial.println("CH32V003 IO expander init failed");
     } else {
         USBSerial.println("CH32V003 IO expander initialized");
-        delay(50);
-        WS_CH32_IO::initDisplayPower(Wire);
         delay(20);
         USBSerial.printf("Setting PWM to %d\n", state.display_brightness);
         uint8_t pwm = 255 - (state.display_brightness * 255 / 100);
         WS_CH32_IO::setPwm(Wire, pwm);
+        buzzer_init();
     }
 
     // Initialize Touch Controller GT911
@@ -270,12 +276,12 @@ void setup() {
     const uint32_t preferred_bytes = screenWidth * 40 * sizeof(lv_color_t);
     const uint32_t internal_caps = MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT;
     // Reserve headroom for later UI/network allocations; never use PSRAM.
-    const bool has_headroom = data_worker_started && heap_caps_get_free_size(internal_caps) >= preferred_bytes + 32768 &&
+    const bool has_headroom = data_worker_started && heap_caps_get_free_size(internal_caps) >= preferred_bytes + 40960 &&
                               heap_caps_get_largest_free_block(internal_caps) >= preferred_bytes;
-    uint32_t buf_size = screenWidth * (has_headroom ? 40 : 20);
+    uint32_t buf_size = screenWidth * (has_headroom ? 20 : 16);
     lv_color_t *buf1 = (lv_color_t *)heap_caps_malloc(buf_size * sizeof(lv_color_t), MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
-    if (!buf1 && buf_size == screenWidth * 40) {
-        buf_size = screenWidth * 20;
+    if (!buf1 && buf_size == screenWidth * 20) {
+        buf_size = screenWidth * 16;
         buf1 = (lv_color_t *)heap_caps_malloc(buf_size * sizeof(lv_color_t), internal_caps);
     }
     if (!buf1) {
@@ -307,6 +313,7 @@ void setup() {
         lv_indev_drv_init(&indev_drv);
         indev_drv.type = LV_INDEV_TYPE_POINTER;
         indev_drv.read_cb = my_touchpad_read;
+        indev_drv.feedback_cb = my_touchpad_feedback;
         lv_indev_drv_register(&indev_drv);
     }
 
@@ -321,7 +328,8 @@ void setup() {
 
 
     ui_init();
-    ota_updater_init();
+    web_ota_init();
+    display_request_resync();
 
     // Report memory after UI construction; the data worker started earlier.
 
@@ -343,6 +351,12 @@ void display_request_resync() {
 }
 
 void loop() {
+    if (web_ota_is_updating()) {
+        web_ota_loop();
+        delay(1);
+        return;
+    }
+
     if (display_resync_pending) {
         display_resync_pending = false;
         // Flash writes have returned and cache access is available again.
@@ -386,7 +400,20 @@ void loop() {
             state_save();
             USBSerial.printf("[COMMAND] Debug Simulation Mode: %s\n", state.debug_mode ? "AKTIV (Dummy-Daten)" : "INAKTIV (Live HTTP)");
         }
+        if (c == 'w' || c == 'W') {
+            USBSerial.printf("[WIFI] Status: %d, SSID: '%s', IP: %s, RSSI: %d dBm | FreeInternal: %u, FreePSRAM: %u\n",
+                             WiFi.status(), state.wifi_ssid.c_str(), WiFi.localIP().toString().c_str(),
+                             WiFi.RSSI(),
+                             (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+                             (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
+        }
+        if (c == 'b' || c == 'B') {
+            buzzer_beep(50);
+            USBSerial.println("[BUZZER] Test-Beep (50ms)");
+        }
     }
+
+    buzzer_loop();
 
     // Update UI dynamically
     static uint32_t last_ui_ms = 0;
@@ -401,6 +428,6 @@ void loop() {
         ui_debug_navigation("after-data");
     }
     
-    ota_updater_loop();
+    web_ota_loop();
     delay(2);
 }

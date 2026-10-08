@@ -8,8 +8,7 @@
 #include <freertos/task.h>
 #include <freertos/queue.h>
 
-extern HWCDC USBSerial;
-#define Serial USBSerial
+#include "debug_log.h"
 
 struct HttpCmd {
     char path[64];
@@ -617,7 +616,7 @@ bool http_start_task() {
     BaseType_t result = xTaskCreatePinnedToCore(
         http_background_task,
         "http_task",
-        10240,       // 10 KB stack
+        5120,        // 5 KB stack (leaves more internal RAM for WiFi DMA buffers)
         NULL,
         1,           // Priority 1
         &worker,

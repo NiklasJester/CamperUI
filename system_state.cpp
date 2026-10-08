@@ -164,6 +164,7 @@ state.display_brightness = prefs.getInt("disp_bright", 100);
     state.display_rotation = prefs.getInt("disp_rot", 2);
     state.dark_mode = prefs.getBool("dark_mode", true);
     state.battery_icon_mode = prefs.getBool("bat_icn_md", true);
+    state.buzzer_enabled = prefs.getBool("buzzer_en", true);
     state.debug_mode = prefs.getBool("dbg_sim", true);
     
     state.bat_capacity_ah = prefs.getFloat("bat_cap_ah", 100.0f);
@@ -326,13 +327,9 @@ state.display_brightness = prefs.getInt("disp_bright", 100);
     }
     state.wrelay_fields = 0;
 
-    state.auto_update_check = prefs.getBool("ota_auto", true);
-    state.ota_state = OTA_STATE_IDLE;
-    state.ota_progress = 0;
-    state.ota_latest_version = "";
-    state.ota_download_url = "";
-    state.ota_status_msg = "Bereit";
-    state.ota_manual_check = false;
+    state.web_ota_active = false;
+    state.web_ota_progress = 0;
+    state.web_ota_msg = "Bereit";
 
     time_apply_configuration();
 }
@@ -359,6 +356,7 @@ void state_save() {
     prefs.putInt("disp_rot", state.display_rotation);
     prefs.putBool("dark_mode", state.dark_mode);
     prefs.putBool("bat_icn_md", state.battery_icon_mode);
+    prefs.putBool("buzzer_en", state.buzzer_enabled);
     prefs.putBool("dbg_sim", state.debug_mode);
     
     prefs.putFloat("bat_cap_ah", state.bat_capacity_ah);
@@ -413,7 +411,6 @@ void state_save() {
         prefs.putBool(key_w_vis, state.wrelay_visible[i]);
     }
 
-    prefs.putBool("ota_auto", state.auto_update_check);
 
     display_request_resync();
 }

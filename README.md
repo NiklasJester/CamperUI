@@ -70,6 +70,18 @@
 * Display-Timeout, Helligkeit und Dark/Light-Mode.
 * **Integrierter Debug-Modus:** Simuliert realistische Sensordaten per Knopfdruck – ideal zum Testen ohne Fahrzeug.
 
+### 9. 🔊 Haptisches Feedback (Touch-Ton)
+* **Onboard-Buzzer Anbindung:** Akustische Rückmeldung für Berührungen und Tastendrücke über den hardwareseitigen Piezo-Buzzer des Displays.
+* **Präziser 3-ms Klick:** Extrem kurzer Mikrosekunden-Impuls erzeugt ein dezentes mechanisches "Tick"-Geräusch statt eines störenden Piepens.
+* **Intelligente Filterung:** Löst nur bei echten Klicks auf Buttons, Schalter, Tabs und Tastaturtasten aus – kein Ton beim Wischen, Scrollen oder Aufwecken des Displays.
+* **In den Einstellungen konfigurierbar:** Unter *Einstellungen → Allgemein* per Schalter ("Touch-Ton") jederzeit an- und abschaltbar.
+
+### 10. 📟 Web-Terminal & Live Debug-Monitor
+* **Drahtlose Fehlerdiagnose:** Vollständiger Zugriff auf serielle Meldungen und Debug-Logs direkt im Browser unter `http://<IP>/status` – ohne USB-Kabel.
+* **1-Klick Foren-Export:** "In die Zwischenablage kopieren"-Button zum schnellen Teilen von Logs bei Support-Fragen oder Fehlerberichten.
+* **Interaktive Schnellbefehle:** WLAN-Diagnose (`w`), Demo-Modus (`d`), Buzzer-Test (`b`) oder Display-Resync (`s`) direkt per Weboberfläche auslösen.
+* **64 KB PSRAM-Puffer:** Schneller, entkoppelter Ringpuffer im Octal-PSRAM ohne Belastung des internen Heaps.
+
 ---
 
 ## 🛠️ Hardware-Anforderungen
@@ -91,7 +103,7 @@
 | **Board** | ESP32S3 Dev Module |
 | **USB CDC On Boot** | Enabled |
 | **Flash Size** | 16MB (128Mb) |
-| **Partition Scheme** | 16M Flash (3MB APP/9.9MB FATFS) (pp3M_fat9M_16MB) |
+| **Partition Scheme** | 16M Flash (3MB APP/9.9MB FATFS) (`app3M_fat9M_16MB`) |
 | **PSRAM** | OPI PSRAM |
 
 ### LVGL-Konfiguration installieren
@@ -103,29 +115,106 @@ Die getestete Konfiguration für LVGL 8.4 liegt unter `config/lv_conf.h`.
 3. `config/lv_conf.h` in den `libraries`-Ordner des Sketchbooks kopieren, direkt neben den Ordner `lvgl`.
 4. CamperUI erneut kompilieren und hochladen.
 
-Die Konfiguration verwendet 128 KiB LVGL-Speicher statt der 48 KiB
-aus dem getesteten Waveshare-Paket. Auf einem Waveshare Rev04 behob
-diese Änderung einen Startabsturz beim Aufbau der CamperUI-Oberfläche.
+Die Konfiguration verwendet 128 KiB LVGL-Speicher statt der 48 KiB aus dem getesteten Waveshare-Paket. Auf einem Waveshare Rev04 behob diese Änderung einen Startabsturz beim Aufbau der CamperUI-Oberfläche.
 
-LVGL-Logging ist für die Diagnose aktiviert. Die serielle Ausgabe
-kann mit 115200 Baud gelesen werden.
+### Flashen via USB (Arduino CLI)
 
-Die Datei unter `config/` wird nicht automatisch von Arduino verwendet.
-Nach Änderungen muss sie erneut in den Sketchbook-Ordner kopiert werden.
-
-
-
-### Flashen via Arduino CLI
-
-`powershell
+```powershell
 arduino-cli compile --upload -p COM4 --fqbn esp32:esp32:esp32s3:CDCOnBoot=cdc,PSRAM=opi,FlashSize=16M,PartitionScheme=app3M_fat9M_16MB CamperUI.ino
-`
+```
+
+---
+
+## 🔄 Firmware-Updates (Web-OTA über den Browser)
+
+CamperUI verfügt über einen integrierten, extrem schnellen lokalen Web-Update-Server. Sobald CamperUI im WLAN angemeldet ist, können zukünftige Firmware-Updates **vollständig drahtlos direkt über jeden Webbrowser** installiert werden – ohne USB-Kabel, ohne serielle Treiber und ohne Arduino IDE!
+
+### 🌐 Update-Interface aufrufen
+
+1. Stelle sicher, dass sich dein Endgerät (PC, Mac, Smartphone oder Tablet) im selben WLAN-Netzwerk wie das CamperUI-Display befindet.
+2. Ermittle die IP-Adresse des Displays:
+   * Auf dem Display: **Einstellungen** (Zahnrad) → Tab **Netzwerk**.
+   * Dort werden die aktuelle IP-Adresse und der direkte Update-Link angezeigt.
+3. Öffne im Browser deiner Wahl:
+   ```text
+   http://camperui.local/update
+   ```
+   *Alternativ über die direkte IP-Adresse:*
+   ```text
+   http://<IP-Adresse-des-Displays>/update   (z. B. http://192.168.1.182/update)
+   ```
+
+### 🚀 Update durchführen (Schritt für Schritt)
+
+1. **Firmware herunterladen:**
+   * Lade die gewünschte Update-Datei (z. B. `CamperUI-V1.0.2.bin`) aus den GitHub Releases oder dem lokalen `build/`-Ordner herunter.
+2. **Datei auswählen:**
+   * Ziehe die `.bin`-Datei per **Drag & Drop** in das Upload-Feld im Browser oder klicke auf **"Firmware-Datei auswählen"**.
+3. **Installation starten:**
+   * Klicke auf den Button **"Firmware installieren"**.
+4. **Automatischer Installationsvorgang:**
+   * Der Upload dauert im lokalen WLAN ca. **2 bis 3 Sekunden**. Der Fortschrittsbalken im Browser zeigt den Live-Status an.
+   * Während des Flash-Schreibvorgangs schaltet das Display automatisch kurz ab, um Speicherbus-Konflikte und Farbrauschen zu vermeiden.
+   * Sobald der Upload abgeschlossen ist, meldet die Weboberfläche Erfolg und der ESP32 startet automatisch neu.
+5. **Fertig:**
+   * Das Display startet direkt mit der neuen Version und allen bestehenden Einstellungen!
+
+> [!NOTE]
+> **Für Entwickler (Erstellen eigener Update-Binaries):**
+> Um eine kompatible `.bin`-Datei für das Web-OTA Update zu erzeugen, kompilieren Sie mit dem Parameter `--output-dir`:
+> ```powershell
+> arduino-cli compile --output-dir ./build -b esp32:esp32:esp32s3:CPUFreq=240,CDCOnBoot=cdc,PSRAM=opi,FlashSize=16M,PartitionScheme=app3M_fat9M_16MB CamperUI.ino
+> ```
+> Verwenden Sie für das Web-Update die generierte Datei `build/CamperUI.ino.bin` (bzw. `CamperUI-Vx.x.x.bin`).
+> *(Die Datei `merged.bin` enthält den Bootloader sowie die Partitionstabelle ab Flash-Adresse `0x00` und ist ausschließlich für das erstmalige Flashen per USB über `esptool` gedacht!)*
+
+---
+
+## 📟 Web-Terminal & Live Debug-Monitor (`/status`)
+
+CamperUI verfügt über ein integriertes, browserbasiertes **Web-Terminal**. Sämtliche seriellen Konsolenausgaben, Netzwerk-Meldungen und System-Diagnosen werden drahtlos in Echtzeit über jeden Webbrowser bereitgestellt – **ohne USB-Kabel oder serielle Konsole**.
+
+### 🌐 Web-Terminal aufrufen
+
+Öffne im Browser deiner Wahl:
+```text
+http://camperui.local/status
+```
+*Alternativ über die IP-Adresse:*
+```text
+http://<IP-Adresse-des-Displays>/status   (z. B. http://192.168.1.182/status)
+```
+*(Ein direkter Button oben rechts auf der Update-Seite `/update` führt ebenfalls dorthin.)*
+
+### 📋 Funktionen & Werkzeuge
+
+* **1-Klick Zwischenablage (`📋 In die Zwischenablage kopieren`):**
+  * Kopiert den gesamten Logverlauf auf Knopfdruck in die Zwischenablage.
+  * Ideal, um Debug-Daten bei Fragen im Forum oder für GitHub-Fehlerberichte zu teilen.
+* **64 KB PSRAM-Ringpuffer:**
+  * Puffert ca. 1.000 bis 1.500 Zeilen der neuesten Debug-Ausgaben (WLAN-Events, Touch-Eingaben, Sensorabfragen, HTTP-Worker-Logs).
+  * Vollständig im 8-MB Octal-PSRAM abgelegt, um internen Heap-Speicher zu schonen.
+* **Live System-Status-Kacheln:**
+  * Übersicht über Uptime, freiem internem Heap, PSRAM, WLAN-Signalstärke (RSSI in dBm), IP-Adresse und VanPi-Verbindungsstatus.
+* **Auto-Refresh & Auto-Scroll:**
+  * Fragt alle 2 Sekunden neue Logs ab und scrollt automatisch zum Ende.
+* **Interaktive Schnellbefehle:**
+  * `[w]` WLAN & Speicher-Diagnose abrufen
+  * `[d]` Simulationsmodus (Demo vs. Live-VanPi) umschalten
+  * `[b]` Buzzer-Test (50 ms)
+  * `[s]` RGB-Panel Resynchronisierung auslösen
+  * `[r]` Display neu zeichnen
+  * `[n]` LVGL Heap-Integritätsprüfung
+  * Eigenes Eingabefeld zum Senden beliebiger Terminal-Kommandos an den ESP32.
+* **Export & Bereinigung:**
+  * `📥 Als Text speichern`: Lädt die Logs direkt als Datei `camperui-debug.log` herunter.
+  * `🗑️ Leeren`: Setzt den Logpuffer im Display zurück.
 
 ---
 
 ## 📁 Projektstruktur
 
-`	ext
+```text
 CamperUI/
 ├── CamperUI.ino            # Hauptprogramm, Setup & Main-Loop
 ├── ui_main.cpp / .h        # LVGL-Initialisierung, Status-Bar, Navigation, Theme
@@ -135,6 +224,10 @@ CamperUI/
 ├── ui_switches.cpp         # Tab 0 & 4: Dimmer & Schalter
 ├── ui_level.cpp            # Tab 5: Wasserwaage & 4-Rad Keilassistent
 ├── ui_settings.cpp         # Tab 6: Systemeinstellungen & Kalibrierung
+├── web_ota.cpp / .h        # Web-Server für OTA-Updates & Web-Terminal Endpunkte
+├── web_terminal_html.h     # Eigenständiges Dark-Theme Web-Terminal UI
+├── debug_log.cpp / .h      # 64 KB PSRAM-Ringpuffer & Serial-Multiplexer
+├── buzzer.cpp / .h         # Nicht-blockierende haptische Buzzer-Ansteuerung
 ├── ui_mdi_icons.c / .h     # 32px & 18px Material Design Vektor-Icon-Fonts
 ├── http_handler.cpp / .h   # VanPi REST-Client & HTTP-Publisher
 ├── system_state.cpp / .h   # Datenmodell & NVS-Flash-Persistenz
@@ -145,7 +238,7 @@ CamperUI/
 └── docs/                   # Dokumentation & Assets
     ├── screenshots/        # 480x480 Display-Vorschauen
     └── flows.json          # Node-RED Referenz-Flows
-`
+```
 
 ---
 

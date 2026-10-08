@@ -5,7 +5,7 @@
 #include "system_state.h"
 #include "ui_mdi_icons.h"
 #include <string.h>
-#define CAMPERUI_VERSION "V1.0.0"
+#define CAMPERUI_VERSION "V1.0.3"
 
 // ==========================================
 // Modern Automotive / Camper Color Palette
