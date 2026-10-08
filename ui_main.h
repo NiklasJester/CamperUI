@@ -99,6 +99,19 @@ lv_obj_t* ui_create_card(lv_obj_t *parent, int w, int h);
 void ui_apply_theme();
 void ui_setup_tab_page(lv_obj_t *page);
 
+struct TabMeta {
+    uint8_t id;
+    const char *name;
+    const char *icon;
+};
+
+extern const TabMeta TAB_METAS[TAB_COUNT];
+
+void ui_open_nav_settings();
+void ui_build_nav_settings(lv_obj_t *parent);
+bool ui_nav_settings_is_active();
+void ui_nav_settings_destroy();
+
 extern lv_obj_t *lbl_debug_info;
 extern lv_obj_t *scr_main;
 extern lv_obj_t *scr_settings;

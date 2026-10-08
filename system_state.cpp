@@ -64,6 +64,32 @@ state.display_brightness = prefs.getInt("disp_bright", 100);
     state.home_show_water = prefs.getBool("home_water", true);
     state.home_water_source = constrain(prefs.getInt("home_tank", 0), 0, 3);
 
+    // Tab Order & Visibility
+    size_t r_order = prefs.getBytes("tab_order", state.tab_order, sizeof(state.tab_order));
+    if (r_order != sizeof(state.tab_order)) {
+        for (uint8_t i = 0; i < TAB_COUNT; ++i) state.tab_order[i] = i;
+    } else {
+        bool seen[TAB_COUNT] = {false};
+        bool valid = true;
+        for (uint8_t i = 0; i < TAB_COUNT; ++i) {
+            if (state.tab_order[i] >= TAB_COUNT || seen[state.tab_order[i]]) {
+                valid = false;
+                break;
+            }
+            seen[state.tab_order[i]] = true;
+        }
+        if (!valid) {
+            for (uint8_t i = 0; i < TAB_COUNT; ++i) state.tab_order[i] = i;
+        }
+    }
+
+    size_t r_en = prefs.getBytes("tab_en", state.tab_enabled, sizeof(state.tab_enabled));
+    if (r_en != sizeof(state.tab_enabled)) {
+        for (uint8_t i = 0; i < TAB_COUNT; ++i) state.tab_enabled[i] = true;
+    }
+    // Settings is always enabled so the user can never get locked out
+    state.tab_enabled[TAB_SETTINGS] = true;
+
     for (int i = 0; i < 4; i++) {
         char key_max[16], key_en[16], key_nm[16];
         sprintf(key_max, "tank%d_max", i);
@@ -175,6 +201,8 @@ void state_save() {
     prefs.putInt("w_waste", state.warn_waste_max);
 
     prefs.putInt("out_temp_idx", state.outdoor_temp_sensor);
+    prefs.putBytes("tab_order", state.tab_order, sizeof(state.tab_order));
+    prefs.putBytes("tab_en", state.tab_enabled, sizeof(state.tab_enabled));
 
     for (int i = 0; i < 4; i++) {
         char key_max[16], key_en[16], key_nm[16];

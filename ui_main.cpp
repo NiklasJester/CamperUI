@@ -27,7 +27,19 @@ static lv_obj_t *badge_bat;
 static lv_obj_t *badge_fresh;
 static lv_obj_t *badge_waste;
 
-static constexpr uint8_t PAGE_COUNT = 9;
+const TabMeta TAB_METAS[TAB_COUNT] = {
+    {TAB_HOME, "Home", MDI_HOME},
+    {TAB_DIMMERS, "Dimmer", MDI_LIGHTBULB},
+    {TAB_POWER, "Power", MDI_BATTERY_CHARGING},
+    {TAB_WATER, "Wasser", MDI_WATER},
+    {TAB_CLIMATE, "Klima", MDI_THERMOMETER},
+    {TAB_MAXXFAN, "MaxxFan", MDI_FAN},
+    {TAB_SWITCHES, "Schalter", MDI_TOGGLE_SWITCH},
+    {TAB_LEVEL, "Level", MDI_SPIRIT_LEVEL},
+    {TAB_SETTINGS, "Einstellungen", MDI_TUNE}
+};
+
+static constexpr uint8_t PAGE_COUNT = TAB_COUNT;
 static constexpr lv_coord_t SCREEN_WIDTH = 480;
 static constexpr lv_coord_t SCREEN_HEIGHT = 480;
 static constexpr lv_coord_t STATUS_HEIGHT = 40;
@@ -38,11 +50,11 @@ static constexpr lv_coord_t NAV_BUTTON_HEIGHT = 48;
 static constexpr lv_coord_t NAV_PADDING = 3;
 static constexpr lv_coord_t NAV_GAP = 4;
 static lv_obj_t *content;
-static lv_obj_t *pages[PAGE_COUNT] = {};
-static uint8_t active_page = 0;
+static lv_obj_t *pages[TAB_COUNT] = {};
+static uint8_t active_page = TAB_HOME;
 static bool rebuild_pending = false;
 static lv_obj_t *home_nav;
-static lv_obj_t *home_nav_buttons[PAGE_COUNT] = {};
+static lv_obj_t *home_nav_buttons[TAB_COUNT] = {};
 static lv_coord_t nav_scroll_x = 0;
 
 // Observe coordinates; never hide a failure by repositioning the strip in a timer.
@@ -114,14 +126,15 @@ static void update_home_nav() {
 }
 
 static void select_page(uint8_t index) {
-    if (index >= PAGE_COUNT || !pages[index]) return;
-    for (uint8_t i = 0; i < PAGE_COUNT; ++i) {
+    if (index >= TAB_COUNT || !pages[index]) return;
+    for (uint8_t i = 0; i < TAB_COUNT; ++i) {
+        if (!pages[i]) continue;
         if (i == index) lv_obj_clear_flag(pages[i], LV_OBJ_FLAG_HIDDEN);
         else lv_obj_add_flag(pages[i], LV_OBJ_FLAG_HIDDEN);
     }
     active_page = index;
-    if (index == 2) ui_trigger_power_anim();
-    else if (index == 3) ui_trigger_water_anim();
+    if (index == TAB_POWER) ui_trigger_power_anim();
+    else if (index == TAB_WATER) ui_trigger_water_anim();
     update_home_nav();
     // Refresh newly selected controls immediately, rather than waiting for
     // the next periodic update after leaving them dormant in the background.
@@ -340,7 +353,13 @@ void ui_init() {
     content = lv_obj_create(scr_main);
     setup_fixed_region(content, STATUS_HEIGHT, CONTENT_HEIGHT);
     lv_obj_set_style_bg_color(content, ui_theme_bg(), 0);
-    for (uint8_t i = 0; i < PAGE_COUNT; ++i) {
+    for (uint8_t i = 0; i < TAB_COUNT; ++i) {
+        if (i == TAB_SETTINGS) state.tab_enabled[i] = true;
+        if (!state.tab_enabled[i]) {
+            pages[i] = nullptr;
+            continue;
+        }
+
         pages[i] = lv_obj_create(content);
         lv_obj_set_pos(pages[i], 0, 0);
         lv_obj_set_size(pages[i], SCREEN_WIDTH, CONTENT_HEIGHT);
@@ -350,29 +369,24 @@ void ui_init() {
         lv_obj_set_scroll_dir(pages[i], LV_DIR_VER);
         lv_obj_clear_flag(pages[i], LV_OBJ_FLAG_SCROLL_CHAIN_HOR);
         lv_obj_add_flag(pages[i], LV_OBJ_FLAG_HIDDEN);
+
+        if (i != TAB_HOME) {
+            ui_setup_tab_page(pages[i]);
+        }
+
+        switch (i) {
+            case TAB_HOME:     ui_build_home(pages[i]); break;
+            case TAB_DIMMERS:  ui_build_dimmers(pages[i]); break;
+            case TAB_POWER:    ui_build_power(pages[i]); break;
+            case TAB_WATER:    ui_build_water(pages[i]); break;
+            case TAB_CLIMATE:  ui_build_climate(pages[i]); break;
+            case TAB_MAXXFAN:  ui_build_maxxfan(pages[i]); break;
+            case TAB_SWITCHES: ui_build_switches(pages[i]); break;
+            case TAB_LEVEL:    ui_build_level(pages[i]); break;
+            case TAB_SETTINGS: ui_build_settings(pages[i]); break;
+            default: break;
+        }
     }
-    lv_obj_t *t_home = pages[0], *t_dim = pages[1], *t1 = pages[2];
-    lv_obj_t *t2 = pages[3], *t3 = pages[4], *t_fan = pages[5];
-    lv_obj_t *t_sw = pages[6], *t_lvl = pages[7], *t5 = pages[8];
-
-    ui_setup_tab_page(t_dim);
-    ui_setup_tab_page(t1);
-    ui_setup_tab_page(t2);
-    ui_setup_tab_page(t3);
-    ui_setup_tab_page(t_fan);
-    ui_setup_tab_page(t_sw);
-    ui_setup_tab_page(t_lvl);
-    ui_setup_tab_page(t5);
-
-    ui_build_home(t_home);
-    ui_build_dimmers(t_dim);
-    ui_build_power(t1);
-    ui_build_water(t2);
-    ui_build_climate(t3);
-    ui_build_maxxfan(t_fan);
-    ui_build_switches(t_sw);
-    ui_build_level(t_lvl);
-    ui_build_settings(t5);
 
     // The only navigation strip: a fixed sibling of status bar and content.
     home_nav = lv_obj_create(scr_main);
@@ -384,31 +398,51 @@ void ui_init() {
     lv_obj_set_scroll_dir(home_nav, LV_DIR_HOR);
     lv_obj_set_scrollbar_mode(home_nav, LV_SCROLLBAR_MODE_OFF);
     lv_obj_clear_flag(home_nav, LV_OBJ_FLAG_SCROLL_ELASTIC | LV_OBJ_FLAG_SCROLL_MOMENTUM);
-    const char *nav_icons[PAGE_COUNT] = {MDI_HOME, MDI_LIGHTBULB, MDI_BATTERY_CHARGING,
-        MDI_WATER, MDI_THERMOMETER, MDI_FAN, MDI_TOGGLE_SWITCH, MDI_SPIRIT_LEVEL, MDI_TUNE};
-    for (uintptr_t i = 0; i < PAGE_COUNT; ++i) {
+
+    int btn_slot = 0;
+    for (int i = 0; i < TAB_COUNT; ++i) {
+        uint8_t tab_id = state.tab_order[i];
+        if (tab_id >= TAB_COUNT) continue;
+        if (!state.tab_enabled[tab_id]) continue;
+
         lv_obj_t *button = lv_btn_create(home_nav);
-        home_nav_buttons[i] = button;
+        home_nav_buttons[tab_id] = button;
         // Remove the default button grow/transition and focus-autoscroll effects.
         lv_obj_remove_style_all(button);
         lv_obj_clear_flag(button, LV_OBJ_FLAG_SCROLL_ON_FOCUS);
-        lv_obj_set_pos(button, i * (NAV_BUTTON_WIDTH + NAV_GAP),
+        lv_obj_set_pos(button, btn_slot * (NAV_BUTTON_WIDTH + NAV_GAP),
                        (NAV_HEIGHT - NAV_BUTTON_HEIGHT) / 2);
         lv_obj_set_size(button, NAV_BUTTON_WIDTH, NAV_BUTTON_HEIGHT);
         lv_obj_set_style_bg_opa(button, LV_OPA_COVER, 0);
         lv_obj_set_style_radius(button, 10, 0);
         lv_obj_set_style_outline_width(button, 2, LV_STATE_FOCUS_KEY);
         lv_obj_set_style_outline_color(button, lv_color_hex(UI_COLOR_PRIMARY), LV_STATE_FOCUS_KEY);
-        lv_obj_add_event_cb(button, home_nav_clicked, LV_EVENT_CLICKED, (void *)i);
+        lv_obj_add_event_cb(button, home_nav_clicked, LV_EVENT_CLICKED, (void *)(uintptr_t)tab_id);
         lv_obj_t *icon = lv_label_create(button);
-        lv_label_set_text(icon, nav_icons[i]);
+        lv_label_set_text(icon, TAB_METAS[tab_id].icon);
         lv_obj_set_style_text_font(icon, &ui_font_mdi_32, 0);
         lv_obj_center(icon);
+
+        btn_slot++;
     }
     ui_apply_theme();
     lv_obj_update_layout(scr_main);
     lv_obj_scroll_to_x(home_nav, nav_scroll_x, LV_ANIM_OFF);
-    select_page(active_page);
+
+    // Pick active tab: if active_page is valid and enabled, use it; otherwise use first enabled tab from tab_order
+    uint8_t target_tab = TAB_SETTINGS;
+    for (int i = 0; i < TAB_COUNT; ++i) {
+        uint8_t id = state.tab_order[i];
+        if (id < TAB_COUNT && state.tab_enabled[id] && pages[id]) {
+            target_tab = id;
+            break;
+        }
+    }
+    if (active_page < TAB_COUNT && state.tab_enabled[active_page] && pages[active_page]) {
+        target_tab = active_page;
+    }
+    select_page(target_tab);
+
     lv_obj_move_foreground(status_bar);
     lv_obj_move_foreground(home_nav);
     lv_scr_load(scr_main);
@@ -419,14 +453,15 @@ void ui_init() {
 
 void ui_update_visible_page() {
     if (lv_scr_act() != scr_main) return;
+    if (active_page >= TAB_COUNT || !pages[active_page]) return;
     switch (active_page) {
-        case 0: ui_update_home(); break;
-        case 1: ui_update_dimmers_tab(); break;
-        case 2: ui_update_power_tab(); break;
-        case 3: ui_update_water_tab(); break;
-        case 4: ui_update_climate_tab(); break;
-        case 6: ui_update_switches_tab(); break;
-        case 7: ui_update_level_tab(); break;
+        case TAB_HOME: ui_update_home(); break;
+        case TAB_DIMMERS: ui_update_dimmers_tab(); break;
+        case TAB_POWER: ui_update_power_tab(); break;
+        case TAB_WATER: ui_update_water_tab(); break;
+        case TAB_CLIMATE: ui_update_climate_tab(); break;
+        case TAB_SWITCHES: ui_update_switches_tab(); break;
+        case TAB_LEVEL: ui_update_level_tab(); break;
         // MaxxFan remains a local preview with its own event handlers.
         default: break;
     }
@@ -514,7 +549,7 @@ void ui_update_data() {
     }
     
     // Update Debug Info
-    if (active_page == 8 && lbl_debug_info != NULL) {
+    if (active_page == TAB_SETTINGS && lbl_debug_info != NULL) {
         String debug_txt = wifi_connection_summary();
         if (WiFi.status() == WL_CONNECTED) debug_txt += "\nIP: " + WiFi.localIP().toString();
         debug_txt += state.debug_mode ? "\nDaten: Dummy" : "\nDaten: Live";

@@ -247,11 +247,11 @@ void ui_build_settings(lv_obj_t *parent) {
     ui_setup_tab_page(parent);
     lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(parent, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_row(parent, 20, 0);
+    lv_obj_set_style_pad_row(parent, 12, 0);
     
     // Modern Action Button
     lv_obj_t *btn_open = lv_btn_create(parent);
-    lv_obj_set_size(btn_open, 320, 64);
+    lv_obj_set_size(btn_open, 320, 60);
     lv_obj_set_style_radius(btn_open, 14, 0);
     lv_obj_set_style_bg_color(btn_open, lv_color_hex(UI_COLOR_PRIMARY), 0);
     lv_obj_set_style_shadow_width(btn_open, 12, 0);
@@ -267,15 +267,26 @@ void ui_build_settings(lv_obj_t *parent) {
     lv_obj_center(lbl_open);
     
     lv_obj_t *btn_home = lv_btn_create(parent);
-    lv_obj_set_size(btn_home, 320, 48);
+    lv_obj_set_size(btn_home, 320, 46);
     lv_obj_set_style_radius(btn_home, 14, 0);
     lv_obj_set_style_bg_color(btn_home, lv_color_hex(UI_COLOR_PRIMARY), 0);
     lv_obj_add_event_cb(btn_home, [](lv_event_t *) { ui_open_home_settings(); }, LV_EVENT_CLICKED, nullptr);
     lv_obj_t *lbl_home = lv_label_create(btn_home);
     lv_label_set_text(lbl_home, LV_SYMBOL_HOME " Home-Einstellungen");
-    lv_obj_set_style_text_font(lbl_home, &lv_font_montserrat_18, 0);
+    lv_obj_set_style_text_font(lbl_home, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(lbl_home, lv_color_hex(0xffffff), 0);
     lv_obj_center(lbl_home);
+
+    lv_obj_t *btn_nav = lv_btn_create(parent);
+    lv_obj_set_size(btn_nav, 320, 46);
+    lv_obj_set_style_radius(btn_nav, 14, 0);
+    lv_obj_set_style_bg_color(btn_nav, lv_color_hex(UI_COLOR_PRIMARY), 0);
+    lv_obj_add_event_cb(btn_nav, [](lv_event_t *) { ui_open_nav_settings(); }, LV_EVENT_CLICKED, nullptr);
+    lv_obj_t *lbl_nav = lv_label_create(btn_nav);
+    lv_label_set_text(lbl_nav, LV_SYMBOL_LIST "  Menueleiste / Tabs anpassen");
+    lv_obj_set_style_text_font(lbl_nav, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_color(lbl_nav, lv_color_hex(0xffffff), 0);
+    lv_obj_center(lbl_nav);
 
     // Simulation / Debug Toggle Card
     lv_obj_t *card_dbg = ui_create_card(parent, 360, 56);
@@ -506,6 +517,15 @@ void ui_settings_screen_init() {
     lv_obj_set_style_text_color(l_out_desc, ui_theme_muted(), 0);
     lv_obj_set_style_text_font(l_out_desc, &lv_font_montserrat_12, 0);
     lv_obj_align(l_out_desc, LV_ALIGN_TOP_LEFT, 240, 115);
+
+    lv_obj_t *btn_nav_modal = lv_btn_create(t_gen);
+    lv_obj_set_size(btn_nav_modal, 200, 42);
+    lv_obj_align(btn_nav_modal, LV_ALIGN_TOP_LEFT, 240, 168);
+    lv_obj_set_style_bg_color(btn_nav_modal, lv_color_hex(UI_COLOR_PRIMARY), 0);
+    lv_obj_add_event_cb(btn_nav_modal, [](lv_event_t *) { ui_open_nav_settings(); }, LV_EVENT_CLICKED, nullptr);
+    lv_obj_t *lbl_nav_m = lv_label_create(btn_nav_modal);
+    lv_label_set_text(lbl_nav_m, LV_SYMBOL_LIST " Tabs anpassen");
+    lv_obj_center(lbl_nav_m);
     
     // --- TAB 3: SICHTBARKEIT ---
     lv_obj_clear_flag(t_vis, LV_OBJ_FLAG_SCROLLABLE);

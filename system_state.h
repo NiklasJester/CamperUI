@@ -4,12 +4,29 @@
 #include <Arduino.h>
 #include <Preferences.h>
 
+enum TabId : uint8_t {
+    TAB_HOME = 0,
+    TAB_DIMMERS = 1,
+    TAB_POWER = 2,
+    TAB_WATER = 3,
+    TAB_CLIMATE = 4,
+    TAB_MAXXFAN = 5,
+    TAB_SWITCHES = 6,
+    TAB_LEVEL = 7,
+    TAB_SETTINGS = 8,
+    TAB_COUNT = 9
+};
+
 // Global State Structure to hold all sensor data and system settings
 struct SystemState {
     // --- Settings (Persisted) ---
     String wifi_ssid;
     String wifi_pass;
     String vanpi_ip;
+    
+    // Menu / Navigation Customization (Persisted)
+    uint8_t tab_order[TAB_COUNT];
+    bool tab_enabled[TAB_COUNT];
     
     int display_brightness; // 10-100
     int display_timeout;

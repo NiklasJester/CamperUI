@@ -458,9 +458,13 @@ void http_loop() {
             case 2: fetch_endpoint("/dimmer",  parse_dimmer_json);  break;
             case 3: fetch_endpoint("/level",   parse_level_json);   break;
             case 4: fetch_endpoint("/temp",    parse_temp_json);    break;
-            case 5: fetch_endpoint("/heater",  parse_heater_json);  break;
+            case 5:
+                if (state.tab_enabled[TAB_CLIMATE]) fetch_endpoint("/heater", parse_heater_json);
+                break;
             case 6: fetch_endpoint("/mppt/",   parse_mppt_json);    break;
-            case 7: fetch_endpoint("/position_sensor/?request=true", parse_position_json); break;
+            case 7:
+                if (state.tab_enabled[TAB_LEVEL]) fetch_endpoint("/position_sensor/?request=true", parse_position_json);
+                break;
         }
 
         if (poll_step == 7) {
