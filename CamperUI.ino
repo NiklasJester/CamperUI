@@ -305,7 +305,7 @@ void setup() {
     disp_drv.ver_res = screenHeight;
     disp_drv.flush_cb = my_disp_flush;
     disp_drv.draw_buf = &draw_buf;
-    disp_drv.sw_rotate = 1;
+    disp_drv.sw_rotate = 0; // Handled directly in fast driver layer with 32-bit burst writes
     lv_disp_drv_register(&disp_drv);
 
     if (gt911_available) {
@@ -366,7 +366,7 @@ void loop() {
         USBSerial.printf("[DISPLAY v8.7] RGB resync scheduled after save/manual command: %s\n",
                          esp_err_to_name(result));
     }
-    lv_timer_handler();
+    uint32_t wait_ms = lv_timer_handler();
 
     if (display_is_on && state.display_timeout > 0 && lv_disp_get_inactive_time(NULL) > (uint32_t)(state.display_timeout * 1000)) {
         display_is_on = false;
@@ -429,5 +429,10 @@ void loop() {
     }
     
     web_ota_loop();
-    delay(2);
+    if (wait_ms > 5) wait_ms = 5;
+    if (wait_ms > 0) {
+        delay(wait_ms);
+    } else {
+        yield();
+    }
 }

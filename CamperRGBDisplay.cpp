@@ -372,6 +372,144 @@ void CamperRGBDisplay::drawIndexedBitmap(int16_t x, int16_t y, uint8_t *bitmap, 
   }
 }
 
+// High-performance forward 32-bit burst transfer for 180-degree rotation (Rotation 2)
+static bool fast_draw_bitmap_rotate_2(
+    uint16_t *from_bitmap, int16_t bitmap_w, int16_t bitmap_h,
+    uint16_t *framebuffer, int16_t x, int16_t y, int16_t framebuffer_w, int16_t framebuffer_h)
+{
+  int16_t max_X = framebuffer_w - 1;
+  int16_t max_Y = framebuffer_h - 1;
+  if (((x + bitmap_w - 1) < 0) || ((y + bitmap_h - 1) < 0) || (x > max_X) || (y > max_Y))
+  {
+    return false;
+  }
+
+  int16_t x_skip = 0;
+  if ((y + bitmap_h - 1) > max_Y)
+  {
+    bitmap_h -= (y + bitmap_h - 1) - max_Y;
+  }
+  if (y < 0)
+  {
+    from_bitmap -= y * bitmap_w;
+    bitmap_h += y;
+    y = 0;
+  }
+  if ((x + bitmap_w - 1) > max_X)
+  {
+    x_skip += (x + bitmap_w - 1) - max_X;
+    bitmap_w -= x_skip;
+  }
+  if (x < 0)
+  {
+    from_bitmap -= x;
+    x_skip -= x;
+    bitmap_w += x;
+    x = 0;
+  }
+
+  // Iterate destination rows from lowest memory address to highest:
+  // py corresponds to source row (bitmap_h - 1 down to 0).
+  // As py decreases, destination y = (max_Y - y - py) INCREASES monotonically!
+  const int16_t dst_x_start = framebuffer_w - x - bitmap_w;
+  const int16_t src_stride = bitmap_w + x_skip;
+
+  for (int16_t py = bitmap_h - 1; py >= 0; --py)
+  {
+    int16_t dst_y = max_Y - y - py;
+    uint16_t *dst = framebuffer + (dst_y * framebuffer_w) + dst_x_start;
+    const uint16_t *src = from_bitmap + (py * src_stride);
+
+    int16_t col = 0;
+
+    // Align destination pointer to 32-bit if necessary
+    if (((uintptr_t)dst & 2) != 0 && col < bitmap_w)
+    {
+      dst[col] = src[bitmap_w - 1 - col];
+      col++;
+    }
+
+    // Fast 32-bit burst writes: pack pairs of 16-bit pixels
+    int16_t remaining = bitmap_w - col;
+    int16_t pairs = remaining >> 1;
+    uint32_t *dst32 = (uint32_t *)(dst + col);
+
+    for (int16_t p = 0; p < pairs; ++p)
+    {
+      int16_t src_idx = bitmap_w - 1 - col;
+      uint16_t p0 = src[src_idx];
+      uint16_t p1 = src[src_idx - 1];
+      dst32[p] = ((uint32_t)p1 << 16) | (uint32_t)p0;
+      col += 2;
+    }
+
+    // Write final odd pixel if any
+    if (col < bitmap_w)
+    {
+      dst[col] = src[bitmap_w - 1 - col];
+    }
+  }
+
+  return true;
+}
+
+// High-performance memcpy-accelerated transfer for 0-degree rotation (Rotation 0)
+static bool fast_draw_bitmap_rotate_0(
+    uint16_t *from_bitmap, int16_t bitmap_w, int16_t bitmap_h,
+    uint16_t *framebuffer, int16_t x, int16_t y, int16_t framebuffer_w, int16_t framebuffer_h)
+{
+  int16_t max_X = framebuffer_w - 1;
+  int16_t max_Y = framebuffer_h - 1;
+  if (((x + bitmap_w - 1) < 0) || ((y + bitmap_h - 1) < 0) || (x > max_X) || (y > max_Y))
+  {
+    return false;
+  }
+
+  int16_t x_skip = 0;
+  if ((y + bitmap_h - 1) > max_Y)
+  {
+    bitmap_h -= (y + bitmap_h - 1) - max_Y;
+  }
+  if (y < 0)
+  {
+    from_bitmap -= y * bitmap_w;
+    bitmap_h += y;
+    y = 0;
+  }
+  if ((x + bitmap_w - 1) > max_X)
+  {
+    x_skip += (x + bitmap_w - 1) - max_X;
+    bitmap_w -= x_skip;
+  }
+  if (x < 0)
+  {
+    from_bitmap -= x;
+    x_skip -= x;
+    bitmap_w += x;
+    x = 0;
+  }
+
+  uint16_t *dst = framebuffer + (y * framebuffer_w) + x;
+  const size_t line_bytes = (size_t)bitmap_w * sizeof(uint16_t);
+
+  if (x_skip == 0 && bitmap_w == framebuffer_w)
+  {
+    memcpy(dst, from_bitmap, line_bytes * bitmap_h);
+  }
+  else
+  {
+    const int16_t src_stride = bitmap_w + x_skip;
+    for (int16_t py = 0; py < bitmap_h; ++py)
+    {
+      memcpy(dst, from_bitmap, line_bytes);
+      from_bitmap += src_stride;
+      dst += framebuffer_w;
+    }
+  }
+
+  return true;
+}
+
 void CamperRGBDisplay::draw16bitRGBBitmap(int16_t x, int16_t y,
                                              uint16_t *bitmap, int16_t w, int16_t h)
 {
@@ -401,13 +539,13 @@ void CamperRGBDisplay::draw16bitRGBBitmap(int16_t x, int16_t y,
     result = gfx_draw_bitmap_to_framebuffer_rotate_1(bitmap, w, h, _framebuffer, x, y, _fb_height, _fb_width);
     break;
   case 2:
-    result = gfx_draw_bitmap_to_framebuffer_rotate_2(bitmap, w, h, _framebuffer, x, y, _fb_width, _fb_height);
+    result = fast_draw_bitmap_rotate_2(bitmap, w, h, _framebuffer, x, y, _fb_width, _fb_height);
     break;
   case 3:
     result = gfx_draw_bitmap_to_framebuffer_rotate_3(bitmap, w, h, _framebuffer, x, y, _fb_height, _fb_width);
     break;
   default: // case 0:
-    result = gfx_draw_bitmap_to_framebuffer(bitmap, w, h, _framebuffer, x, y, _fb_width, _fb_height);
+    result = fast_draw_bitmap_rotate_0(bitmap, w, h, _framebuffer, x, y, _fb_width, _fb_height);
   }
 
   if (result)
