@@ -16,6 +16,7 @@
 
 SystemState state;
 Preferences prefs;
+SemaphoreHandle_t state_mutex = NULL;
 
 const TimezoneInfo TIMEZONES[TIMEZONE_COUNT] = {
     // UTC-11
@@ -142,6 +143,9 @@ void time_set_manual(int hour, int min) {
 }
 
 void state_init() {
+    if (!state_mutex) {
+        state_mutex = xSemaphoreCreateMutex();
+    }
     prefs.begin("camperui", false);
 
     // Load persisted settings

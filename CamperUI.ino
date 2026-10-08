@@ -419,13 +419,13 @@ void loop() {
     static uint32_t last_ui_ms = 0;
     if (display_is_on && millis() - last_ui_ms > 1000) {
         last_ui_ms = millis();
-        ui_debug_navigation("before-data");
-        ui_update_data();
-        
-        ui_update_visible_page();
-        // Complete asynchronous WLAN scans even after leaving Settings.
-        ui_update_settings_tab();
-        ui_debug_navigation("after-data");
+        {
+            StateLockGuard lock;
+            ui_update_data();
+            ui_update_visible_page();
+            // Complete asynchronous WLAN scans even after leaving Settings.
+            ui_update_settings_tab();
+        }
     }
     
     web_ota_loop();

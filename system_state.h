@@ -164,6 +164,21 @@ void time_set_manual(int hour, int min);
 
 extern SystemState state;
 extern Preferences prefs;
+extern SemaphoreHandle_t state_mutex;
+
+inline void state_lock() {
+    if (state_mutex) xSemaphoreTake(state_mutex, portMAX_DELAY);
+}
+
+inline void state_unlock() {
+    if (state_mutex) xSemaphoreGive(state_mutex);
+}
+
+class StateLockGuard {
+public:
+    StateLockGuard() { state_lock(); }
+    ~StateLockGuard() { state_unlock(); }
+};
 
 void state_init();
 void state_save();

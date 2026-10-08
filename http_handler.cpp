@@ -28,14 +28,15 @@ static int poll_step = 0;
 
 // Replace UTF-8 encoded German umlauts with ASCII equivalents
 // because the LVGL font does not include umlaut glyphs.
-// We iterate byte-by-byte looking for the 2-byte UTF-8 sequences.
-static String fix_umlauts(const String &in) {
+static String fix_umlauts(const char *in) {
+    if (!in) return String();
     String out;
-    out.reserve(in.length());
-    for (unsigned int i = 0; i < in.length(); i++) {
-        uint8_t c = (uint8_t)in.charAt(i);
-        if (c == 0xC3 && (i + 1) < in.length()) {
-            uint8_t c2 = (uint8_t)in.charAt(i + 1);
+    size_t len = strlen(in);
+    out.reserve(len);
+    for (size_t i = 0; i < len; i++) {
+        uint8_t c = (uint8_t)in[i];
+        if (c == 0xC3 && (i + 1) < len) {
+            uint8_t c2 = (uint8_t)in[i + 1];
             switch (c2) {
                 case 0xA4: out += "ae"; i++; continue; // ä
                 case 0xB6: out += "oe"; i++; continue; // ö
@@ -47,9 +48,13 @@ static String fix_umlauts(const String &in) {
                 default: break;
             }
         }
-        out += in.charAt(i);
+        out += (char)c;
     }
     return out;
+}
+
+static String fix_umlauts(const String &in) {
+    return fix_umlauts(in.c_str());
 }
 
 static String get_url() {
@@ -60,17 +65,25 @@ static String get_url() {
 // These helpers handle both: "13.34" (string) and 13.34 (number), including German comma format.
 static float jsonFloat(JsonVariant v) {
     if (v.isNull()) return 0.0f;
-    String s = v.as<String>();
-    s.trim();
-    s.replace(',', '.');
-    return s.toFloat();
+    if (v.is<float>()) return v.as<float>();
+    if (v.is<int>()) return (float)v.as<int>();
+    const char *s = v.as<const char*>();
+    if (!s) return 0.0f;
+    char buf[24];
+    strncpy(buf, s, sizeof(buf) - 1);
+    buf[sizeof(buf) - 1] = '\0';
+    for (char *p = buf; *p; ++p) {
+        if (*p == ',') *p = '.';
+    }
+    return atof(buf);
 }
 
 static int jsonInt(JsonVariant v) {
     if (v.isNull()) return 0;
-    String s = v.as<String>();
-    s.trim();
-    return s.toInt();
+    if (v.is<int>()) return v.as<int>();
+    const char *s = v.as<const char*>();
+    if (!s) return 0;
+    return atoi(s);
 }
 
 void http_init() {
@@ -83,12 +96,22 @@ void http_fetch_names() {
     // Names come embedded in /relay and /dimmer responses
 }
 
+// Static lookup tables to prevent String heap allocations in parsing loops
+static const char* const RELAY_KEYS[8]   = {"Relay1", "Relay2", "Relay3", "Relay4", "Relay5", "Relay6", "Relay7", "Relay8"};
+static const char* const WRELAY_K1[8]    = {"wrelay1", "wrelay2", "wrelay3", "wrelay4", "wrelay5", "wrelay6", "wrelay7", "wrelay8"};
+static const char* const WRELAY_K2[8]    = {"Wrelay1", "Wrelay2", "Wrelay3", "Wrelay4", "Wrelay5", "Wrelay6", "Wrelay7", "Wrelay8"};
+static const char* const WRELAY_K3[8]    = {"WRelay1", "WRelay2", "WRelay3", "WRelay4", "WRelay5", "WRelay6", "WRelay7", "WRelay8"};
+static const char* const DIMMER_KEYS[8]  = {"dimmer1", "dimmer2", "dimmer3", "dimmer4", "dimmer5", "dimmer6", "dimmer7", "dimmer8"};
+static const char* const LEVEL_KEYS[4]   = {"level1", "level2", "level3", "level4"};
+static const char* const TEMP_KEYS[4]    = {"temp1", "temp2", "temp3", "temp4"};
+
 // --- Parsers ---
 // GET /batt -> { "VoltB": float|str, "Ampere": float|str, "battsoc": int|str }
-static void parse_batt_json(String payload) {
-    DynamicJsonDocument doc(2048);
+static void parse_batt_json(const String &payload) {
+    StaticJsonDocument<512> doc;
     if (deserializeJson(doc, payload)) return;
 
+    StateLockGuard lock;
     if (doc.containsKey("VoltB")) { state.bat_voltage = jsonFloat(doc["VoltB"]); state.battery_fields |= 1; }
     if (doc.containsKey("Ampere")) { state.bat_current = jsonFloat(doc["Ampere"]); state.battery_fields |= 2; }
     if (doc.containsKey("battsoc")) { state.bat_soc = jsonInt(doc["battsoc"]); state.battery_fields |= 4; }
@@ -97,22 +120,24 @@ static void parse_batt_json(String payload) {
 }
 
 // GET /mppt/ -> { "mppt_pv_watts": float, "mppt_pv_amps": float, "mppt_pv_volts": float }
-static void parse_mppt_json(String payload) {
-    DynamicJsonDocument doc(2048);
+static void parse_mppt_json(const String &payload) {
+    StaticJsonDocument<512> doc;
     if (deserializeJson(doc, payload)) return;
 
+    StateLockGuard lock;
     if (doc.containsKey("mppt_pv_watts")) { state.solar_power = jsonFloat(doc["mppt_pv_watts"]); state.solar_fields |= 1; }
     if (doc.containsKey("mppt_pv_amps")) { state.solar_current = jsonFloat(doc["mppt_pv_amps"]); state.solar_fields |= 2; }
     if (doc.containsKey("mppt_pv_volts")) { state.solar_voltage = jsonFloat(doc["mppt_pv_volts"]); state.solar_fields |= 4; }
 }
 
 // GET /relay -> { "Relay1": { "state": bool, "name": str, ... }, "Relay2": ... }
-static void parse_relay_json(String payload) {
-    DynamicJsonDocument doc(8192);
+static void parse_relay_json(const String &payload) {
+    StaticJsonDocument<2048> doc;
     if (deserializeJson(doc, payload)) return;
 
+    StateLockGuard lock;
     for (int i = 0; i < 8; i++) {
-        String key = "Relay" + String(i + 1);
+        const char *key = RELAY_KEYS[i];
         if (!doc.containsKey(key)) continue;
         JsonObject r = doc[key];
         if (r.containsKey("state")) {
@@ -120,25 +145,26 @@ static void parse_relay_json(String payload) {
             state.relay_fields |= (1 << i);
         }
         if (r.containsKey("name")) {
-            String n = r["name"].as<String>();
-            if (n.length() > 0 && n != key) state.switch_names[i] = fix_umlauts(n);
+            const char *n = r["name"].as<const char*>();
+            if (n && n[0] != '\0' && strcmp(n, key) != 0) {
+                String clean = fix_umlauts(n);
+                if (state.switch_names[i] != clean) state.switch_names[i] = clean;
+            }
         }
     }
 }
 
 // GET /wrelay -> { "wrelay1": { "state": bool|str, "name": str }, ... }
-static void parse_wrelay_json(String payload) {
-    DynamicJsonDocument doc(8192);
+static void parse_wrelay_json(const String &payload) {
+    StaticJsonDocument<2048> doc;
     if (deserializeJson(doc, payload)) return;
 
+    StateLockGuard lock;
     for (int i = 0; i < 8; i++) {
-        String k1 = "wrelay" + String(i + 1);
-        String k2 = "Wrelay" + String(i + 1);
-        String k3 = "WRelay" + String(i + 1);
         JsonObject r;
-        if (doc.containsKey(k1)) r = doc[k1];
-        else if (doc.containsKey(k2)) r = doc[k2];
-        else if (doc.containsKey(k3)) r = doc[k3];
+        if (doc.containsKey(WRELAY_K1[i])) r = doc[WRELAY_K1[i]];
+        else if (doc.containsKey(WRELAY_K2[i])) r = doc[WRELAY_K2[i]];
+        else if (doc.containsKey(WRELAY_K3[i])) r = doc[WRELAY_K3[i]];
         else continue;
 
         if (r.containsKey("state")) {
@@ -147,28 +173,33 @@ static void parse_wrelay_json(String payload) {
                 if (r["state"].is<bool>()) {
                     val = r["state"].as<bool>();
                 } else {
-                    String s = r["state"].as<String>();
-                    s.toLowerCase();
-                    val = (s == "true" || s == "1" || s == "on");
+                    const char *s = r["state"].as<const char*>();
+                    if (s) {
+                        val = (strcmp(s, "true") == 0 || strcmp(s, "1") == 0 || strcasecmp(s, "on") == 0);
+                    }
                 }
                 state.wrelay_state[i] = val;
             }
             state.wrelay_fields |= (1 << i);
         }
         if (r.containsKey("name")) {
-            String n = r["name"].as<String>();
-            if (n.length() > 0 && n != k1 && n != k2) state.wrelay_names[i] = fix_umlauts(n);
+            const char *n = r["name"].as<const char*>();
+            if (n && n[0] != '\0' && strcmp(n, WRELAY_K1[i]) != 0 && strcmp(n, WRELAY_K2[i]) != 0) {
+                String clean = fix_umlauts(n);
+                if (state.wrelay_names[i] != clean) state.wrelay_names[i] = clean;
+            }
         }
     }
 }
 
 // GET /dimmer -> { "dimmer1": { "state": int(0-100), "name": str, ... }, "dimmer2": ... }
-static void parse_dimmer_json(String payload) {
-    DynamicJsonDocument doc(8192);
+static void parse_dimmer_json(const String &payload) {
+    StaticJsonDocument<2048> doc;
     if (deserializeJson(doc, payload)) return;
 
+    StateLockGuard lock;
     for (int i = 0; i < 8; i++) {
-        String key = "dimmer" + String(i + 1);
+        const char *key = DIMMER_KEYS[i];
         if (!doc.containsKey(key)) continue;
         JsonObject d = doc[key];
         if (d.containsKey("state") && (int32_t)(millis() - state.dimmer_hold_until[i]) >= 0) {
@@ -176,41 +207,52 @@ static void parse_dimmer_json(String payload) {
             state.dimmer_fields |= (1 << i);
         }
         if (d.containsKey("name")) {
-            String n = d["name"].as<String>();
-            if (n.length() > 0 && n != key) state.dimmer_names[i] = fix_umlauts(n);
+            const char *n = d["name"].as<const char*>();
+            if (n && n[0] != '\0' && strcmp(n, key) != 0) {
+                String clean = fix_umlauts(n);
+                if (state.dimmer_names[i] != clean) state.dimmer_names[i] = clean;
+            }
         }
     }
 }
 
 // GET /level -> { "level1": { "state": int, "name": str }, ... }
-static void parse_level_json(String payload) {
-    DynamicJsonDocument doc(8192);
+static void parse_level_json(const String &payload) {
+    StaticJsonDocument<1024> doc;
     if (deserializeJson(doc, payload)) return;
 
+    StateLockGuard lock;
     for (int i = 0; i < 4; i++) {
-        String key = "level" + String(i + 1);
+        const char *key = LEVEL_KEYS[i];
         if (!doc.containsKey(key)) continue;
         JsonObject lvl = doc[key];
         if (lvl.containsKey("state")) { state.tank_level[i] = constrain(jsonInt(lvl["state"]), 0, 100); state.tank_fields |= (1 << i); }
         if (lvl.containsKey("name")) {
-            String n = lvl["name"].as<String>();
-            if (n.length() > 0) state.tank_names[i] = fix_umlauts(n);
+            const char *n = lvl["name"].as<const char*>();
+            if (n && n[0] != '\0') {
+                String clean = fix_umlauts(n);
+                if (state.tank_names[i] != clean) state.tank_names[i] = clean;
+            }
         }
     }
 }
 
 // GET /temp -> { "temp1": { "state": "23.5", "name": str }, "temp2": ... }
-static void parse_temp_json(String payload) {
-    DynamicJsonDocument doc(8192);
+static void parse_temp_json(const String &payload) {
+    StaticJsonDocument<1024> doc;
     if (deserializeJson(doc, payload)) return;
 
+    StateLockGuard lock;
     for (int i = 0; i < 4; i++) {
-        String key = "temp" + String(i + 1);
+        const char *key = TEMP_KEYS[i];
         if (!doc.containsKey(key)) continue;
         JsonObject t = doc[key];
         if (t.containsKey("name")) {
-            String n = t["name"].as<String>();
-            if (n.length() > 0 && n != key) state.temp_sensor_names[i] = fix_umlauts(n);
+            const char *n = t["name"].as<const char*>();
+            if (n && n[0] != '\0' && strcmp(n, key) != 0) {
+                String clean = fix_umlauts(n);
+                if (state.temp_sensor_names[i] != clean) state.temp_sensor_names[i] = clean;
+            }
         }
         if (t.containsKey("state")) {
             state.temp_sensors[i] = jsonFloat(t["state"]);
@@ -229,86 +271,82 @@ static void parse_temp_json(String payload) {
 
 // GET /heater -> { "autoterm1": { "heatertoggle": bool, "heatstatus": str, "heaterror": str,
 //   "targettemp_vanpi": num, "mode": str, "powerlevel": int, "fanspeed": int }, ... }
-// Real VanPi values (see docs/flows.json):
-//   mode:       "temp mode" | "power mode" | "fan only" | "" / "off" (heater not running)
-//   heatstatus: "standby" | "heating" | "ventilation" | "only fan" | "ignition 1" |
-//               "heating glow plug1" | "cooling down" | "shutting down" | ...
-static void parse_heater_json(String payload) {
-    DynamicJsonDocument doc(8192);
+static void parse_heater_json(const String &payload) {
+    StaticJsonDocument<2048> doc;
     if (deserializeJson(doc, payload)) return;
 
     bool has_at = doc.containsKey("autoterm1");
     JsonObject at;
     if (has_at) at = doc["autoterm1"];
 
-    // Status text (always updated, never user-controlled)
-    String hs = "";
+    const char *raw_hs = "";
     if (has_at && at.containsKey("heatstatus")) {
-        hs = at["heatstatus"].as<String>();
+        raw_hs = at["heatstatus"].as<const char*>();
     } else if (doc.containsKey("heatstatus")) {
-        hs = doc["heatstatus"].as<String>();
+        raw_hs = doc["heatstatus"].as<const char*>();
     }
-    hs.trim();
-    state.heater_status = hs;
+    if (!raw_hs) raw_hs = "";
 
+    const char *raw_err = "";
     if (has_at && at.containsKey("heaterror")) {
-        state.heater_error = at["heaterror"].as<String>();
+        raw_err = at["heaterror"].as<const char*>();
     } else if (doc.containsKey("heaterror")) {
-        state.heater_error = doc["heaterror"].as<String>();
+        raw_err = doc["heaterror"].as<const char*>();
+    }
+    if (!raw_err) raw_err = "";
+
+    StateLockGuard lock;
+    if (state.heater_status != raw_hs) {
+        state.heater_status = raw_hs;
+        state.heater_status.trim();
+    }
+    if (state.heater_error != raw_err) {
+        state.heater_error = raw_err;
     }
 
     // User is currently interacting with the heater controls -> don't overwrite
     if ((int32_t)(millis() - state.heater_hold_until) < 0) return;
 
-    // Mode (only overwrite when the heater reports an active mode, so the
-    // locally selected mode is kept while the heater is off)
-    String m = "";
-    if (has_at && at.containsKey("mode")) m = at["mode"].as<String>();
-    else if (doc.containsKey("mode")) m = doc["mode"].as<String>();
-    m.toLowerCase();
-    if (m.indexOf("fan") >= 0 || m.indexOf("vent") >= 0) {
-        state.heater_vent_mode = true;
-        state.heater_power_mode = false;
-    } else if (m.indexOf("power") >= 0) {
-        state.heater_vent_mode = false;
-        state.heater_power_mode = true;
-    } else if (m.indexOf("temp") >= 0) {
-        state.heater_vent_mode = false;
-        state.heater_power_mode = false;
+    // Mode
+    const char *m = "";
+    if (has_at && at.containsKey("mode")) m = at["mode"].as<const char*>();
+    else if (doc.containsKey("mode")) m = doc["mode"].as<const char*>();
+    if (m) {
+        if (strstr(m, "fan") || strstr(m, "vent") || strstr(m, "Fan") || strstr(m, "Vent")) {
+            state.heater_vent_mode = true;
+            state.heater_power_mode = false;
+        } else if (strstr(m, "power") || strstr(m, "Power")) {
+            state.heater_vent_mode = false;
+            state.heater_power_mode = true;
+        } else if (strstr(m, "temp") || strstr(m, "Temp")) {
+            state.heater_vent_mode = false;
+            state.heater_power_mode = false;
+        }
     }
 
     // Running state: Check all indicators from VanPi / Autoterm
     bool is_on = false;
-
-    // 1. Check autoterm1 heatertoggle
     if (has_at && at.containsKey("heatertoggle")) {
-        String ht = at["heatertoggle"].as<String>();
-        ht.toLowerCase();
-        if (ht == "true" || ht == "1") is_on = true;
+        const char *ht = at["heatertoggle"].as<const char*>();
+        if (ht && (strcasecmp(ht, "true") == 0 || strcmp(ht, "1") == 0)) is_on = true;
     }
-    // 2. Check top-level heatertoggle (from main VanPi dashboard/app)
     if (!is_on && doc.containsKey("heatertoggle")) {
-        String ht = doc["heatertoggle"].as<String>();
-        ht.toLowerCase();
-        if (ht == "true" || ht == "1") is_on = true;
+        const char *ht = doc["heatertoggle"].as<const char*>();
+        if (ht && (strcasecmp(ht, "true") == 0 || strcmp(ht, "1") == 0)) is_on = true;
     }
 
-    // 3. Check heatstatus string (active states: heating, running, ventilation, ignition, etc.)
-    auto is_active_status = [](const String &s) {
-        String l = s; l.toLowerCase();
-        return (l.length() > 0 && l != "standby" && l != "wait" && l != "heater off" &&
-                l != "unknown status" && l != "0" && l.indexOf("shutting") < 0 &&
-                l.indexOf("error") < 0 && l.indexOf("flame-out") < 0 &&
-                l.indexOf("no fuel") < 0);
+    auto is_active_status = [](const char *s) {
+        if (!s || s[0] == '\0') return false;
+        if (strcasecmp(s, "standby") == 0 || strcasecmp(s, "wait") == 0 ||
+            strcasecmp(s, "heater off") == 0 || strcasecmp(s, "unknown status") == 0 ||
+            strcmp(s, "0") == 0 || strstr(s, "shutting") || strstr(s, "error") ||
+            strstr(s, "flame-out") || strstr(s, "no fuel")) {
+            return false;
+        }
+        return true;
     };
 
-    if (is_active_status(hs)) {
-        is_on = true;
-    }
-    if (!is_on && doc.containsKey("heatstatus") && is_active_status(doc["heatstatus"].as<String>())) {
-        is_on = true;
-    }
-
+    if (is_active_status(raw_hs)) is_on = true;
     state.heating_on = is_on;
 
     if (has_at && at.containsKey("targettemp_vanpi")) {
@@ -331,10 +369,11 @@ static void parse_heater_json(String payload) {
 }
 
 // GET /position_sensor/?request=true -> { "x_angle": float|str, "y_angle": float|str }
-static void parse_position_json(String payload) {
-    DynamicJsonDocument doc(1024);
+static void parse_position_json(const String &payload) {
+    StaticJsonDocument<512> doc;
     if (deserializeJson(doc, payload)) return;
 
+    StateLockGuard lock;
     if (doc.containsKey("x_angle")) state.roll_angle  = jsonFloat(doc["x_angle"]);
     if (doc.containsKey("y_angle")) state.pitch_angle = jsonFloat(doc["y_angle"]);
 }
@@ -344,7 +383,7 @@ static void parse_position_json(String payload) {
 
 static unsigned long vanpi_fail_backoff_until = 0;
 
-static void fetch_endpoint(const char* endpoint, void (*parser)(String)) {
+static void fetch_endpoint(const char* endpoint, void (*parser)(const String&)) {
     if (WiFi.status() != WL_CONNECTED) {
         state.vanpi_connected = false;
         return;

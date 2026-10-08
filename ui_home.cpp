@@ -97,20 +97,37 @@ void ui_update_home() {
         value(temp_value[i], state.debug_mode && source == 2 ? "%.1f %%" : "%.1f C",
               state.temp_sensors[source], ready && (state.temp_fields & (1 << source)));
     }
-    String soc = ready && (state.battery_fields & 4) ? String(state.bat_soc) : "--";
-    snprintf(text, sizeof(text), "Batterie %s%%", soc.c_str()); ui_label_set_text_if_changed(bat_title, text);
+    if (ready && (state.battery_fields & 4)) {
+        snprintf(text, sizeof(text), "Batterie %d%%", state.bat_soc);
+    } else {
+        snprintf(text, sizeof(text), "Batterie --%%");
+    }
+    ui_label_set_text_if_changed(bat_title, text);
     ui_text_color_if_changed(bat_title, ready && (state.battery_fields & 4) ?
         lv_color_hex(state.bat_soc < 20 ? UI_COLOR_DANGER : state.bat_soc <= 40 ? 0xffdf00 : UI_COLOR_SUCCESS) : ui_theme_muted());
     value(bat_power, "%.1f W", state.bat_voltage * state.bat_current, ready && (state.battery_fields & 3) == 3);
-    String volts = ready && (state.battery_fields & 1) ? String(state.bat_voltage, 1) : "--";
-    String amps = ready && (state.battery_fields & 2) ? String(state.bat_current, 1) : "--";
-    snprintf(text, sizeof(text), "%s V   %s A", volts.c_str(), amps.c_str()); ui_label_set_text_if_changed(bat_detail, text);
-    volts = ready && (state.battery_fields & 8) ? String(state.starter_voltage, 1) : "--";
-    snprintf(text, sizeof(text), "Starter %s V", volts.c_str()); ui_label_set_text_if_changed(starter, text);
+
+    char v_buf[16], a_buf[16];
+    if (ready && (state.battery_fields & 1)) snprintf(v_buf, sizeof(v_buf), "%.1f", state.bat_voltage);
+    else strcpy(v_buf, "--");
+    if (ready && (state.battery_fields & 2)) snprintf(a_buf, sizeof(a_buf), "%.1f", state.bat_current);
+    else strcpy(a_buf, "--");
+    snprintf(text, sizeof(text), "%s V   %s A", v_buf, a_buf);
+    ui_label_set_text_if_changed(bat_detail, text);
+
+    if (ready && (state.battery_fields & 8)) snprintf(v_buf, sizeof(v_buf), "%.1f", state.starter_voltage);
+    else strcpy(v_buf, "--");
+    snprintf(text, sizeof(text), "Starter %s V", v_buf);
+    ui_label_set_text_if_changed(starter, text);
+
     value(solar_power, "%.0f W", state.solar_power, ready && (state.solar_fields & 1));
-    volts = ready && (state.solar_fields & 4) ? String(state.solar_voltage, 1) : "--";
-    amps = ready && (state.solar_fields & 2) ? String(state.solar_current, 1) : "--";
-    snprintf(text, sizeof(text), "%s V   %s A", volts.c_str(), amps.c_str()); ui_label_set_text_if_changed(solar_detail, text);
+
+    if (ready && (state.solar_fields & 4)) snprintf(v_buf, sizeof(v_buf), "%.1f", state.solar_voltage);
+    else strcpy(v_buf, "--");
+    if (ready && (state.solar_fields & 2)) snprintf(a_buf, sizeof(a_buf), "%.1f", state.solar_current);
+    else strcpy(a_buf, "--");
+    snprintf(text, sizeof(text), "%s V   %s A", v_buf, a_buf);
+    ui_label_set_text_if_changed(solar_detail, text);
     int tank = constrain(state.home_water_source, 0, 3); ui_label_set_text_if_changed(water_title, state.tank_names[tank].c_str());
     bool tank_ready = ready && (state.tank_fields & (1 << tank));
     snprintf(text, sizeof(text), "%d%%", state.tank_level[tank]); ui_label_set_text_if_changed(water_value, tank_ready ? text : "--");
