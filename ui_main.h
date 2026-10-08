@@ -4,6 +4,7 @@
 #include <lvgl.h>
 #include "system_state.h"
 #include "ui_mdi_icons.h"
+#include "ui_fonts.h"
 #include <string.h>
 #define CAMPERUI_VERSION "V1.0.3"
 
@@ -81,6 +82,9 @@ void ui_update_settings_tab();
 // Anim Triggers
 void ui_trigger_power_anim();
 void ui_trigger_water_anim();
+void ui_trigger_dimmers_anim();
+void ui_trigger_switches_anim();
+void ui_trigger_level_anim();
 
 // Sub-Tab Builders
 void ui_build_power(lv_obj_t *parent);

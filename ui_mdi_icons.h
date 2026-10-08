@@ -7,7 +7,7 @@
 extern "C" {
 #endif
 
-// Material Design Icons Unicode PUA Mappings (0xE001 .. 0xE011)
+// Material Design Icons Unicode PUA Mappings (0xE001 .. 0xE016)
 #define MDI_LIGHTBULB          "\xEE\x80\x81" // 0xE001: Dimmer / Licht
 #define MDI_BATTERY_CHARGING   "\xEE\x80\x82" // 0xE002: Power
 #define MDI_WATER              "\xEE\x80\x83" // 0xE003: Wasser
@@ -28,7 +28,14 @@ extern "C" {
 
 #define MDI_FAN                "\xEE\x80\x91" // 0xE011: MaxxFan
 
+#define MDI_COG                "\xEE\x80\x92" // 0xE012: Settings / Allgemein
+#define MDI_EYE                "\xEE\x80\x93" // 0xE013: Anzeige / Display
+#define MDI_SLIDERS            "\xEE\x80\x94" // 0xE014: Werte / Parameter
+#define MDI_BELL               "\xEE\x80\x95" // 0xE015: Alarme
+#define MDI_CLOCK              "\xEE\x80\x96" // 0xE016: Zeit / Uhr
+
 LV_FONT_DECLARE(ui_font_mdi_32);
+LV_FONT_DECLARE(ui_font_mdi_24);
 LV_FONT_DECLARE(ui_font_mdi_18);
 
 #ifdef __cplusplus

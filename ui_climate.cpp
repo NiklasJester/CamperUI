@@ -255,7 +255,7 @@ void ui_build_climate(lv_obj_t *parent) {
     lv_obj_set_style_pad_all(card_out, 8, 0);
     
     lv_obj_t *l_out_sub = lv_label_create(card_out);
-    lv_label_set_text_fmt(l_out_sub, "%s Aussen", LV_SYMBOL_HOME);
+    lv_label_set_text_fmt(l_out_sub, "%s Außen", LV_SYMBOL_HOME);
     lv_obj_set_style_text_font(l_out_sub, &lv_font_montserrat_12, 0);
     lv_obj_set_style_text_color(l_out_sub, ui_theme_muted(), 0);
     lv_obj_align(l_out_sub, LV_ALIGN_TOP_LEFT, 4, 0);

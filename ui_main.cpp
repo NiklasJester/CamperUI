@@ -136,6 +136,9 @@ static void select_page(uint8_t index) {
     active_page = index;
     if (index == TAB_POWER) ui_trigger_power_anim();
     else if (index == TAB_WATER) ui_trigger_water_anim();
+    else if (index == TAB_DIMMERS) ui_trigger_dimmers_anim();
+    else if (index == TAB_SWITCHES) ui_trigger_switches_anim();
+    else if (index == TAB_LEVEL) ui_trigger_level_anim();
     update_home_nav();
     // Refresh newly selected controls immediately, rather than waiting for
     // the next periodic update after leaving them dormant in the background.

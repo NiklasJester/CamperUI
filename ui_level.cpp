@@ -19,7 +19,72 @@ static lv_obj_t *lbl_wheel_rr; // Rear Right
 static lv_obj_t *btn_calibrate;
 static lv_obj_t *lbl_cal_msg;
 
+// ==========================================
+// Level Bubble Animation (Roll from Center)
+// ==========================================
+static bool level_animating = false;
+static float anim_target_dx = 0.0f;
+static float anim_target_dy = 0.0f;
+
+static void level_anim_cb(void *var, int32_t val) {
+    (void)var;
+    if (!bubble_obj) return;
+    float f = (float)val / 1000.0f;
+    int16_t cur_x = (int16_t)(anim_target_dx * f);
+    int16_t cur_y = (int16_t)(anim_target_dy * f);
+    lv_obj_align(bubble_obj, LV_ALIGN_CENTER, cur_x, cur_y);
+}
+
+static void level_anim_ready_cb(lv_anim_t *a) {
+    (void)a;
+    level_animating = false;
+    ui_update_level_tab();
+}
+
+void ui_trigger_level_anim() {
+    lv_anim_del(NULL, level_anim_cb);
+    if (!bubble_obj) {
+        level_animating = false;
+        return;
+    }
+
+    // Place bubble at center (0, 0) initially
+    lv_obj_align(bubble_obj, LV_ALIGN_CENTER, 0, 0);
+
+    float p = state.pitch_angle;
+    float r = state.roll_angle;
+    float dx = -r * 14.0f;
+    float dy =  p * 14.0f;
+    float dist = sqrtf(dx * dx + dy * dy);
+    if (dist > 62.0f) {
+        dx = (dx / dist) * 62.0f;
+        dy = (dy / dist) * 62.0f;
+    }
+    anim_target_dx = dx;
+    anim_target_dy = dy;
+
+    if (fabsf(dx) < 0.5f && fabsf(dy) < 0.5f) {
+        level_animating = false;
+        return;
+    }
+
+    level_animating = true;
+    lv_anim_t a;
+    lv_anim_init(&a);
+    lv_anim_set_var(&a, NULL);
+    lv_anim_set_exec_cb(&a, level_anim_cb);
+    lv_anim_set_time(&a, 700);
+    lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
+    lv_anim_set_values(&a, 0, 1000);
+    lv_anim_set_ready_cb(&a, level_anim_ready_cb);
+    lv_anim_start(&a);
+}
+
 static void calibrate_click_cb(lv_event_t * e) {
+    if (level_animating) {
+        lv_anim_del(NULL, level_anim_cb);
+        level_animating = false;
+    }
     http_calibrate_position();
     if (lbl_cal_msg) {
         lv_label_set_text(lbl_cal_msg, "Nullpunkt an VanPi gesendet!");
@@ -176,7 +241,7 @@ void ui_build_level(lv_obj_t *parent) {
     // Bottom Action: Tare / Calibrate Button & Confirmation
     // =========================================================================
     btn_calibrate = lv_btn_create(card_level_main);
-    lv_obj_set_size(btn_calibrate, 210, 42);
+    lv_obj_set_size(btn_calibrate, 210, 44);
     lv_obj_align(btn_calibrate, LV_ALIGN_BOTTOM_LEFT, 8, -6);
     lv_obj_set_style_radius(btn_calibrate, 8, 0);
     lv_obj_set_style_bg_color(btn_calibrate, lv_color_hex(UI_COLOR_PRIMARY), 0);
@@ -216,7 +281,9 @@ void ui_update_level_tab() {
         dy = (dy / dist) * 62.0f;
     }
 
-    lv_obj_align(bubble_obj, LV_ALIGN_CENTER, (int16_t)dx, (int16_t)dy);
+    if (!level_animating) {
+        lv_obj_align(bubble_obj, LV_ALIGN_CENTER, (int16_t)dx, (int16_t)dy);
+    }
 
     bool is_level = (fabsf(p) <= 0.5f && fabsf(r) <= 0.5f);
     if (is_level) {

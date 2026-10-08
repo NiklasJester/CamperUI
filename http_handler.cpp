@@ -27,30 +27,10 @@ unsigned long last_http_poll = 0;
 static int poll_step = 0;
 
 // Replace UTF-8 encoded German umlauts with ASCII equivalents
-// because the LVGL font does not include umlaut glyphs.
+// German umlauts are fully supported by our LVGL font fallbacks.
 static String fix_umlauts(const char *in) {
     if (!in) return String();
-    String out;
-    size_t len = strlen(in);
-    out.reserve(len);
-    for (size_t i = 0; i < len; i++) {
-        uint8_t c = (uint8_t)in[i];
-        if (c == 0xC3 && (i + 1) < len) {
-            uint8_t c2 = (uint8_t)in[i + 1];
-            switch (c2) {
-                case 0xA4: out += "ae"; i++; continue; // ä
-                case 0xB6: out += "oe"; i++; continue; // ö
-                case 0xBC: out += "ue"; i++; continue; // ü
-                case 0x84: out += "Ae"; i++; continue; // Ä
-                case 0x96: out += "Oe"; i++; continue; // Ö
-                case 0x9C: out += "Ue"; i++; continue; // Ü
-                case 0x9F: out += "ss"; i++; continue; // ß
-                default: break;
-            }
-        }
-        out += (char)c;
-    }
-    return out;
+    return String(in);
 }
 
 static String fix_umlauts(const String &in) {

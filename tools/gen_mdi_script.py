@@ -22,6 +22,11 @@ icons = [
     ('MDI_CHECK',            0xf012c, 'check-bold'),
     ('MDI_HOME',             0xf02dc, 'home'),
     ('MDI_FAN',              0xf0210, 'fan'),
+    ('MDI_COG',              0xf0493, 'cog'),
+    ('MDI_EYE',              0xf0208, 'eye'),
+    ('MDI_SLIDERS',          0xf0a49, 'sliders'),
+    ('MDI_BELL',             0xf009a, 'bell'),
+    ('MDI_CLOCK',            0xf0150, 'clock'),
 ]
 
 def generate_font_c(font_name, size, ttf_path):
@@ -123,7 +128,10 @@ def generate_font_c(font_name, size, ttf_path):
     return '\n'.join(out)
 
 c_header = '#include "ui_mdi_icons.h"\n#include <lvgl.h>\n\n'
-c_content = c_header + generate_font_c('ui_font_mdi_32', 32, str(TOOLS_DIR / 'materialdesignicons-webfont.ttf')) + '\n' + generate_font_c('ui_font_mdi_18', 18, str(TOOLS_DIR / 'materialdesignicons-webfont.ttf'))
+c_content = c_header + \
+    generate_font_c('ui_font_mdi_32', 32, str(TOOLS_DIR / 'materialdesignicons-webfont.ttf')) + '\n' + \
+    generate_font_c('ui_font_mdi_24', 24, str(TOOLS_DIR / 'materialdesignicons-webfont.ttf')) + '\n' + \
+    generate_font_c('ui_font_mdi_18', 18, str(TOOLS_DIR / 'materialdesignicons-webfont.ttf'))
 
 with open(PROJECT_DIR / 'ui_mdi_icons.c', 'w', encoding='utf-8') as f:
     f.write(c_content)
@@ -137,7 +145,7 @@ h_content = """#ifndef UI_MDI_ICONS_H
 extern "C" {
 #endif
 
-// Material Design Icons Unicode PUA Mappings (0xE001 .. 0xE011)
+// Material Design Icons Unicode PUA Mappings (0xE001 .. 0xE016)
 #define MDI_LIGHTBULB          "\\xEE\\x80\\x81" // 0xE001: Dimmer / Licht
 #define MDI_BATTERY_CHARGING   "\\xEE\\x80\\x82" // 0xE002: Power
 #define MDI_WATER              "\\xEE\\x80\\x83" // 0xE003: Wasser
@@ -158,7 +166,14 @@ extern "C" {
 
 #define MDI_FAN                "\\xEE\\x80\\x91" // 0xE011: MaxxFan
 
+#define MDI_COG                "\\xEE\\x80\\x92" // 0xE012: Settings / Allgemein
+#define MDI_EYE                "\\xEE\\x80\\x93" // 0xE013: Anzeige / Display
+#define MDI_SLIDERS            "\\xEE\\x80\\x94" // 0xE014: Werte / Parameter
+#define MDI_BELL               "\\xEE\\x80\\x95" // 0xE015: Alarme
+#define MDI_CLOCK              "\\xEE\\x80\\x96" // 0xE016: Zeit / Uhr
+
 LV_FONT_DECLARE(ui_font_mdi_32);
+LV_FONT_DECLARE(ui_font_mdi_24);
 LV_FONT_DECLARE(ui_font_mdi_18);
 
 #ifdef __cplusplus

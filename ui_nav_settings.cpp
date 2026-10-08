@@ -8,7 +8,45 @@ static lv_obj_t *list_cont = nullptr;
 static uint8_t cur_order[TAB_COUNT];
 static bool cur_enabled[TAB_COUNT];
 
-static void render_list();
+struct NavRowWidget {
+    lv_obj_t *card;
+    lv_obj_t *btn_up;
+    lv_obj_t *btn_down;
+    lv_obj_t *lbl_icon;
+    lv_obj_t *lbl_name;
+    lv_obj_t *sw;
+};
+static NavRowWidget rows[TAB_COUNT];
+
+static void update_row_display() {
+    char buf[64];
+    for (int i = 0; i < TAB_COUNT; ++i) {
+        uint8_t tab_id = cur_order[i];
+        if (tab_id >= TAB_COUNT) tab_id = i;
+
+        if (rows[i].lbl_icon) {
+            lv_label_set_text(rows[i].lbl_icon, TAB_METAS[tab_id].icon);
+            lv_obj_set_style_text_color(rows[i].lbl_icon, cur_enabled[tab_id] ? lv_color_hex(UI_COLOR_PRIMARY) : ui_theme_muted(), 0);
+        }
+        if (rows[i].lbl_name) {
+            snprintf(buf, sizeof(buf), "%d. %s", i + 1, TAB_METAS[tab_id].name);
+            lv_label_set_text(rows[i].lbl_name, buf);
+            lv_obj_set_style_text_color(rows[i].lbl_name, cur_enabled[tab_id] ? ui_theme_text() : ui_theme_muted(), 0);
+        }
+        if (rows[i].sw) {
+            if (cur_enabled[tab_id]) {
+                lv_obj_add_state(rows[i].sw, LV_STATE_CHECKED);
+            } else {
+                lv_obj_clear_state(rows[i].sw, LV_STATE_CHECKED);
+            }
+            if (tab_id == TAB_SETTINGS) {
+                lv_obj_add_state(rows[i].sw, LV_STATE_DISABLED);
+            } else {
+                lv_obj_clear_state(rows[i].sw, LV_STATE_DISABLED);
+            }
+        }
+    }
+}
 
 static void up_clicked(lv_event_t *e) {
     int idx = (int)(intptr_t)lv_event_get_user_data(e);
@@ -16,7 +54,7 @@ static void up_clicked(lv_event_t *e) {
         uint8_t tmp = cur_order[idx];
         cur_order[idx] = cur_order[idx - 1];
         cur_order[idx - 1] = tmp;
-        render_list();
+        update_row_display();
     }
 }
 
@@ -26,29 +64,29 @@ static void down_clicked(lv_event_t *e) {
         uint8_t tmp = cur_order[idx];
         cur_order[idx] = cur_order[idx + 1];
         cur_order[idx + 1] = tmp;
-        render_list();
+        update_row_display();
     }
 }
 
 static void switch_toggled(lv_event_t *e) {
-    lv_obj_t *sw = lv_event_get_target(e);
-    int tab_id = (int)(intptr_t)lv_event_get_user_data(e);
-    if (tab_id >= 0 && tab_id < TAB_COUNT) {
+    int row_idx = (int)(intptr_t)lv_event_get_user_data(e);
+    if (row_idx >= 0 && row_idx < TAB_COUNT) {
+        uint8_t tab_id = cur_order[row_idx];
+        if (tab_id >= TAB_COUNT) tab_id = row_idx;
+
         if (tab_id == TAB_SETTINGS) {
-            lv_obj_add_state(sw, LV_STATE_CHECKED);
+            if (rows[row_idx].sw) lv_obj_add_state(rows[row_idx].sw, LV_STATE_CHECKED);
             cur_enabled[tab_id] = true;
         } else {
-            cur_enabled[tab_id] = lv_obj_has_state(sw, LV_STATE_CHECKED);
+            cur_enabled[tab_id] = lv_obj_has_state(lv_event_get_target(e), LV_STATE_CHECKED);
         }
+        update_row_display();
     }
 }
 
-static void render_list() {
-    if (!list_cont) return;
-    lv_obj_clean(list_cont);
-
+static void build_rows(lv_obj_t *parent) {
     // Explanatory Hint at top of the list
-    lv_obj_t *hint = lv_label_create(list_cont);
+    lv_obj_t *hint = lv_label_create(parent);
     lv_label_set_text(hint, "Reihenfolge mit " LV_SYMBOL_UP " / " LV_SYMBOL_DOWN " anpassen. Schalter aktiviert/deaktiviert Tabs.\nAusgeblendete Tabs sparen CPU & RAM.");
     lv_obj_set_style_text_font(hint, &lv_font_montserrat_12, 0);
     lv_obj_set_style_text_color(hint, ui_theme_muted(), 0);
@@ -56,14 +94,20 @@ static void render_list() {
     lv_label_set_long_mode(hint, LV_LABEL_LONG_WRAP);
 
     for (int i = 0; i < TAB_COUNT; ++i) {
-        uint8_t tab_id = cur_order[i];
-
-        lv_obj_t *card = ui_create_card(list_cont, 440, 54);
+        // Clean card without heavy shadows
+        lv_obj_t *card = lv_obj_create(parent);
+        lv_obj_set_size(card, 440, 56);
+        lv_obj_set_style_radius(card, 10, 0);
+        lv_obj_set_style_bg_color(card, ui_theme_card(), 0);
+        lv_obj_set_style_border_width(card, 1, 0);
+        lv_obj_set_style_border_color(card, ui_theme_border(), 0);
         lv_obj_set_style_pad_all(card, 6, 0);
+        lv_obj_clear_flag(card, LV_OBJ_FLAG_SCROLLABLE);
+        rows[i].card = card;
 
         // 1. Move UP Button
         lv_obj_t *btn_up = lv_btn_create(card);
-        lv_obj_set_size(btn_up, 38, 38);
+        lv_obj_set_size(btn_up, 42, 42);
         lv_obj_align(btn_up, LV_ALIGN_LEFT_MID, 4, 0);
         lv_obj_set_style_radius(btn_up, 8, 0);
         lv_obj_set_style_bg_color(btn_up, ui_theme_track(), 0);
@@ -79,11 +123,12 @@ static void render_list() {
         lv_label_set_text(lbl_up, LV_SYMBOL_UP);
         lv_obj_set_style_text_color(lbl_up, ui_theme_text(), 0);
         lv_obj_center(lbl_up);
+        rows[i].btn_up = btn_up;
 
         // 2. Move DOWN Button
         lv_obj_t *btn_down = lv_btn_create(card);
-        lv_obj_set_size(btn_down, 38, 38);
-        lv_obj_align(btn_down, LV_ALIGN_LEFT_MID, 48, 0);
+        lv_obj_set_size(btn_down, 42, 42);
+        lv_obj_align(btn_down, LV_ALIGN_LEFT_MID, 52, 0);
         lv_obj_set_style_radius(btn_down, 8, 0);
         lv_obj_set_style_bg_color(btn_down, ui_theme_track(), 0);
         lv_obj_set_style_border_color(btn_down, ui_theme_border(), 0);
@@ -98,35 +143,26 @@ static void render_list() {
         lv_label_set_text(lbl_down, LV_SYMBOL_DOWN);
         lv_obj_set_style_text_color(lbl_down, ui_theme_text(), 0);
         lv_obj_center(lbl_down);
+        rows[i].btn_down = btn_down;
 
         // 3. Tab Icon
         lv_obj_t *lbl_icon = lv_label_create(card);
-        lv_label_set_text(lbl_icon, TAB_METAS[tab_id].icon);
         lv_obj_set_style_text_font(lbl_icon, &ui_font_mdi_32, 0);
-        lv_obj_set_style_text_color(lbl_icon, cur_enabled[tab_id] ? lv_color_hex(UI_COLOR_PRIMARY) : ui_theme_muted(), 0);
-        lv_obj_align(lbl_icon, LV_ALIGN_LEFT_MID, 96, 0);
+        lv_obj_align(lbl_icon, LV_ALIGN_LEFT_MID, 100, 0);
+        rows[i].lbl_icon = lbl_icon;
 
         // 4. Tab Name
         lv_obj_t *lbl_name = lv_label_create(card);
-        char buf[64];
-        snprintf(buf, sizeof(buf), "%d. %s", i + 1, TAB_METAS[tab_id].name);
-        lv_label_set_text(lbl_name, buf);
         lv_obj_set_style_text_font(lbl_name, &lv_font_montserrat_16, 0);
-        lv_obj_set_style_text_color(lbl_name, cur_enabled[tab_id] ? ui_theme_text() : ui_theme_muted(), 0);
-        lv_obj_align(lbl_name, LV_ALIGN_LEFT_MID, 142, 0);
+        lv_obj_align(lbl_name, LV_ALIGN_LEFT_MID, 144, 0);
+        rows[i].lbl_name = lbl_name;
 
         // 5. Visibility Switch
         lv_obj_t *sw = lv_switch_create(card);
+        lv_obj_set_size(sw, 48, 26);
         lv_obj_align(sw, LV_ALIGN_RIGHT_MID, -8, 0);
-        if (cur_enabled[tab_id]) {
-            lv_obj_add_state(sw, LV_STATE_CHECKED);
-        }
-        if (tab_id == TAB_SETTINGS) {
-            // Keep Settings always enabled so user can never lock themselves out
-            lv_obj_add_state(sw, LV_STATE_DISABLED);
-        } else {
-            lv_obj_add_event_cb(sw, switch_toggled, LV_EVENT_VALUE_CHANGED, (void *)(intptr_t)tab_id);
-        }
+        lv_obj_add_event_cb(sw, switch_toggled, LV_EVENT_VALUE_CHANGED, (void *)(intptr_t)i);
+        rows[i].sw = sw;
     }
 }
 
@@ -154,10 +190,23 @@ static void save_and_restart_clicked(lv_event_t *) {
 } // namespace
 
 void ui_open_nav_settings() {
-    // Copy current state to working buffers
+    // Copy current state to working buffers and validate bounds
     memcpy(cur_order, state.tab_order, sizeof(cur_order));
     memcpy(cur_enabled, state.tab_enabled, sizeof(cur_enabled));
     cur_enabled[TAB_SETTINGS] = true;
+
+    bool seen[TAB_COUNT] = {false};
+    bool valid = true;
+    for (int i = 0; i < TAB_COUNT; ++i) {
+        if (cur_order[i] >= TAB_COUNT || seen[cur_order[i]]) {
+            valid = false;
+            break;
+        }
+        seen[cur_order[i]] = true;
+    }
+    if (!valid) {
+        for (uint8_t i = 0; i < TAB_COUNT; ++i) cur_order[i] = i;
+    }
 
     if (!nav_settings_screen) {
         nav_settings_screen = lv_obj_create(nullptr);
@@ -176,22 +225,25 @@ void ui_open_nav_settings() {
 
         // Back Button
         lv_obj_t *back = lv_btn_create(header);
-        lv_obj_set_size(back, 96, 36);
+        lv_obj_set_size(back, 105, 42);
         lv_obj_align(back, LV_ALIGN_LEFT_MID, 8, 0);
         lv_obj_set_style_radius(back, 8, 0);
         lv_obj_set_style_bg_color(back, ui_theme_track(), 0);
         lv_obj_set_style_border_color(back, ui_theme_border(), 0);
         lv_obj_set_style_border_width(back, 1, 0);
-        lv_obj_add_event_cb(back, [](lv_event_t *) { lv_scr_load(scr_main); }, LV_EVENT_CLICKED, nullptr);
+        lv_obj_add_event_cb(back, [](lv_event_t *) {
+            lv_scr_load(scr_main);
+            ui_nav_settings_destroy();
+        }, LV_EVENT_CLICKED, nullptr);
 
         lv_obj_t *back_lbl = lv_label_create(back);
-        lv_label_set_text(back_lbl, LV_SYMBOL_LEFT " Zurueck");
+        lv_label_set_text(back_lbl, LV_SYMBOL_LEFT " Zurück");
         lv_obj_set_style_text_color(back_lbl, ui_theme_text(), 0);
         lv_obj_center(back_lbl);
 
         // Title
         lv_obj_t *title = lv_label_create(header);
-        lv_label_set_text(title, "Menueleiste anpassen");
+        lv_label_set_text(title, "Menüleiste anpassen");
         lv_obj_set_style_text_font(title, &lv_font_montserrat_18, 0);
         lv_obj_set_style_text_color(title, ui_theme_text(), 0);
         lv_obj_align(title, LV_ALIGN_CENTER, 20, 0);
@@ -209,6 +261,8 @@ void ui_open_nav_settings() {
         lv_obj_set_style_pad_row(list_cont, 8, 0);
         lv_obj_set_scroll_dir(list_cont, LV_DIR_VER);
         lv_obj_set_scrollbar_mode(list_cont, LV_SCROLLBAR_MODE_AUTO);
+
+        build_rows(list_cont);
 
         // 3. Bottom Bar with Save & Restart Button
         lv_obj_t *footer = lv_obj_create(nav_settings_screen);
@@ -237,7 +291,7 @@ void ui_open_nav_settings() {
         lv_obj_center(lbl_save);
     }
 
-    render_list();
+    update_row_display();
     lv_scr_load(nav_settings_screen);
 }
 
@@ -250,6 +304,13 @@ void ui_nav_settings_destroy() {
         lv_obj_del(nav_settings_screen);
         nav_settings_screen = nullptr;
         list_cont = nullptr;
+        for (int i = 0; i < TAB_COUNT; ++i) {
+            rows[i].card = nullptr;
+            rows[i].btn_up = nullptr;
+            rows[i].btn_down = nullptr;
+            rows[i].lbl_icon = nullptr;
+            rows[i].lbl_name = nullptr;
+            rows[i].sw = nullptr;
+        }
     }
 }
-

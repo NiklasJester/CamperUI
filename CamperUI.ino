@@ -327,6 +327,7 @@ void setup() {
 
 
 
+    ui_fonts_init();
     ui_init();
     web_ota_init();
     display_request_resync();

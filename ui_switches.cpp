@@ -76,7 +76,14 @@ static void update_wswitch_visual(int idx) {
     }
 }
 
+static bool switches_animating = false;
+static void switches_anim_cb(void *var, int32_t ratio);
+
 static void relay_btn_event_cb(lv_event_t * e) {
+    if (switches_animating) {
+        lv_anim_del(NULL, switches_anim_cb);
+        switches_animating = false;
+    }
     int idx = (int)(intptr_t)lv_event_get_user_data(e);
     state.switch_state[idx] = !state.switch_state[idx];
     update_switch_visual(idx);
@@ -85,11 +92,161 @@ static void relay_btn_event_cb(lv_event_t * e) {
 }
 
 static void wrelay_btn_event_cb(lv_event_t * e) {
+    if (switches_animating) {
+        lv_anim_del(NULL, switches_anim_cb);
+        switches_animating = false;
+    }
     int idx = (int)(intptr_t)lv_event_get_user_data(e);
     state.wrelay_state[idx] = !state.wrelay_state[idx];
     update_wswitch_visual(idx);
     http_publish_wrelay(idx, state.wrelay_state[idx]);
     state_save();
+}
+
+// ==========================================
+// Dimmer Animation (Tab-Load Smooth Fill)
+// ==========================================
+static bool dimmer_animating[8] = {false};
+
+static void dimmer_anim_cb(void *var, int32_t val) {
+    int idx = (int)(intptr_t)var;
+    if (idx < 0 || idx >= 8 || !dimmers[idx]) return;
+    lv_slider_set_value(dimmers[idx], val, LV_ANIM_OFF);
+    if (lbl_dim_pct[idx]) {
+        if (val > 0) {
+            lv_label_set_text_fmt(lbl_dim_pct[idx], "%d%%", (int)val);
+            lv_obj_set_style_text_color(lbl_dim_pct[idx], lv_color_hex(UI_COLOR_WARNING), 0);
+        } else {
+            lv_label_set_text(lbl_dim_pct[idx], "Aus");
+            lv_obj_set_style_text_color(lbl_dim_pct[idx], ui_theme_muted(), 0);
+        }
+    }
+}
+
+static void dimmer_anim_ready_cb(lv_anim_t *a) {
+    int idx = (int)(intptr_t)a->var;
+    if (idx >= 0 && idx < 8) {
+        dimmer_animating[idx] = false;
+        update_dimmer_visuals(idx);
+    }
+}
+
+void ui_trigger_dimmers_anim() {
+    for (int i = 0; i < 8; i++) {
+        if (!dimmers[i]) continue;
+        lv_anim_del((void*)(intptr_t)i, dimmer_anim_cb);
+        if (state.dimmer_val[i] > 0) {
+            dimmer_animating[i] = true;
+            lv_slider_set_value(dimmers[i], 0, LV_ANIM_OFF);
+            lv_obj_set_style_bg_color(dimmers[i], lv_color_hex(UI_COLOR_WARNING), LV_PART_INDICATOR);
+            if (lbl_dim_pct[i]) {
+                lv_label_set_text(lbl_dim_pct[i], "0%");
+                lv_obj_set_style_text_color(lbl_dim_pct[i], lv_color_hex(UI_COLOR_WARNING), 0);
+            }
+            lv_anim_t a;
+            lv_anim_init(&a);
+            lv_anim_set_var(&a, (void*)(intptr_t)i);
+            lv_anim_set_exec_cb(&a, dimmer_anim_cb);
+            lv_anim_set_time(&a, 600);
+            lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
+            lv_anim_set_values(&a, 0, state.dimmer_val[i]);
+            lv_anim_set_ready_cb(&a, dimmer_anim_ready_cb);
+            lv_anim_start(&a);
+        } else {
+            dimmer_animating[i] = false;
+            lv_slider_set_value(dimmers[i], 0, LV_ANIM_OFF);
+            update_dimmer_visuals(i);
+        }
+    }
+}
+
+// ==========================================
+// Switches Animation (Tab-Load Color Fade)
+// ==========================================
+static void switches_anim_cb(void *var, int32_t ratio) {
+    (void)var;
+    uint8_t r = (uint8_t)(ratio > 255 ? 255 : (ratio < 0 ? 0 : ratio));
+    lv_color_t bg_target = lv_color_hex(UI_COLOR_SUCCESS);
+    lv_color_t border_target = lv_color_hex(0x34d399);
+    lv_color_t text_target = lv_color_hex(0xffffff);
+    lv_color_t bg_start = ui_theme_card();
+    lv_color_t border_start = ui_theme_border();
+    lv_color_t text_start = ui_theme_text();
+
+    lv_color_t cur_bg = lv_color_mix(bg_target, bg_start, r);
+    lv_color_t cur_border = lv_color_mix(border_target, border_start, r);
+    lv_color_t cur_text = lv_color_mix(text_target, text_start, r);
+
+    for (int i = 0; i < 8; i++) {
+        if (state.switch_visible[i] && switches[i] && state.switch_state[i]) {
+            lv_obj_set_style_bg_color(switches[i], cur_bg, 0);
+            lv_obj_set_style_border_color(switches[i], cur_border, 0);
+            if (lbl_switch_name[i]) {
+                lv_obj_set_style_text_color(lbl_switch_name[i], cur_text, 0);
+            }
+        }
+        if (state.show_wrelay && state.wrelay_visible[i] && w_switches[i] && state.wrelay_state[i]) {
+            lv_obj_set_style_bg_color(w_switches[i], cur_bg, 0);
+            lv_obj_set_style_border_color(w_switches[i], cur_border, 0);
+            if (lbl_wswitch_name[i]) {
+                lv_obj_set_style_text_color(lbl_wswitch_name[i], cur_text, 0);
+            }
+        }
+    }
+}
+
+static void switches_anim_ready_cb(lv_anim_t *a) {
+    (void)a;
+    switches_animating = false;
+    for (int i = 0; i < 8; i++) {
+        if (state.switch_visible[i] && switches[i]) update_switch_visual(i);
+        if (state.show_wrelay && state.wrelay_visible[i] && w_switches[i]) update_wswitch_visual(i);
+    }
+}
+
+void ui_trigger_switches_anim() {
+    lv_anim_del(NULL, switches_anim_cb);
+    bool has_active = false;
+    for (int i = 0; i < 8; i++) {
+        if (state.switch_visible[i] && switches[i] && state.switch_state[i]) has_active = true;
+        if (state.show_wrelay && state.wrelay_visible[i] && w_switches[i] && state.wrelay_state[i]) has_active = true;
+    }
+    if (!has_active) {
+        switches_animating = false;
+        return;
+    }
+
+    switches_animating = true;
+    for (int i = 0; i < 8; i++) {
+        if (state.switch_visible[i] && switches[i] && state.switch_state[i]) {
+            lv_obj_set_style_bg_color(switches[i], ui_theme_card(), 0);
+            lv_obj_set_style_border_color(switches[i], ui_theme_border(), 0);
+            lv_obj_set_style_shadow_opa(switches[i], state.dark_mode ? LV_OPA_30 : LV_OPA_10, 0);
+            lv_obj_set_style_shadow_color(switches[i], lv_color_hex(0x000000), 0);
+            if (lbl_switch_name[i]) {
+                lv_obj_set_style_text_color(lbl_switch_name[i], ui_theme_text(), 0);
+            }
+        }
+        if (state.show_wrelay && state.wrelay_visible[i] && w_switches[i] && state.wrelay_state[i]) {
+            lv_obj_set_style_bg_color(w_switches[i], ui_theme_card(), 0);
+            lv_obj_set_style_border_color(w_switches[i], ui_theme_border(), 0);
+            lv_obj_set_style_shadow_opa(w_switches[i], state.dark_mode ? LV_OPA_30 : LV_OPA_10, 0);
+            lv_obj_set_style_shadow_color(w_switches[i], lv_color_hex(0x000000), 0);
+            if (lbl_wswitch_name[i]) {
+                lv_obj_set_style_text_color(lbl_wswitch_name[i], ui_theme_text(), 0);
+            }
+        }
+    }
+
+    lv_anim_t a;
+    lv_anim_init(&a);
+    lv_anim_set_var(&a, NULL);
+    lv_anim_set_exec_cb(&a, switches_anim_cb);
+    lv_anim_set_time(&a, 500);
+    lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
+    lv_anim_set_values(&a, 0, 255);
+    lv_anim_set_ready_cb(&a, switches_anim_ready_cb);
+    lv_anim_start(&a);
 }
 
 static void dimmer_slider_event_cb(lv_event_t * e) {
@@ -98,8 +255,16 @@ static void dimmer_slider_event_cb(lv_event_t * e) {
     lv_event_code_t code = lv_event_get_code(e);
     
     if (code == LV_EVENT_PRESSED || code == LV_EVENT_PRESSING) {
+        if (dimmer_animating[idx]) {
+            lv_anim_del((void*)(intptr_t)idx, dimmer_anim_cb);
+            dimmer_animating[idx] = false;
+        }
         state.dimmer_hold_until[idx] = millis() + 3000;
     } else if (code == LV_EVENT_VALUE_CHANGED) {
+        if (dimmer_animating[idx]) {
+            lv_anim_del((void*)(intptr_t)idx, dimmer_anim_cb);
+            dimmer_animating[idx] = false;
+        }
         state.dimmer_hold_until[idx] = millis() + 3000;
         state.dimmer_val[idx] = lv_slider_get_value(slider);
         update_dimmer_visuals(idx);
@@ -114,13 +279,13 @@ static void dimmer_slider_event_cb(lv_event_t * e) {
 void ui_update_switches_tab() {
     for (int i = 0; i < 8; i++) {
         if (state.switch_visible[i] && switches[i]) {
-            update_switch_visual(i);
+            if (!switches_animating) update_switch_visual(i);
             if (lbl_switch_name[i]) {
                 lv_label_set_text(lbl_switch_name[i], state.switch_names[i].c_str());
             }
         }
         if (state.show_wrelay && state.wrelay_visible[i] && w_switches[i]) {
-            update_wswitch_visual(i);
+            if (!switches_animating) update_wswitch_visual(i);
             if (lbl_wswitch_name[i]) {
                 char wlabel[64];
                 snprintf(wlabel, sizeof(wlabel), LV_SYMBOL_WIFI " %s", state.wrelay_names[i].c_str());
@@ -133,8 +298,9 @@ void ui_update_switches_tab() {
 void ui_update_dimmers_tab() {
     for (int i = 0; i < 8; i++) {
         if (dimmers[i]) {
-            // Never move a slider under the user's finger
+            // Never move a slider under the user's finger or during entry animation
             if (lv_obj_has_state(dimmers[i], LV_STATE_PRESSED)) continue;
+            if (dimmer_animating[i]) continue;
             if (lv_slider_get_value(dimmers[i]) != state.dimmer_val[i]) {
                 lv_slider_set_value(dimmers[i], state.dimmer_val[i], LV_ANIM_OFF);
             }
