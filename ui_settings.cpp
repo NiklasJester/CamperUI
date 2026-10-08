@@ -1,8 +1,10 @@
 #include "ui_main.h"
+#include "wifi_diagnostics.h"
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
 #include <WiFi.h>
 
+static lv_obj_t *sw_debug = NULL, *sw_demo = NULL;
 static lv_obj_t * http_test_win = NULL;
 static lv_obj_t * http_lbl_result = NULL;
 
@@ -81,6 +83,7 @@ static lv_obj_t *dd_wifi_ssid;
 static lv_obj_t *btn_wifi_scan;
 static lv_obj_t *lbl_wifi_scan;
 static lv_obj_t *ta_wifi_pass;
+static lv_obj_t *password_eye_label, *wifi_status_label;
 static lv_obj_t *ta_mqtt_ip;
 static lv_obj_t *dd_out_temp = NULL;
 
@@ -104,17 +107,34 @@ lv_obj_t *lbl_debug_info = NULL;
 
 static bool scan_in_progress = false;
 
+void ui_sync_demo_controls() {
+    lv_obj_t *controls[] = {sw_debug, sw_demo};
+    for (lv_obj_t *control : controls) {
+        if (!control || !lv_obj_is_valid(control)) continue;
+        if (state.debug_mode) lv_obj_add_state(control, LV_STATE_CHECKED);
+        else lv_obj_clear_state(control, LV_STATE_CHECKED);
+    }
+}
 void ui_update_settings_tab() {
+    ui_sync_demo_controls();
+    if (lv_scr_act() == scr_settings && wifi_status_label) {
+        String details = wifi_connection_details();
+        ui_label_set_text_if_changed(wifi_status_label, details.c_str());
+    }
+    if (ui_home_settings_is_active()) ui_home_settings_refresh();
     if (scan_in_progress) {
         int n = WiFi.scanComplete();
         if (n >= 0) {
             scan_in_progress = false;
-            String options = "";
+            // Keep the saved WLAN selectable even when it is out of range.
+            String options = state.wifi_ssid;
             for (int i = 0; i < n; ++i) {
-                options += WiFi.SSID(i);
-                if (i < n - 1) options += "\n";
+                String ssid = WiFi.SSID(i);
+                if (ssid.length() == 0 || ssid == state.wifi_ssid) continue;
+                if (options.length() > 0) options += "\n";
+                options += ssid;
             }
-            if(n == 0) options = "Keine Netzwerke gefunden";
+            if (options.length() == 0) options = "Keine Netzwerke gefunden";
             lv_dropdown_set_options(dd_wifi_ssid, options.c_str());
             lv_label_set_text(lbl_wifi_scan, "Scan");
             WiFi.scanDelete();
@@ -190,7 +210,7 @@ static void save_settings_cb(lv_event_t * e) {
     
     // Attempt reconnects
     WiFi.disconnect();
-    WiFi.begin(state.wifi_ssid.c_str(), state.wifi_pass.c_str());
+    wifi_connect_configured();
     
     // Load main screen beneath the dialog
     lv_scr_load(scr_main);
@@ -215,6 +235,8 @@ static void update_dd_out_temp_options() {
 
 static void open_settings_cb(lv_event_t * e) {
     update_dd_out_temp_options();
+    lv_textarea_set_password_mode(ta_wifi_pass, true);
+    lv_label_set_text(password_eye_label, LV_SYMBOL_EYE_OPEN);
     lv_scr_load(scr_settings);
 }
 
@@ -244,16 +266,28 @@ void ui_build_settings(lv_obj_t *parent) {
     lv_obj_set_style_text_color(lbl_open, lv_color_hex(0xffffff), 0);
     lv_obj_center(lbl_open);
     
+    lv_obj_t *btn_home = lv_btn_create(parent);
+    lv_obj_set_size(btn_home, 320, 48);
+    lv_obj_set_style_radius(btn_home, 14, 0);
+    lv_obj_set_style_bg_color(btn_home, lv_color_hex(UI_COLOR_PRIMARY), 0);
+    lv_obj_add_event_cb(btn_home, [](lv_event_t *) { ui_open_home_settings(); }, LV_EVENT_CLICKED, nullptr);
+    lv_obj_t *lbl_home = lv_label_create(btn_home);
+    lv_label_set_text(lbl_home, LV_SYMBOL_HOME " Home-Einstellungen");
+    lv_obj_set_style_text_font(lbl_home, &lv_font_montserrat_18, 0);
+    lv_obj_set_style_text_color(lbl_home, lv_color_hex(0xffffff), 0);
+    lv_obj_center(lbl_home);
+
     // Simulation / Debug Toggle Card
     lv_obj_t *card_dbg = ui_create_card(parent, 360, 56);
     lv_obj_set_style_pad_all(card_dbg, 10, 0);
     
-    lv_obj_t *sw_debug = lv_switch_create(card_dbg);
+    sw_debug = lv_switch_create(card_dbg);
     if (state.debug_mode) lv_obj_add_state(sw_debug, LV_STATE_CHECKED);
     lv_obj_align(sw_debug, LV_ALIGN_LEFT_MID, 0, 0);
     lv_obj_add_event_cb(sw_debug, [](lv_event_t * e) {
         lv_obj_t *sw = lv_event_get_target(e);
         state.debug_mode = lv_obj_has_state(sw, LV_STATE_CHECKED);
+        ui_sync_demo_controls();
         state_save();
     }, LV_EVENT_VALUE_CHANGED, NULL);
     
@@ -313,13 +347,23 @@ void ui_settings_screen_init() {
     lv_textarea_set_one_line(ta_wifi_pass, true);
     lv_textarea_set_text(ta_wifi_pass, state.wifi_pass.c_str());
     lv_textarea_set_placeholder_text(ta_wifi_pass, "Passwort");
-    lv_obj_set_width(ta_wifi_pass, 150);
+    lv_obj_set_width(ta_wifi_pass, 130);
     lv_obj_align(ta_wifi_pass, LV_ALIGN_TOP_LEFT, 160, 30);
     lv_obj_add_event_cb(ta_wifi_pass, ta_event_cb, LV_EVENT_ALL, NULL);
     
+    lv_obj_t *password_eye = lv_btn_create(t_net);
+    lv_obj_set_pos(password_eye, 298, 30); lv_obj_set_size(password_eye, 40, 40);
+    password_eye_label = lv_label_create(password_eye);
+    lv_label_set_text(password_eye_label, LV_SYMBOL_EYE_OPEN); lv_obj_center(password_eye_label);
+    lv_obj_add_event_cb(password_eye, [](lv_event_t *) {
+        bool show = lv_textarea_get_password_mode(ta_wifi_pass);
+        lv_textarea_set_password_mode(ta_wifi_pass, !show);
+        lv_label_set_text(password_eye_label, show ? LV_SYMBOL_EYE_CLOSE : LV_SYMBOL_EYE_OPEN);
+    }, LV_EVENT_CLICKED, nullptr);
+
     btn_wifi_scan = lv_btn_create(t_net);
-    lv_obj_set_size(btn_wifi_scan, 120, 40);
-    lv_obj_align(btn_wifi_scan, LV_ALIGN_TOP_LEFT, 320, 30);
+    lv_obj_set_size(btn_wifi_scan, 94, 40);
+    lv_obj_align(btn_wifi_scan, LV_ALIGN_TOP_LEFT, 346, 30);
     lv_obj_add_event_cb(btn_wifi_scan, wifi_scan_cb, LV_EVENT_CLICKED, NULL);
     lbl_wifi_scan = lv_label_create(btn_wifi_scan);
     lv_label_set_text(lbl_wifi_scan, "Scan");
@@ -341,6 +385,12 @@ void ui_settings_screen_init() {
         
         
         
+    wifi_status_label = lv_label_create(t_net);
+    lv_obj_set_pos(wifi_status_label, 0, 178); lv_obj_set_width(wifi_status_label, 440);
+    lv_obj_set_style_text_font(wifi_status_label, &lv_font_montserrat_12, 0);
+    lv_label_set_long_mode(wifi_status_label, LV_LABEL_LONG_WRAP);
+    lv_label_set_text(wifi_status_label, wifi_connection_details().c_str());
+
     // --- TAB 2: ALLGEMEIN ---
     lv_obj_clear_flag(t_gen, LV_OBJ_FLAG_SCROLLABLE);
     
@@ -402,12 +452,13 @@ void ui_settings_screen_init() {
     }, LV_EVENT_VALUE_CHANGED, NULL);
     
     // Demo Mode Switch
-    lv_obj_t *sw_demo = lv_switch_create(t_gen);
+    sw_demo = lv_switch_create(t_gen);
     if(state.debug_mode) lv_obj_add_state(sw_demo, LV_STATE_CHECKED);
     lv_obj_align(sw_demo, LV_ALIGN_TOP_LEFT, 0, 160);
     lv_obj_add_event_cb(sw_demo, [](lv_event_t * e) {
         lv_obj_t *sw = lv_event_get_target(e);
         state.debug_mode = lv_obj_has_state(sw, LV_STATE_CHECKED);
+        ui_sync_demo_controls();
         state_save();
     }, LV_EVENT_VALUE_CHANGED, NULL);
     lv_obj_t *l_demo = lv_label_create(t_gen);

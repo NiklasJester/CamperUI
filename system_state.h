@@ -29,6 +29,13 @@ struct SystemState {
 
     // Sensor Selection (Persisted)
     int outdoor_temp_sensor; // 0..3 (index of temp sensor for outdoor temp, default 1)
+    int home_temp_source[3]; // -1 hidden, otherwise raw /temp sensor 0..3
+    int home_favorite[2]; // 0 hidden, 1..8 relays, 9..16 dimmers
+    bool home_show_battery;
+    bool home_show_starter;
+    bool home_show_solar;
+    bool home_show_water;
+    int home_water_source; // /level index 0..3
 
     // Tank Capacities (Liters)
     int tank_max[4]; 
@@ -52,6 +59,15 @@ struct SystemState {
     int bat_soc; // 0-100%
     float solar_power; // W
     float solar_current;
+    float solar_voltage;
+    float starter_voltage; // optional /batt extension: starter_voltage
+    uint8_t battery_fields; // VoltB=1, Ampere=2, battsoc=4, optional starter_voltage=8
+    uint8_t solar_fields; // watts=1, amps=2, volts=4
+    uint8_t temp_fields;
+    uint8_t tank_fields;
+    uint8_t relay_fields;
+    uint8_t dimmer_fields;
+    bool data_is_demo; // source of the received fields, not the requested mode
 
     // Water
     int tank_level[4]; // 0-100%
@@ -85,6 +101,7 @@ struct SystemState {
     // while millis() < *_hold_until, polled values are ignored so the
     // remote state does not fight with a value the user is just changing.
     uint32_t dimmer_hold_until[8];
+    uint32_t relay_hold_until[8];
     uint32_t heater_hold_until;
 
     // Visibility and roles

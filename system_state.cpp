@@ -1,4 +1,16 @@
 #include "system_state.h"
+#include "display_sync.h"
+
+// Optional local credentials; builds without this file remain supported.
+#if __has_include("config/wifi_secrets.h")
+#include "config/wifi_secrets.h"
+#endif
+#ifndef CAMPERUI_DEFAULT_WIFI_SSID
+#define CAMPERUI_DEFAULT_WIFI_SSID ""
+#endif
+#ifndef CAMPERUI_DEFAULT_WIFI_PASSWORD
+#define CAMPERUI_DEFAULT_WIFI_PASSWORD ""
+#endif
 
 SystemState state;
 Preferences prefs;
@@ -9,6 +21,13 @@ void state_init() {
     // Load persisted settings
     state.wifi_ssid = prefs.getString("wifi_ssid", "");
     state.wifi_pass = prefs.getString("wifi_pass", "");
+    // Seed only an unconfigured device. Saved settings always take priority.
+    if (state.wifi_ssid.length() == 0 && CAMPERUI_DEFAULT_WIFI_SSID[0] != '\0') {
+        state.wifi_ssid = CAMPERUI_DEFAULT_WIFI_SSID;
+        state.wifi_pass = CAMPERUI_DEFAULT_WIFI_PASSWORD;
+        prefs.putString("wifi_ssid", state.wifi_ssid);
+        prefs.putString("wifi_pass", state.wifi_pass);
+    }
     state.vanpi_ip = prefs.getString("vanpi_ip", "100.80.161.23");
 
     
@@ -30,6 +49,20 @@ state.display_brightness = prefs.getInt("disp_bright", 100);
     state.warn_waste_max = prefs.getInt("w_waste", 85);
 
     state.outdoor_temp_sensor = prefs.getInt("out_temp_idx", 1); // Default to Temp 2 (Aussen)
+    const int home_defaults[3] = {0, 1, 3};
+    for (int i = 0; i < 3; ++i) {
+        char key[16]; snprintf(key, sizeof(key), "home_temp%d", i);
+        state.home_temp_source[i] = constrain(prefs.getInt(key, home_defaults[i]), -1, 3);
+    }
+    for (int i = 0; i < 2; ++i) {
+        char key[16]; snprintf(key, sizeof(key), "home_fav%d", i);
+        state.home_favorite[i] = constrain(prefs.getInt(key, i == 0 ? 1 : 3), 0, 16);
+    }
+    state.home_show_battery = prefs.getBool("home_bat", true);
+    state.home_show_starter = prefs.getBool("home_starter", true);
+    state.home_show_solar = prefs.getBool("home_solar", true);
+    state.home_show_water = prefs.getBool("home_water", true);
+    state.home_water_source = constrain(prefs.getInt("home_tank", 0), 0, 3);
 
     for (int i = 0; i < 4; i++) {
         char key_max[16], key_en[16], key_nm[16];
@@ -73,6 +106,11 @@ state.display_brightness = prefs.getInt("disp_bright", 100);
     state.bat_soc = 0;
     state.solar_power = 0.0f;
     state.solar_current = 0.0f;
+    state.solar_voltage = 0.0f;
+    state.starter_voltage = 0.0f;
+    state.battery_fields = state.solar_fields = state.temp_fields = state.tank_fields = 0;
+    state.relay_fields = state.dimmer_fields = 0;
+    state.data_is_demo = state.debug_mode;
 
     for (int i = 0; i < 4; i++) {
         state.tank_level[i] = 0;
@@ -99,11 +137,25 @@ state.display_brightness = prefs.getInt("disp_bright", 100);
         state.switch_state[i] = false;
         state.dimmer_val[i] = 0;
         state.dimmer_hold_until[i] = 0;
+        state.relay_hold_until[i] = 0;
     }
     state.heater_hold_until = 0;
 }
 
 void state_save() {
+    for (int i = 0; i < 3; ++i) {
+        char key[16]; snprintf(key, sizeof(key), "home_temp%d", i);
+        prefs.putInt(key, state.home_temp_source[i]);
+    }
+    for (int i = 0; i < 2; ++i) {
+        char key[16]; snprintf(key, sizeof(key), "home_fav%d", i);
+        prefs.putInt(key, state.home_favorite[i]);
+    }
+    prefs.putBool("home_bat", state.home_show_battery);
+    prefs.putBool("home_starter", state.home_show_starter);
+    prefs.putBool("home_solar", state.home_show_solar);
+    prefs.putBool("home_water", state.home_show_water);
+    prefs.putInt("home_tank", state.home_water_source);
     prefs.putString("wifi_ssid", state.wifi_ssid);
     prefs.putString("wifi_pass", state.wifi_pass);
     prefs.putString("vanpi_ip", state.vanpi_ip);
@@ -148,5 +200,6 @@ void state_save() {
     }
     prefs.putInt("pump_relay", state.pump_relay);
     prefs.putInt("drain_relay", state.drain_relay);
+    display_request_resync();
 }
 

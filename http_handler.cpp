@@ -17,7 +17,7 @@ struct HttpCmd {
 static QueueHandle_t http_cmd_queue = NULL;
 
 static void queue_cmd(const char* path) {
-    if (!http_cmd_queue) return;
+    if (state.debug_mode || !http_cmd_queue) return;
     HttpCmd cmd;
     strncpy(cmd.path, path, sizeof(cmd.path) - 1);
     cmd.path[sizeof(cmd.path) - 1] = '\0';
@@ -90,9 +90,11 @@ static void parse_batt_json(String payload) {
     DynamicJsonDocument doc(2048);
     if (deserializeJson(doc, payload)) return;
 
-    if (doc.containsKey("VoltB"))   state.bat_voltage = jsonFloat(doc["VoltB"]);
-    if (doc.containsKey("Ampere"))  state.bat_current = jsonFloat(doc["Ampere"]);
-    if (doc.containsKey("battsoc")) state.bat_soc     = jsonInt(doc["battsoc"]);
+    if (doc.containsKey("VoltB")) { state.bat_voltage = jsonFloat(doc["VoltB"]); state.battery_fields |= 1; }
+    if (doc.containsKey("Ampere")) { state.bat_current = jsonFloat(doc["Ampere"]); state.battery_fields |= 2; }
+    if (doc.containsKey("battsoc")) { state.bat_soc = jsonInt(doc["battsoc"]); state.battery_fields |= 4; }
+    // Optional extension, not assumed to exist in the standard VanPi /batt response.
+    if (doc.containsKey("starter_voltage")) { state.starter_voltage = jsonFloat(doc["starter_voltage"]); state.battery_fields |= 8; }
 }
 
 // GET /mppt/ -> { "mppt_pv_watts": float, "mppt_pv_amps": float, "mppt_pv_volts": float }
@@ -100,8 +102,9 @@ static void parse_mppt_json(String payload) {
     DynamicJsonDocument doc(2048);
     if (deserializeJson(doc, payload)) return;
 
-    if (doc.containsKey("mppt_pv_watts")) state.solar_power   = jsonFloat(doc["mppt_pv_watts"]);
-    if (doc.containsKey("mppt_pv_amps"))  state.solar_current  = jsonFloat(doc["mppt_pv_amps"]);
+    if (doc.containsKey("mppt_pv_watts")) { state.solar_power = jsonFloat(doc["mppt_pv_watts"]); state.solar_fields |= 1; }
+    if (doc.containsKey("mppt_pv_amps")) { state.solar_current = jsonFloat(doc["mppt_pv_amps"]); state.solar_fields |= 2; }
+    if (doc.containsKey("mppt_pv_volts")) { state.solar_voltage = jsonFloat(doc["mppt_pv_volts"]); state.solar_fields |= 4; }
 }
 
 // GET /relay -> { "Relay1": { "state": bool, "name": str, ... }, "Relay2": ... }
@@ -113,7 +116,10 @@ static void parse_relay_json(String payload) {
         String key = "Relay" + String(i + 1);
         if (!doc.containsKey(key)) continue;
         JsonObject r = doc[key];
-        if (r.containsKey("state")) state.switch_state[i] = r["state"].as<bool>();
+        if (r.containsKey("state")) {
+            if ((int32_t)(millis() - state.relay_hold_until[i]) >= 0) state.switch_state[i] = r["state"].as<bool>();
+            state.relay_fields |= (1 << i);
+        }
         if (r.containsKey("name")) {
             String n = r["name"].as<String>();
             if (n.length() > 0 && n != key) state.switch_names[i] = fix_umlauts(n);
@@ -132,6 +138,7 @@ static void parse_dimmer_json(String payload) {
         JsonObject d = doc[key];
         if (d.containsKey("state") && (int32_t)(millis() - state.dimmer_hold_until[i]) >= 0) {
             state.dimmer_val[i] = constrain(jsonInt(d["state"]), 0, 100);
+            state.dimmer_fields |= (1 << i);
         }
         if (d.containsKey("name")) {
             String n = d["name"].as<String>();
@@ -149,7 +156,7 @@ static void parse_level_json(String payload) {
         String key = "level" + String(i + 1);
         if (!doc.containsKey(key)) continue;
         JsonObject lvl = doc[key];
-        if (lvl.containsKey("state")) state.tank_level[i] = jsonInt(lvl["state"]);
+        if (lvl.containsKey("state")) { state.tank_level[i] = constrain(jsonInt(lvl["state"]), 0, 100); state.tank_fields |= (1 << i); }
         if (lvl.containsKey("name")) {
             String n = lvl["name"].as<String>();
             if (n.length() > 0) state.tank_names[i] = fix_umlauts(n);
@@ -172,6 +179,7 @@ static void parse_temp_json(String payload) {
         }
         if (t.containsKey("state")) {
             state.temp_sensors[i] = jsonFloat(t["state"]);
+            state.temp_fields |= (1 << i);
         }
     }
 
@@ -338,33 +346,54 @@ static void fetch_endpoint(const char* endpoint, void (*parser)(String)) {
 }
 
 void http_loop() {
+    state.wifi_connected = WiFi.status() == WL_CONNECTED;
+    state.wifi_rssi = state.wifi_connected ? WiFi.RSSI() : 0;
+    static bool demo_relays_seeded = false;
+    static bool demo_dimmers_seeded = false;
+    if (state.data_is_demo != state.debug_mode) {
+        state.battery_fields = state.solar_fields = state.temp_fields = state.tank_fields = 0;
+        state.relay_fields = state.dimmer_fields = 0;
+        state.bat_voltage = state.bat_current = state.starter_voltage = 0;
+        state.bat_soc = 0;
+        state.solar_power = state.solar_current = state.solar_voltage = 0;
+        state.indoor_temp = state.outdoor_temp = 0;
+        state.heating_on = state.fan_on = false;
+        for (int i = 0; i < 4; ++i) { state.temp_sensors[i] = 0; state.tank_level[i] = 0; }
+        for (int i = 0; i < 8; ++i) {
+            state.dimmer_hold_until[i] = state.relay_hold_until[i] = 0;
+            state.switch_state[i] = false; state.dimmer_val[i] = 0;
+        }
+        demo_relays_seeded = demo_dimmers_seeded = false;
+        poll_step = 0;
+        last_http_poll = 0;
+        state.vanpi_connected = false;
+        state.data_is_demo = state.debug_mode;
+    }
     // =========================================================================
     // Simulation / Debug Mode: Use realistic dummy JSON payloads with strings
     // =========================================================================
     if (state.debug_mode) {
-        state.wifi_connected = true;
-        state.wifi_rssi = -55;
 
         if (millis() - last_http_poll > 500) {
             switch (poll_step) {
                 case 0: {
                     // String-encoded float/int values
-                    String dummy = "{\"VoltB\":\"13.4\",\"Ampere\":\"-2.1\",\"battsoc\":\"88\"}";
+                    String dummy = "{\"VoltB\":\"13.4\",\"Ampere\":\"-2.1\",\"battsoc\":\"88\",\"starter_voltage\":\"12.7\"}";
                     parse_batt_json(dummy);
                     break;
                 }
                 case 1: {
-                    String dummy = "{\"Relay1\":{\"state\":true,\"name\":\"Licht Bank\"},\"Relay2\":{\"state\":false,\"name\":\"Kuehlschrank\"},\"Relay3\":{\"state\":true,\"name\":\"Wasserpumpe\"},\"Relay4\":{\"state\":false,\"name\":\"Abwasserventil\"}}";
-                    parse_relay_json(dummy);
+                    String dummy = "{\"Relay1\":{\"state\":true,\"name\":\"Licht Bank\"},\"Relay2\":{\"state\":false,\"name\":\"Kuehlschrank\"},\"Relay3\":{\"state\":true,\"name\":\"Wasserpumpe\"},\"Relay4\":{\"state\":false,\"name\":\"Abwasserventil\"},\"Relay5\":{\"state\":false,\"name\":\"Relais 5\"},\"Relay6\":{\"state\":false,\"name\":\"Relais 6\"},\"Relay7\":{\"state\":false,\"name\":\"Relais 7\"},\"Relay8\":{\"state\":false,\"name\":\"Relais 8\"}}";
+                    if (!demo_relays_seeded) { parse_relay_json(dummy); demo_relays_seeded = true; }
                     break;
                 }
                 case 2: {
-                    String dummy = "{\"dimmer1\":{\"state\":\"75\",\"name\":\"Deckenlampe\"},\"dimmer2\":{\"state\":\"40\",\"name\":\"Kueche\"},\"dimmer3\":{\"state\":\"0\",\"name\":\"Leselicht\"}}";
-                    parse_dimmer_json(dummy);
+                    String dummy = "{\"dimmer1\":{\"state\":\"75\",\"name\":\"Deckenlampe\"},\"dimmer2\":{\"state\":\"40\",\"name\":\"Kueche\"},\"dimmer3\":{\"state\":\"0\",\"name\":\"Leselicht\"},\"dimmer4\":{\"state\":\"0\",\"name\":\"Dimmer 4\"},\"dimmer5\":{\"state\":\"0\",\"name\":\"Dimmer 5\"},\"dimmer6\":{\"state\":\"0\",\"name\":\"Dimmer 6\"},\"dimmer7\":{\"state\":\"0\",\"name\":\"Dimmer 7\"},\"dimmer8\":{\"state\":\"0\",\"name\":\"Dimmer 8\"}}";
+                    if (!demo_dimmers_seeded) { parse_dimmer_json(dummy); demo_dimmers_seeded = true; }
                     break;
                 }
                 case 3: {
-                    String dummy = "{\"level1\":{\"state\":\"68\",\"name\":\"Frischwasser\"},\"level2\":{\"state\":\"32\",\"name\":\"Grauwasser\"}}";
+                    String dummy = "{\"level1\":{\"state\":\"68\",\"name\":\"Frischwasser\"},\"level2\":{\"state\":\"32\",\"name\":\"Grauwasser\"},\"level3\":{\"state\":\"50\",\"name\":\"Tank 3\"},\"level4\":{\"state\":\"0\",\"name\":\"Tank 4\"}}";
                     parse_level_json(dummy);
                     break;
                 }
@@ -411,6 +440,7 @@ void http_loop() {
     // =========================================================================
     if (WiFi.status() != WL_CONNECTED) {
         state.wifi_connected = false;
+        state.vanpi_connected = false;
         return;
     }
     state.wifi_connected = true;
@@ -455,6 +485,7 @@ void http_loop() {
 // --- Publishing (Non-blocking: pushes to FreeRTOS queue, processed on Core 0) ---
 
 static void http_put(String endpoint) {
+    if (state.debug_mode) return;
     if (WiFi.status() != WL_CONNECTED) return;
     if (state.vanpi_ip.length() < 7) return;
 
@@ -470,13 +501,17 @@ static void http_put(String endpoint) {
 }
 
 void http_publish_switch(int index, bool on) {
+    if (index < 0 || index >= 8) return;
     state.switch_state[index] = on;
+    state.relay_hold_until[index] = millis() + 2000;
     char path[64];
     snprintf(path, sizeof(path), "/relay/%d/%s", index + 1, on ? "true" : "false");
     queue_cmd(path);
 }
 
 void http_publish_dimmer(int index, int val) {
+    if (index < 0 || index >= 8) return;
+    val = constrain(val, 0, 100);
     state.dimmer_val[index] = val;
     char path[64];
     snprintf(path, sizeof(path), "/dimmer/%d/%d", index + 1, val);
@@ -511,17 +546,29 @@ static void http_background_task(void *pvParameters) {
     }
 }
 
-void http_start_task() {
+bool http_start_task() {
+    static TaskHandle_t worker = NULL;
+    if (worker) return true;
     http_init();
+    if (!http_cmd_queue) {
+        Serial.println("[HTTP] ERROR: command queue allocation failed; data worker not started");
+        return false;
+    }
     // Pin to Core 0 (Core 1 is 100% dedicated to UI / LVGL!)
-    xTaskCreatePinnedToCore(
+    BaseType_t result = xTaskCreatePinnedToCore(
         http_background_task,
         "http_task",
         10240,       // 10 KB stack
         NULL,
         1,           // Priority 1
-        NULL,
+        &worker,
         0            // Core 0
     );
+    if (result != pdPASS) {
+        worker = NULL;
+        Serial.println("[HTTP] ERROR: worker allocation failed; Demo/Live data unavailable");
+        return false;
+    }
     Serial.println("[HTTP] Background worker pinned to Core 0");
+    return true;
 }

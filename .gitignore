@@ -24,3 +24,6 @@ ehthumbs.db
 Desktop.ini
 .BIN/
 .DS_Store
+
+# Local WLAN credentials (never commit)
+/config/wifi_secrets.h
