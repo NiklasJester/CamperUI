@@ -62,13 +62,17 @@ static void ota_check_task(void *pvParameters) {
                 JsonArray assets = doc["assets"].as<JsonArray>();
                 for (JsonObject a : assets) {
                     String name = a["name"].as<String>();
-                    if (name.endsWith(".bin") || name.equalsIgnoreCase("CamperUI.bin")) {
+                    if (name.endsWith(".bin") && 
+                        name.indexOf("merged") < 0 && 
+                        name.indexOf("bootloader") < 0 && 
+                        name.indexOf("partitions") < 0 && 
+                        name.indexOf("boot_app") < 0) {
                         download_url = a["browser_download_url"].as<String>();
                         break;
                     }
                 }
                 if (download_url.length() == 0) {
-                    download_url = "https://github.com/NiklasJester/CamperUI/releases/download/" + tag + "/CamperUI.bin";
+                    download_url = "https://github.com/NiklasJester/CamperUI/releases/download/" + tag + "/CamperUI-" + tag + ".bin";
                 }
 
                 state.ota_latest_version = tag;
