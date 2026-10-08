@@ -1,5 +1,7 @@
 #include "system_state.h"
 #include "display_sync.h"
+#include <time.h>
+#include <esp_sntp.h>
 
 // Optional local credentials; builds without this file remain supported.
 #if __has_include("config/wifi_secrets.h")
@@ -14,6 +16,53 @@
 
 SystemState state;
 Preferences prefs;
+
+const TimezoneInfo TIMEZONES[TIMEZONE_COUNT] = {
+    {"Berlin, Wien, Paris (CET UTC+1)", "CET-1CEST,M3.5.0,M10.5.0/3"},
+    {"London, Dublin (GMT/BST UTC+0)",  "GMT0BST,M3.5.0/1,M10.5.0"},
+    {"Athen, Helsinki (EET UTC+2)",     "EET-2EEST,M3.5.0/3,M10.5.0/4"},
+    {"Istanbul (TRT UTC+3)",            "TRT-3"},
+    {"UTC (Weltzeit)",                  "UTC0"},
+    {"New York (EST/EDT UTC-5)",        "EST5EDT,M3.2.0,M11.1.0"},
+    {"Los Angeles (PST/PDT UTC-8)",     "PST8PDT,M3.2.0,M11.1.0"}
+};
+
+void time_apply_configuration() {
+    int idx = constrain(state.time_zone_idx, 0, TIMEZONE_COUNT - 1);
+    if (state.time_auto_ntp) {
+        configTzTime(TIMEZONES[idx].tz_str, "pool.ntp.org", "time.google.com", "time.cloudflare.com");
+    } else {
+        setenv("TZ", TIMEZONES[idx].tz_str, 1);
+        tzset();
+    }
+}
+
+void time_set_manual(int hour, int min) {
+    state.manual_hour = constrain(hour, 0, 23);
+    state.manual_min = constrain(min, 0, 59);
+
+    int idx = constrain(state.time_zone_idx, 0, TIMEZONE_COUNT - 1);
+    setenv("TZ", TIMEZONES[idx].tz_str, 1);
+    tzset();
+
+    time_t now = time(nullptr);
+    struct tm tm_now;
+    if (now > 1700000000) {
+        localtime_r(&now, &tm_now);
+    } else {
+        tm_now.tm_year = 2026 - 1900;
+        tm_now.tm_mon = 9; // Oct
+        tm_now.tm_mday = 8;
+        tm_now.tm_isdst = -1;
+    }
+    tm_now.tm_hour = state.manual_hour;
+    tm_now.tm_min = state.manual_min;
+    tm_now.tm_sec = 0;
+
+    time_t new_time = mktime(&tm_now);
+    struct timeval tv = { .tv_sec = new_time, .tv_usec = 0 };
+    settimeofday(&tv, NULL);
+}
 
 void state_init() {
     prefs.begin("camperui", false);
@@ -166,6 +215,25 @@ state.display_brightness = prefs.getInt("disp_bright", 100);
         state.relay_hold_until[i] = 0;
     }
     state.heater_hold_until = 0;
+
+    state.time_auto_ntp = prefs.getBool("time_auto", true);
+    state.time_zone_idx = prefs.getInt("time_tz", 0);
+    state.manual_hour = prefs.getInt("man_hour", 12);
+    state.manual_min = prefs.getInt("man_min", 0);
+
+    state.show_wrelay = prefs.getBool("show_wrelay", false);
+    for (int i = 0; i < 8; i++) {
+        char key_w_nm[16], key_w_vis[16];
+        sprintf(key_w_nm, "wr%d_nm", i);
+        sprintf(key_w_vis, "wr%d_vis", i);
+        state.wrelay_names[i] = prefs.getString(key_w_nm, "W-Relais " + String(i + 1));
+        state.wrelay_visible[i] = prefs.getBool(key_w_vis, true);
+        state.wrelay_state[i] = false;
+        state.wrelay_hold_until[i] = 0;
+    }
+    state.wrelay_fields = 0;
+
+    time_apply_configuration();
 }
 
 void state_save() {
@@ -228,6 +296,21 @@ void state_save() {
     }
     prefs.putInt("pump_relay", state.pump_relay);
     prefs.putInt("drain_relay", state.drain_relay);
+
+    prefs.putBool("time_auto", state.time_auto_ntp);
+    prefs.putInt("time_tz", state.time_zone_idx);
+    prefs.putInt("man_hour", state.manual_hour);
+    prefs.putInt("man_min", state.manual_min);
+
+    prefs.putBool("show_wrelay", state.show_wrelay);
+    for (int i = 0; i < 8; i++) {
+        char key_w_nm[16], key_w_vis[16];
+        sprintf(key_w_nm, "wr%d_nm", i);
+        sprintf(key_w_vis, "wr%d_vis", i);
+        prefs.putString(key_w_nm, state.wrelay_names[i]);
+        prefs.putBool(key_w_vis, state.wrelay_visible[i]);
+    }
+
     display_request_resync();
 }
 

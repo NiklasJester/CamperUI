@@ -62,6 +62,17 @@ struct SystemState {
     // Custom Names
     String switch_names[8];
     String dimmer_names[8];
+
+    // Time & Zone Settings (Persisted)
+    bool time_auto_ntp;     // true: Internet (NTP), false: Manual (Offline)
+    int time_zone_idx;      // Index in TIMEZONES
+    int manual_hour;        // 0..23
+    int manual_min;         // 0..59
+
+    // WiFi Relays (Persisted)
+    bool show_wrelay;
+    bool wrelay_visible[8];
+    String wrelay_names[8];
     
     // --- Live Sensor Data (Volatile) ---
     // Status
@@ -126,7 +137,23 @@ struct SystemState {
     bool dimmer_visible[8];
     int pump_relay; // 0-7, or -1 for none
     int drain_relay; // 0-7, or -1 for none
+
+    // WiFi Relays (Volatile State)
+    bool wrelay_state[8];
+    uint32_t wrelay_hold_until[8];
+    uint8_t wrelay_fields;
 };
+
+struct TimezoneInfo {
+    const char *name;
+    const char *tz_str;
+};
+
+#define TIMEZONE_COUNT 7
+extern const TimezoneInfo TIMEZONES[TIMEZONE_COUNT];
+
+void time_apply_configuration();
+void time_set_manual(int hour, int min);
 
 extern SystemState state;
 extern Preferences prefs;

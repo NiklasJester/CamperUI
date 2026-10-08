@@ -127,6 +127,42 @@ static void parse_relay_json(String payload) {
     }
 }
 
+// GET /wrelay -> { "wrelay1": { "state": bool|str, "name": str }, ... }
+static void parse_wrelay_json(String payload) {
+    DynamicJsonDocument doc(8192);
+    if (deserializeJson(doc, payload)) return;
+
+    for (int i = 0; i < 8; i++) {
+        String k1 = "wrelay" + String(i + 1);
+        String k2 = "Wrelay" + String(i + 1);
+        String k3 = "WRelay" + String(i + 1);
+        JsonObject r;
+        if (doc.containsKey(k1)) r = doc[k1];
+        else if (doc.containsKey(k2)) r = doc[k2];
+        else if (doc.containsKey(k3)) r = doc[k3];
+        else continue;
+
+        if (r.containsKey("state")) {
+            if ((int32_t)(millis() - state.wrelay_hold_until[i]) >= 0) {
+                bool val = false;
+                if (r["state"].is<bool>()) {
+                    val = r["state"].as<bool>();
+                } else {
+                    String s = r["state"].as<String>();
+                    s.toLowerCase();
+                    val = (s == "true" || s == "1" || s == "on");
+                }
+                state.wrelay_state[i] = val;
+            }
+            state.wrelay_fields |= (1 << i);
+        }
+        if (r.containsKey("name")) {
+            String n = r["name"].as<String>();
+            if (n.length() > 0 && n != k1 && n != k2) state.wrelay_names[i] = fix_umlauts(n);
+        }
+    }
+}
+
 // GET /dimmer -> { "dimmer1": { "state": int(0-100), "name": str, ... }, "dimmer2": ... }
 static void parse_dimmer_json(String payload) {
     DynamicJsonDocument doc(8192);
@@ -417,6 +453,13 @@ void http_loop() {
                     parse_position_json(dummy);
                     break;
                 }
+                case 8: {
+                    if (state.show_wrelay) {
+                        String dummy = "{\"wrelay1\":{\"state\":true,\"name\":\"Aussenlicht\"},\"wrelay2\":{\"state\":false,\"name\":\"Kofferraum\"},\"wrelay3\":{\"state\":false,\"name\":\"Markise\"},\"wrelay4\":{\"state\":false,\"name\":\"WRelais 4\"},\"wrelay5\":{\"state\":false,\"name\":\"WRelais 5\"},\"wrelay6\":{\"state\":false,\"name\":\"WRelais 6\"},\"wrelay7\":{\"state\":false,\"name\":\"WRelais 7\"},\"wrelay8\":{\"state\":false,\"name\":\"WRelais 8\"}}";
+                        parse_wrelay_json(dummy);
+                    }
+                    break;
+                }
             }
 
             // Print UART diagnostic line on every full cycle for validation
@@ -429,7 +472,7 @@ void http_loop() {
             }
 
             poll_step++;
-            if (poll_step > 7) poll_step = 0;
+            if (poll_step > 8) poll_step = 0;
             last_http_poll = millis();
         }
         return;
@@ -465,6 +508,9 @@ void http_loop() {
             case 7:
                 if (state.tab_enabled[TAB_LEVEL]) fetch_endpoint("/position_sensor/?request=true", parse_position_json);
                 break;
+            case 8:
+                if (state.show_wrelay) fetch_endpoint("/wrelay", parse_wrelay_json);
+                break;
         }
 
         if (poll_step == 7) {
@@ -481,7 +527,7 @@ void http_loop() {
         }
 
         poll_step++;
-        if (poll_step > 7) poll_step = 0;
+        if (poll_step > 8) poll_step = 0;
         last_http_poll = millis();
     }
 }
@@ -510,6 +556,15 @@ void http_publish_switch(int index, bool on) {
     state.relay_hold_until[index] = millis() + 2000;
     char path[64];
     snprintf(path, sizeof(path), "/relay/%d/%s", index + 1, on ? "true" : "false");
+    queue_cmd(path);
+}
+
+void http_publish_wrelay(int index, bool on) {
+    if (index < 0 || index >= 8) return;
+    state.wrelay_state[index] = on;
+    state.wrelay_hold_until[index] = millis() + 2000;
+    char path[64];
+    snprintf(path, sizeof(path), "/wrelay/%d/%s", index + 1, on ? "true" : "false");
     queue_cmd(path);
 }
 

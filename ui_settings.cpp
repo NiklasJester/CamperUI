@@ -7,6 +7,10 @@
 static lv_obj_t *sw_debug = NULL, *sw_demo = NULL;
 static lv_obj_t * http_test_win = NULL;
 static lv_obj_t * http_lbl_result = NULL;
+static lv_obj_t *dd_time_h = NULL;
+static lv_obj_t *dd_time_m = NULL;
+static lv_obj_t *cont_man_time = NULL;
+static lv_obj_t *lbl_time_status = NULL;
 
 static void close_http_test_cb(lv_event_t * e) {
     if (http_test_win) {
@@ -121,6 +125,16 @@ void ui_update_settings_tab() {
         String details = wifi_connection_details();
         ui_label_set_text_if_changed(wifi_status_label, details.c_str());
     }
+    if (lv_scr_act() == scr_settings && lbl_time_status) {
+        time_t now = time(nullptr);
+        struct tm tm_now;
+        localtime_r(&now, &tm_now);
+        char buf[80];
+        snprintf(buf, sizeof(buf), "Aktuelle Systemzeit: %02d:%02d:%02d (%s)",
+                 tm_now.tm_hour, tm_now.tm_min, tm_now.tm_sec,
+                 state.time_auto_ntp ? "NTP Internet" : "Manuell");
+        ui_label_set_text_if_changed(lbl_time_status, buf);
+    }
     if (ui_home_settings_is_active()) ui_home_settings_refresh();
     if (scan_in_progress) {
         int n = WiFi.scanComplete();
@@ -188,8 +202,10 @@ static void mbox_save_cb(lv_event_t * e) {
     lv_obj_t * mbox = lv_event_get_current_target(e);
     if (code == LV_EVENT_VALUE_CHANGED) {
         lv_msgbox_close_async(mbox);
+        ui_init();
         lv_scr_load(scr_main);
     } else if (code == LV_EVENT_DELETE) {
+        ui_init();
         lv_scr_load(scr_main);
     }
 }
@@ -237,6 +253,11 @@ static void open_settings_cb(lv_event_t * e) {
     update_dd_out_temp_options();
     lv_textarea_set_password_mode(ta_wifi_pass, true);
     lv_label_set_text(password_eye_label, LV_SYMBOL_EYE_OPEN);
+    time_t now = time(nullptr);
+    struct tm tm_now;
+    localtime_r(&now, &tm_now);
+    if (dd_time_h) lv_dropdown_set_selected(dd_time_h, constrain(tm_now.tm_hour, 0, 23));
+    if (dd_time_m) lv_dropdown_set_selected(dd_time_m, constrain(tm_now.tm_min, 0, 59));
     lv_scr_load(scr_settings);
 }
 
@@ -339,6 +360,13 @@ void ui_settings_screen_init() {
     lv_obj_t *t_vis = lv_tabview_add_tab(tv, "Anzeige");
     lv_obj_t *t_val = lv_tabview_add_tab(tv, "Werte");
     lv_obj_t *t_alm = lv_tabview_add_tab(tv, "Alarme");
+    lv_obj_t *t_time = lv_tabview_add_tab(tv, "Zeit");
+
+    lv_obj_t *tab_btns = lv_tabview_get_tab_btns(tv);
+    if (tab_btns) {
+        lv_obj_set_style_pad_left(tab_btns, 2, 0);
+        lv_obj_set_style_pad_right(tab_btns, 2, 0);
+    }
     
     // --- TAB 1: NETZWERK ---
     lv_obj_clear_flag(t_net, LV_OBJ_FLAG_SCROLLABLE); // Fit entirely
@@ -528,7 +556,9 @@ void ui_settings_screen_init() {
     lv_obj_center(lbl_nav_m);
     
     // --- TAB 3: SICHTBARKEIT ---
-    lv_obj_clear_flag(t_vis, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_flag(t_vis, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_scroll_dir(t_vis, LV_DIR_VER);
+    lv_obj_set_style_pad_bottom(t_vis, 40, 0);
     
     lv_obj_t *l_vis = lv_label_create(t_vis);
     lv_label_set_text(l_vis, "Schalter & Dimmer Sichtbarkeit");
@@ -539,7 +569,7 @@ void ui_settings_screen_init() {
         lv_obj_t *cb_r = lv_checkbox_create(t_vis);
         lv_checkbox_set_text(cb_r, state.switch_names[i].c_str());
         if (state.switch_visible[i]) lv_obj_add_state(cb_r, LV_STATE_CHECKED);
-        lv_obj_align(cb_r, LV_ALIGN_TOP_LEFT, 0, 30 + (i * 30));
+        lv_obj_align(cb_r, LV_ALIGN_TOP_LEFT, 0, 28 + (i * 28));
         lv_obj_add_event_cb(cb_r, [](lv_event_t * e) {
             lv_obj_t *obj = lv_event_get_target(e);
             int idx = (int)(intptr_t)lv_event_get_user_data(e);
@@ -550,11 +580,55 @@ void ui_settings_screen_init() {
         lv_obj_t *cb_d = lv_checkbox_create(t_vis);
         lv_checkbox_set_text(cb_d, state.dimmer_names[i].c_str());
         if (state.dimmer_visible[i]) lv_obj_add_state(cb_d, LV_STATE_CHECKED);
-        lv_obj_align(cb_d, LV_ALIGN_TOP_LEFT, 200, 30 + (i * 30));
+        lv_obj_align(cb_d, LV_ALIGN_TOP_LEFT, 210, 28 + (i * 28));
         lv_obj_add_event_cb(cb_d, [](lv_event_t * e) {
             lv_obj_t *obj = lv_event_get_target(e);
             int idx = (int)(intptr_t)lv_event_get_user_data(e);
             state.dimmer_visible[idx] = lv_obj_has_state(obj, LV_STATE_CHECKED);
+        }, LV_EVENT_VALUE_CHANGED, (void*)(intptr_t)i);
+    }
+
+    // WiFi Relais Section
+    lv_obj_t *l_wr_head = lv_label_create(t_vis);
+    lv_label_set_text(l_wr_head, "WiFi-Relais");
+    lv_obj_set_style_text_font(l_wr_head, &lv_font_montserrat_16, 0);
+    lv_obj_align(l_wr_head, LV_ALIGN_TOP_LEFT, 0, 260);
+
+    lv_obj_t *cont_wr = lv_obj_create(t_vis);
+    lv_obj_set_size(cont_wr, 440, 130);
+    lv_obj_align(cont_wr, LV_ALIGN_TOP_LEFT, 0, 330);
+    lv_obj_set_style_bg_opa(cont_wr, 0, 0);
+    lv_obj_set_style_border_width(cont_wr, 0, 0);
+    lv_obj_set_style_pad_all(cont_wr, 0, 0);
+    if (!state.show_wrelay) lv_obj_add_flag(cont_wr, LV_OBJ_FLAG_HIDDEN);
+
+    lv_obj_t *sw_wrelay = lv_switch_create(t_vis);
+    if (state.show_wrelay) lv_obj_add_state(sw_wrelay, LV_STATE_CHECKED);
+    lv_obj_align(sw_wrelay, LV_ALIGN_TOP_LEFT, 0, 290);
+    lv_obj_add_event_cb(sw_wrelay, [](lv_event_t * e) {
+        lv_obj_t *sw = lv_event_get_target(e);
+        lv_obj_t *cont = (lv_obj_t *)lv_event_get_user_data(e);
+        state.show_wrelay = lv_obj_has_state(sw, LV_STATE_CHECKED);
+        if (state.show_wrelay) {
+            lv_obj_clear_flag(cont, LV_OBJ_FLAG_HIDDEN);
+        } else {
+            lv_obj_add_flag(cont, LV_OBJ_FLAG_HIDDEN);
+        }
+    }, LV_EVENT_VALUE_CHANGED, cont_wr);
+
+    lv_obj_t *l_sw_wr = lv_label_create(t_vis);
+    lv_label_set_text(l_sw_wr, "WiFi-Relais anzeigen");
+    lv_obj_align(l_sw_wr, LV_ALIGN_TOP_LEFT, 60, 295);
+
+    for (int i = 0; i < 8; i++) {
+        lv_obj_t *cb_wr = lv_checkbox_create(cont_wr);
+        lv_checkbox_set_text(cb_wr, state.wrelay_names[i].c_str());
+        if (state.wrelay_visible[i]) lv_obj_add_state(cb_wr, LV_STATE_CHECKED);
+        lv_obj_align(cb_wr, LV_ALIGN_TOP_LEFT, (i < 4 ? 0 : 210), (i % 4) * 28);
+        lv_obj_add_event_cb(cb_wr, [](lv_event_t * e) {
+            lv_obj_t *obj = lv_event_get_target(e);
+            int idx = (int)(intptr_t)lv_event_get_user_data(e);
+            state.wrelay_visible[idx] = lv_obj_has_state(obj, LV_STATE_CHECKED);
         }, LV_EVENT_VALUE_CHANGED, (void*)(intptr_t)i);
     }
     
@@ -680,6 +754,116 @@ void ui_settings_screen_init() {
     lv_obj_align(ta_warn_waste, LV_ALIGN_TOP_LEFT, 270, 172);
     lv_obj_add_event_cb(ta_warn_waste, ta_event_cb, LV_EVENT_ALL, NULL);
 
+    // --- TAB 6: ZEIT ---
+    lv_obj_clear_flag(t_time, LV_OBJ_FLAG_SCROLLABLE);
+
+    lv_obj_t *l_time_title = lv_label_create(t_time);
+    lv_label_set_text(l_time_title, "Datum & Uhrzeit");
+    lv_obj_set_style_text_font(l_time_title, &lv_font_montserrat_16, 0);
+    lv_obj_align(l_time_title, LV_ALIGN_TOP_LEFT, 0, 4);
+
+    lv_obj_t *l_tz = lv_label_create(t_time);
+    lv_label_set_text(l_tz, "Zeitzone:");
+    lv_obj_align(l_tz, LV_ALIGN_TOP_LEFT, 0, 34);
+
+    String opts_tz = "";
+    for (int i = 0; i < TIMEZONE_COUNT; i++) {
+        opts_tz += TIMEZONES[i].name;
+        if (i < TIMEZONE_COUNT - 1) opts_tz += "\n";
+    }
+
+    lv_obj_t *dd_tz = lv_dropdown_create(t_time);
+    lv_dropdown_set_options(dd_tz, opts_tz.c_str());
+    lv_dropdown_set_selected(dd_tz, constrain(state.time_zone_idx, 0, TIMEZONE_COUNT - 1));
+    lv_obj_set_width(dd_tz, 380);
+    lv_obj_align(dd_tz, LV_ALIGN_TOP_LEFT, 0, 56);
+    lv_obj_add_event_cb(dd_tz, [](lv_event_t * e) {
+        lv_obj_t *dd = lv_event_get_target(e);
+        state.time_zone_idx = lv_dropdown_get_selected(dd);
+        time_apply_configuration();
+    }, LV_EVENT_VALUE_CHANGED, NULL);
+
+    lv_obj_t *sw_auto_time = lv_switch_create(t_time);
+    if (state.time_auto_ntp) lv_obj_add_state(sw_auto_time, LV_STATE_CHECKED);
+    lv_obj_align(sw_auto_time, LV_ALIGN_TOP_LEFT, 0, 110);
+
+    lv_obj_t *l_auto_time = lv_label_create(t_time);
+    lv_label_set_text(l_auto_time, "Automatische Zeit (NTP / Internet)");
+    lv_obj_align(l_auto_time, LV_ALIGN_TOP_LEFT, 60, 115);
+
+    cont_man_time = lv_obj_create(t_time);
+    lv_obj_set_size(cont_man_time, 440, 56);
+    lv_obj_align(cont_man_time, LV_ALIGN_TOP_LEFT, 0, 155);
+    lv_obj_set_style_bg_opa(cont_man_time, 0, 0);
+    lv_obj_set_style_border_width(cont_man_time, 0, 0);
+    lv_obj_set_style_pad_all(cont_man_time, 0, 0);
+    if (state.time_auto_ntp) lv_obj_add_flag(cont_man_time, LV_OBJ_FLAG_HIDDEN);
+
+    lv_obj_add_event_cb(sw_auto_time, [](lv_event_t * e) {
+        lv_obj_t *sw = lv_event_get_target(e);
+        state.time_auto_ntp = lv_obj_has_state(sw, LV_STATE_CHECKED);
+        if (cont_man_time) {
+            if (state.time_auto_ntp) lv_obj_add_flag(cont_man_time, LV_OBJ_FLAG_HIDDEN);
+            else lv_obj_clear_flag(cont_man_time, LV_OBJ_FLAG_HIDDEN);
+        }
+        time_apply_configuration();
+    }, LV_EVENT_VALUE_CHANGED, NULL);
+
+    lv_obj_t *l_man = lv_label_create(cont_man_time);
+    lv_label_set_text(l_man, "Manuell:");
+    lv_obj_align(l_man, LV_ALIGN_LEFT_MID, 0, 0);
+
+    String opts_h = "";
+    for (int i = 0; i < 24; i++) {
+        char b[8]; snprintf(b, sizeof(b), "%02d", i);
+        opts_h += b;
+        if (i < 23) opts_h += "\n";
+    }
+    dd_time_h = lv_dropdown_create(cont_man_time);
+    lv_dropdown_set_options(dd_time_h, opts_h.c_str());
+    lv_dropdown_set_selected(dd_time_h, constrain(state.manual_hour, 0, 23));
+    lv_obj_set_width(dd_time_h, 75);
+    lv_obj_align(dd_time_h, LV_ALIGN_LEFT_MID, 75, 0);
+
+    lv_obj_t *l_sep = lv_label_create(cont_man_time);
+    lv_label_set_text(l_sep, ":");
+    lv_obj_set_style_text_font(l_sep, &lv_font_montserrat_18, 0);
+    lv_obj_align(l_sep, LV_ALIGN_LEFT_MID, 156, 0);
+
+    String opts_m = "";
+    for (int i = 0; i < 60; i++) {
+        char b[8]; snprintf(b, sizeof(b), "%02d", i);
+        opts_m += b;
+        if (i < 59) opts_m += "\n";
+    }
+    dd_time_m = lv_dropdown_create(cont_man_time);
+    lv_dropdown_set_options(dd_time_m, opts_m.c_str());
+    lv_dropdown_set_selected(dd_time_m, constrain(state.manual_min, 0, 59));
+    lv_obj_set_width(dd_time_m, 75);
+    lv_obj_align(dd_time_m, LV_ALIGN_LEFT_MID, 168, 0);
+
+    lv_obj_t *btn_set_time = lv_btn_create(cont_man_time);
+    lv_obj_set_size(btn_set_time, 130, 42);
+    lv_obj_align(btn_set_time, LV_ALIGN_LEFT_MID, 255, 0);
+    lv_obj_set_style_bg_color(btn_set_time, lv_color_hex(UI_COLOR_PRIMARY), 0);
+    lv_obj_add_event_cb(btn_set_time, [](lv_event_t * e) {
+        if (!dd_time_h || !dd_time_m) return;
+        int h = lv_dropdown_get_selected(dd_time_h);
+        int m = lv_dropdown_get_selected(dd_time_m);
+        time_set_manual(h, m);
+        state_save();
+    }, LV_EVENT_CLICKED, NULL);
+    lv_obj_t *lbl_st = lv_label_create(btn_set_time);
+    lv_label_set_text(lbl_st, "Uhrzeit setzen");
+    lv_obj_center(lbl_st);
+
+    lbl_time_status = lv_label_create(t_time);
+    lv_obj_align(lbl_time_status, LV_ALIGN_TOP_LEFT, 0, 225);
+    lv_obj_set_width(lbl_time_status, 440);
+    lv_obj_set_style_text_font(lbl_time_status, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_color(lbl_time_status, ui_theme_muted(), 0);
+    lv_label_set_text(lbl_time_status, "Aktuelle Systemzeit: --:--:--");
+
     // Virtual Keyboard (Global to scr_settings)
     kb = lv_keyboard_create(scr_settings);
     lv_obj_align(kb, LV_ALIGN_BOTTOM_MID, 0, 0);
@@ -707,6 +891,11 @@ void ui_settings_screen_init() {
             int in_idx = (out_idx == 0) ? 1 : 0;
             state.indoor_temp = state.temp_sensors[in_idx];
         }
+        if (!state.time_auto_ntp && dd_time_h && dd_time_m) {
+            state.manual_hour = lv_dropdown_get_selected(dd_time_h);
+            state.manual_min = lv_dropdown_get_selected(dd_time_m);
+        }
+        time_apply_configuration();
         save_settings_cb(e);
     }, LV_EVENT_CLICKED, NULL);
     lv_obj_t *l_save = lv_label_create(btn_save);

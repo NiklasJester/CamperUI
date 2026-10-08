@@ -3,6 +3,8 @@
 
 static lv_obj_t *switches[8];
 static lv_obj_t *lbl_switch_name[8];
+static lv_obj_t *w_switches[8];
+static lv_obj_t *lbl_wswitch_name[8];
 static lv_obj_t *dimmers[8];
 static lv_obj_t *lbl_dim_name[8];
 static lv_obj_t *lbl_dim_pct[8];
@@ -52,11 +54,41 @@ static void update_switch_visual(int idx) {
     }
 }
 
+static void update_wswitch_visual(int idx) {
+    if (!w_switches[idx]) return;
+    bool on = state.wrelay_state[idx];
+    if (on) {
+        lv_obj_set_style_bg_color(w_switches[idx], lv_color_hex(UI_COLOR_SUCCESS), 0);
+        lv_obj_set_style_border_color(w_switches[idx], lv_color_hex(0x34d399), 0);
+        lv_obj_set_style_shadow_color(w_switches[idx], lv_color_hex(UI_COLOR_SUCCESS), 0);
+        lv_obj_set_style_shadow_opa(w_switches[idx], LV_OPA_30, 0);
+        if (lbl_wswitch_name[idx]) {
+            lv_obj_set_style_text_color(lbl_wswitch_name[idx], lv_color_hex(0xffffff), 0);
+        }
+    } else {
+        lv_obj_set_style_bg_color(w_switches[idx], ui_theme_card(), 0);
+        lv_obj_set_style_border_color(w_switches[idx], ui_theme_border(), 0);
+        lv_obj_set_style_shadow_color(w_switches[idx], lv_color_hex(0x000000), 0);
+        lv_obj_set_style_shadow_opa(w_switches[idx], state.dark_mode ? LV_OPA_30 : LV_OPA_10, 0);
+        if (lbl_wswitch_name[idx]) {
+            lv_obj_set_style_text_color(lbl_wswitch_name[idx], ui_theme_text(), 0);
+        }
+    }
+}
+
 static void relay_btn_event_cb(lv_event_t * e) {
     int idx = (int)(intptr_t)lv_event_get_user_data(e);
     state.switch_state[idx] = !state.switch_state[idx];
     update_switch_visual(idx);
     http_publish_switch(idx, state.switch_state[idx]);
+    state_save();
+}
+
+static void wrelay_btn_event_cb(lv_event_t * e) {
+    int idx = (int)(intptr_t)lv_event_get_user_data(e);
+    state.wrelay_state[idx] = !state.wrelay_state[idx];
+    update_wswitch_visual(idx);
+    http_publish_wrelay(idx, state.wrelay_state[idx]);
     state_save();
 }
 
@@ -85,6 +117,14 @@ void ui_update_switches_tab() {
             update_switch_visual(i);
             if (lbl_switch_name[i]) {
                 lv_label_set_text(lbl_switch_name[i], state.switch_names[i].c_str());
+            }
+        }
+        if (state.show_wrelay && state.wrelay_visible[i] && w_switches[i]) {
+            update_wswitch_visual(i);
+            if (lbl_wswitch_name[i]) {
+                char wlabel[64];
+                snprintf(wlabel, sizeof(wlabel), LV_SYMBOL_WIFI " %s", state.wrelay_names[i].c_str());
+                lv_label_set_text(lbl_wswitch_name[i], wlabel);
             }
         }
     }
@@ -146,6 +186,33 @@ void ui_build_switches(lv_obj_t *parent) {
         lv_obj_center(lbl_switch_name[i]);
 
         update_switch_visual(i);
+    }
+
+    // WiFi Relays
+    for (int i = 0; i < 8; i++) {
+        w_switches[i] = NULL;
+        lbl_wswitch_name[i] = NULL;
+        if (!state.show_wrelay || !state.wrelay_visible[i]) continue;
+
+        w_switches[i] = lv_btn_create(cont_sw);
+        lv_obj_set_size(w_switches[i], 212, 94);
+        lv_obj_set_style_radius(w_switches[i], 14, 0);
+        lv_obj_set_style_border_width(w_switches[i], 1, 0);
+        lv_obj_set_style_shadow_width(w_switches[i], 8, 0);
+        lv_obj_set_style_shadow_ofs_y(w_switches[i], 3, 0);
+        lv_obj_add_event_cb(w_switches[i], wrelay_btn_event_cb, LV_EVENT_CLICKED, (void*)(intptr_t)i);
+
+        lbl_wswitch_name[i] = lv_label_create(w_switches[i]);
+        char wlabel[64];
+        snprintf(wlabel, sizeof(wlabel), LV_SYMBOL_WIFI " %s", state.wrelay_names[i].c_str());
+        lv_label_set_text(lbl_wswitch_name[i], wlabel);
+        lv_label_set_long_mode(lbl_wswitch_name[i], LV_LABEL_LONG_WRAP);
+        lv_obj_set_width(lbl_wswitch_name[i], 190);
+        lv_obj_set_style_text_font(lbl_wswitch_name[i], &lv_font_montserrat_18, 0);
+        lv_obj_set_style_text_align(lbl_wswitch_name[i], LV_TEXT_ALIGN_CENTER, 0);
+        lv_obj_center(lbl_wswitch_name[i]);
+
+        update_wswitch_visual(i);
     }
 }
 

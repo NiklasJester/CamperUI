@@ -395,10 +395,24 @@ void ui_init() {
     lv_obj_set_style_pad_hor(home_nav, NAV_PADDING, 0);
     lv_obj_set_style_bg_color(home_nav, ui_theme_card(), 0);
     // Explicit positions keep button geometry identical in every state/theme.
-    lv_obj_add_flag(home_nav, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_set_scroll_dir(home_nav, LV_DIR_HOR);
-    lv_obj_set_scrollbar_mode(home_nav, LV_SCROLLBAR_MODE_OFF);
-    lv_obj_clear_flag(home_nav, LV_OBJ_FLAG_SCROLL_ELASTIC | LV_OBJ_FLAG_SCROLL_MOMENTUM);
+    int enabled_count = 0;
+    for (int i = 0; i < TAB_COUNT; ++i) {
+        uint8_t tab_id = state.tab_order[i];
+        if (tab_id < TAB_COUNT && state.tab_enabled[tab_id]) enabled_count++;
+    }
+
+    int total_fixed_w = enabled_count * NAV_BUTTON_WIDTH + (enabled_count > 0 ? (enabled_count - 1) * NAV_GAP : 0);
+    int available_w = SCREEN_WIDTH - 2 * NAV_PADDING;
+    bool fits = (total_fixed_w <= available_w && enabled_count > 0);
+
+    if (fits) {
+        lv_obj_clear_flag(home_nav, LV_OBJ_FLAG_SCROLLABLE);
+    } else {
+        lv_obj_add_flag(home_nav, LV_OBJ_FLAG_SCROLLABLE);
+        lv_obj_set_scroll_dir(home_nav, LV_DIR_HOR);
+        lv_obj_set_scrollbar_mode(home_nav, LV_SCROLLBAR_MODE_OFF);
+        lv_obj_clear_flag(home_nav, LV_OBJ_FLAG_SCROLL_ELASTIC | LV_OBJ_FLAG_SCROLL_MOMENTUM);
+    }
 
     int btn_slot = 0;
     for (int i = 0; i < TAB_COUNT; ++i) {
@@ -411,8 +425,16 @@ void ui_init() {
         // Remove the default button grow/transition and focus-autoscroll effects.
         lv_obj_remove_style_all(button);
         lv_obj_clear_flag(button, LV_OBJ_FLAG_SCROLL_ON_FOCUS);
-        lv_obj_set_pos(button, btn_slot * (NAV_BUTTON_WIDTH + NAV_GAP),
-                       (NAV_HEIGHT - NAV_BUTTON_HEIGHT) / 2);
+
+        int pos_x = 0;
+        if (fits) {
+            int slot_w = available_w / enabled_count;
+            pos_x = btn_slot * slot_w + (slot_w - NAV_BUTTON_WIDTH) / 2;
+        } else {
+            pos_x = btn_slot * (NAV_BUTTON_WIDTH + NAV_GAP);
+        }
+
+        lv_obj_set_pos(button, pos_x, (NAV_HEIGHT - NAV_BUTTON_HEIGHT) / 2);
         lv_obj_set_size(button, NAV_BUTTON_WIDTH, NAV_BUTTON_HEIGHT);
         lv_obj_set_style_bg_opa(button, LV_OPA_COVER, 0);
         lv_obj_set_style_radius(button, 10, 0);
@@ -475,7 +497,8 @@ void ui_update_data() {
     if (lbl_time) {
         time_t now = time(nullptr);
         struct tm timeinfo;
-        if (now > 1700000000 && localtime_r(&now, &timeinfo)) {
+        bool valid_time = (!state.time_auto_ntp && now > 100000) || (state.time_auto_ntp && now > 1700000000);
+        if (valid_time && localtime_r(&now, &timeinfo)) {
             char time_str[16];
             snprintf(time_str, sizeof(time_str), "%02d:%02d", timeinfo.tm_hour, timeinfo.tm_min);
             ui_label_set_text_if_changed(lbl_time, time_str);
