@@ -9,6 +9,7 @@ static lv_obj_t * http_test_win = NULL;
 static lv_obj_t * http_lbl_result = NULL;
 static lv_obj_t *dd_time_h = NULL;
 static lv_obj_t *dd_time_m = NULL;
+static lv_obj_t *dd_tz = NULL;
 static lv_obj_t *cont_man_time = NULL;
 static lv_obj_t *lbl_time_status = NULL;
 
@@ -258,6 +259,7 @@ static void open_settings_cb(lv_event_t * e) {
     localtime_r(&now, &tm_now);
     if (dd_time_h) lv_dropdown_set_selected(dd_time_h, constrain(tm_now.tm_hour, 0, 23));
     if (dd_time_m) lv_dropdown_set_selected(dd_time_m, constrain(tm_now.tm_min, 0, 59));
+    if (dd_tz) lv_dropdown_set_selected(dd_tz, constrain(state.time_zone_idx, 0, TIMEZONE_COUNT - 1));
     lv_scr_load(scr_settings);
 }
 
@@ -772,10 +774,10 @@ void ui_settings_screen_init() {
         if (i < TIMEZONE_COUNT - 1) opts_tz += "\n";
     }
 
-    lv_obj_t *dd_tz = lv_dropdown_create(t_time);
+    dd_tz = lv_dropdown_create(t_time);
     lv_dropdown_set_options(dd_tz, opts_tz.c_str());
     lv_dropdown_set_selected(dd_tz, constrain(state.time_zone_idx, 0, TIMEZONE_COUNT - 1));
-    lv_obj_set_width(dd_tz, 380);
+    lv_obj_set_width(dd_tz, 440);
     lv_obj_align(dd_tz, LV_ALIGN_TOP_LEFT, 0, 56);
     lv_obj_add_event_cb(dd_tz, [](lv_event_t * e) {
         lv_obj_t *dd = lv_event_get_target(e);

@@ -18,13 +18,90 @@ SystemState state;
 Preferences prefs;
 
 const TimezoneInfo TIMEZONES[TIMEZONE_COUNT] = {
-    {"Berlin, Wien, Paris (CET UTC+1)", "CET-1CEST,M3.5.0,M10.5.0/3"},
-    {"London, Dublin (GMT/BST UTC+0)",  "GMT0BST,M3.5.0/1,M10.5.0"},
-    {"Athen, Helsinki (EET UTC+2)",     "EET-2EEST,M3.5.0/3,M10.5.0/4"},
-    {"Istanbul (TRT UTC+3)",            "TRT-3"},
-    {"UTC (Weltzeit)",                  "UTC0"},
-    {"New York (EST/EDT UTC-5)",        "EST5EDT,M3.2.0,M11.1.0"},
-    {"Los Angeles (PST/PDT UTC-8)",     "PST8PDT,M3.2.0,M11.1.0"}
+    // UTC-11
+    {"UTC-11: Midway, Pago Pago (Samoa)", "SST11"},
+    // UTC-10
+    {"UTC-10: Hawaii, Honolulu (HST)", "HST10"},
+    // UTC-9
+    {"UTC-09: Alaska, Anchorage (AKST/AKDT)", "AKST9AKDT,M3.2.0,M11.1.0"},
+    // UTC-8
+    {"UTC-08: Los Angeles, Vancouver (PST/PDT)", "PST8PDT,M3.2.0,M11.1.0"},
+    // UTC-7
+    {"UTC-07: Denver, Salt Lake City, Calgary (MST/MDT)", "MST7MDT,M3.2.0,M11.1.0"},
+    {"UTC-07: Phoenix, Arizona (MST, kein DST)", "MST7"},
+    // UTC-6
+    {"UTC-06: Chicago, Dallas, Winnipeg (CST/CDT)", "CST6CDT,M3.2.0,M11.1.0"},
+    {"UTC-06: Mexiko-Stadt, Costa Rica (CST)", "CST6"},
+    // UTC-5
+    {"UTC-05: New York, Miami, Toronto (EST/EDT)", "EST5EDT,M3.2.0,M11.1.0"},
+    {"UTC-05: Bogota, Lima, Quito (COT/PET)", "COT5"},
+    // UTC-4
+    {"UTC-04: Halifax (AST/ADT)", "AST4ADT,M3.2.0,M11.1.0"},
+    {"UTC-04: Santiago de Chile (CLT/CLST)", "CLT4CLST,M9.1.0/0,M4.1.0/0"},
+    {"UTC-04: La Paz, Manaus, Caracas (BOT/VET)", "VET4"},
+    // UTC-3:30
+    {"UTC-03:30: Neufundland (St. John's, NST/NDT)", "NST3:30NDT,M3.2.0,M11.1.0"},
+    // UTC-3
+    {"UTC-03: Buenos Aires, Sao Paulo, Montevideo", "<-03>3"},
+    // UTC-2
+    {"UTC-02: Fernando de Noronha, Suedgeorgien", "<-02>2"},
+    // UTC-1
+    {"UTC-01: Azoren (AZOT/AZOST)", "AZOT1AZOST,M3.5.0/0,M10.5.0/1"},
+    {"UTC-01: Kap Verde (CVT)", "CVT1"},
+    // UTC+0
+    {"UTC+00: London, Dublin, Lissabon (WET/GMT/BST)", "GMT0BST,M3.5.0/1,M10.5.0"},
+    {"UTC+00: UTC (Koordinierte Weltzeit)", "UTC0"},
+    // UTC+1
+    {"UTC+01: Berlin, Wien, Zuerich, Rom, Paris (MEZ/MESZ)", "CET-1CEST,M3.5.0,M10.5.0/3"},
+    {"UTC+01: Algier, Tunis, Lagos (WAT)", "WAT-1"},
+    // UTC+2
+    {"UTC+02: Athen, Helsinki, Kiew, Bukarest (OEZ/EEST)", "EET-2EEST,M3.5.0/3,M10.5.0/4"},
+    {"UTC+02: Kairo (EET/EEST)", "EET-2EEST,M4.5.5/0,M10.5.5/0"},
+    {"UTC+02: Johannesburg, Kapstadt (SAST)", "SAST-2"},
+    {"UTC+02: Jerusalem, Tel Aviv (IST/IDT)", "IST-2IDT,M3.4.4/26,M10.5.0"},
+    // UTC+3
+    {"UTC+03: Moskau, St. Petersburg (MSK)", "MSK-3"},
+    {"UTC+03: Istanbul (TRT)", "TRT-3"},
+    {"UTC+03: Riad, Doha, Kuwait, Nairobi (AST/EAT)", "AST-3"},
+    // UTC+3:30
+    {"UTC+03:30: Teheran (IRST)", "<+0330>-3:30"},
+    // UTC+4
+    {"UTC+04: Dubai, Abu Dhabi, Maskat (GST)", "GST-4"},
+    {"UTC+04: Baku, Tiflis, Jerewan (AZT/GET)", "<+04>-4"},
+    // UTC+4:30
+    {"UTC+04:30: Kabul (AFT)", "<+0430>-4:30"},
+    // UTC+5
+    {"UTC+05: Taschkent, Karatschi, Male (PKT/UZT)", "PKT-5"},
+    // UTC+5:30
+    {"UTC+05:30: Neu-Delhi, Mumbai, Kalkutta (IST)", "IST-5:30"},
+    // UTC+5:45
+    {"UTC+05:45: Kathmandu (NPT)", "<+0545>-5:45"},
+    // UTC+6
+    {"UTC+06: Dhaka, Almaty, Astana (BST/ALMT)", "<+06>-6"},
+    // UTC+6:30
+    {"UTC+06:30: Rangun / Yangon (MMT)", "<+0630>-6:30"},
+    // UTC+7
+    {"UTC+07: Bangkok, Jakarta, Hanoi (ICT/WIB)", "ICT-7"},
+    // UTC+8
+    {"UTC+08: Peking, Singapur, Hongkong, Taipeh (CST/HKT)", "CST-8"},
+    {"UTC+08: Perth (AWST)", "AWST-8"},
+    // UTC+9
+    {"UTC+09: Tokio, Seoul (JST/KST)", "JST-9"},
+    // UTC+9:30
+    {"UTC+09:30: Adelaide (ACST/ACDT)", "ACST-9:30ACDT,M10.1.0,M4.1.0/3"},
+    {"UTC+09:30: Darwin (ACST, kein DST)", "ACST-9:30"},
+    // UTC+10
+    {"UTC+10: Sydney, Melbourne, Canberra (AEST/AEDT)", "AEST-10AEDT,M10.1.0,M4.1.0/3"},
+    {"UTC+10: Brisbane (Queensland, AEST, kein DST)", "AEST-10"},
+    // UTC+11
+    {"UTC+11: Noumea, Salomonen, Magadan", "<+11>-11"},
+    // UTC+12
+    {"UTC+12: Auckland, Wellington (NZST/NZDT)", "NZST-12NZDT,M9.5.0,M4.1.0/3"},
+    {"UTC+12: Fidschi (FJT)", "<+12>-12"},
+    // UTC+13
+    {"UTC+13: Samoa (Apia), Tonga (Nuku'alofa)", "<+13>-13"},
+    // UTC+14
+    {"UTC+14: Kiritimati (Line Islands)", "<+14>-14"}
 };
 
 void time_apply_configuration() {
@@ -217,7 +294,23 @@ state.display_brightness = prefs.getInt("disp_bright", 100);
     state.heater_hold_until = 0;
 
     state.time_auto_ntp = prefs.getBool("time_auto", true);
-    state.time_zone_idx = prefs.getInt("time_tz", 0);
+    int saved_tz = prefs.getInt("time_tz_v2", -1);
+    if (saved_tz >= 0 && saved_tz < TIMEZONE_COUNT) {
+        state.time_zone_idx = saved_tz;
+    } else {
+        int old_tz = prefs.getInt("time_tz", 0);
+        switch (old_tz) {
+            case 0: state.time_zone_idx = 20; break; // Berlin
+            case 1: state.time_zone_idx = 18; break; // London
+            case 2: state.time_zone_idx = 22; break; // Athen
+            case 3: state.time_zone_idx = 27; break; // Istanbul
+            case 4: state.time_zone_idx = 19; break; // UTC
+            case 5: state.time_zone_idx = 8;  break; // New York
+            case 6: state.time_zone_idx = 3;  break; // Los Angeles
+            default: state.time_zone_idx = TIMEZONE_DEFAULT_INDEX; break;
+        }
+        prefs.putInt("time_tz_v2", state.time_zone_idx);
+    }
     state.manual_hour = prefs.getInt("man_hour", 12);
     state.manual_min = prefs.getInt("man_min", 0);
 
@@ -298,6 +391,7 @@ void state_save() {
     prefs.putInt("drain_relay", state.drain_relay);
 
     prefs.putBool("time_auto", state.time_auto_ntp);
+    prefs.putInt("time_tz_v2", state.time_zone_idx);
     prefs.putInt("time_tz", state.time_zone_idx);
     prefs.putInt("man_hour", state.manual_hour);
     prefs.putInt("man_min", state.manual_min);

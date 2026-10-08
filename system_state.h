@@ -149,7 +149,8 @@ struct TimezoneInfo {
     const char *tz_str;
 };
 
-#define TIMEZONE_COUNT 7
+#define TIMEZONE_COUNT 51
+#define TIMEZONE_DEFAULT_INDEX 20
 extern const TimezoneInfo TIMEZONES[TIMEZONE_COUNT];
 
 void time_apply_configuration();
