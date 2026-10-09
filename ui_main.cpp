@@ -13,6 +13,7 @@ lv_obj_t *scr_settings;
 
 static lv_obj_t *status_bar;
 static lv_obj_t *lbl_time;
+static lv_obj_t *lbl_version;
 static lv_obj_t *lbl_wifi;
 static lv_obj_t *lbl_soc_icon;
 static lv_obj_t *lbl_soc;
@@ -24,7 +25,6 @@ static lv_obj_t *lbl_maxxfan_status;
 // Smart Header Badges
 static lv_obj_t *badge_cont;
 static lv_obj_t *badge_frost;
-static lv_obj_t *badge_bat;
 static lv_obj_t *badge_fresh;
 static lv_obj_t *badge_waste;
 
@@ -142,6 +142,9 @@ static void select_page(uint8_t index) {
     ui_update_visible_page();
 }
 
+bool ui_page_available(TabId page) { return page < TAB_COUNT && pages[page] && state.tab_enabled[page]; }
+void ui_navigate_to(TabId page) { if (ui_page_available(page)) select_page(page); }
+
 static void home_nav_clicked(lv_event_t *event) {
     select_page((uint8_t)(uintptr_t)lv_event_get_user_data(event));
 }
@@ -222,6 +225,7 @@ static void rebuild_ui(void *) {
     lv_obj_t *temporary = lv_obj_create(nullptr);
     lv_scr_load(temporary);
     ui_home_settings_destroy();
+    ui_home_reset(); ui_maxxfan_reset();
     if (old_main) lv_obj_del(old_main);
     if (old_settings) lv_obj_del(old_settings);
     scr_main = scr_settings = nullptr;
@@ -277,10 +281,16 @@ void ui_init() {
     lv_obj_set_style_text_font(lbl_time, &lv_font_montserrat_16, 0);
     lv_obj_align(lbl_time, LV_ALIGN_LEFT_MID, 16, 0);
 
+    lbl_version = lv_label_create(status_bar);
+    lv_obj_set_pos(lbl_version, 72, 2); lv_obj_set_size(lbl_version, 150, 13);
+    lv_obj_set_style_text_font(lbl_version, &lv_font_montserrat_10, 0);
+    lv_label_set_long_mode(lbl_version, LV_LABEL_LONG_CLIP);
+    lv_label_set_text(lbl_version, "");
+
     // Smart Header Badges Container (Middle)
     badge_cont = lv_obj_create(status_bar);
-    lv_obj_set_size(badge_cont, 130, 26);
-    lv_obj_align(badge_cont, LV_ALIGN_LEFT_MID, 68, 0);
+    lv_obj_set_size(badge_cont, 130, 22);
+    lv_obj_set_pos(badge_cont, 72, 16);
     lv_obj_set_style_bg_opa(badge_cont, LV_OPA_0, 0);
     lv_obj_set_style_border_width(badge_cont, 0, 0);
     lv_obj_set_style_pad_all(badge_cont, 0, 0);
@@ -304,7 +314,6 @@ void ui_init() {
     };
 
     badge_frost = make_badge(badge_cont, MDI_SNOWFLAKE, lv_color_hex(0x1a2e45), lv_color_hex(UI_COLOR_PRIMARY));
-    badge_bat   = make_badge(badge_cont, MDI_BATTERY,   lv_color_hex(0x422f00), lv_color_hex(UI_COLOR_WARNING));
     badge_fresh = make_badge(badge_cont, MDI_WATER,     lv_color_hex(0x122e4d), lv_color_hex(UI_COLOR_PRIMARY));
     badge_waste = make_badge(badge_cont, MDI_ALERT,     lv_color_hex(0x451a1a), lv_color_hex(UI_COLOR_DANGER));
 
@@ -485,7 +494,7 @@ void ui_update_visible_page() {
         case TAB_CLIMATE: ui_update_climate_tab(); break;
         case TAB_SWITCHES: ui_update_switches_tab(); break;
         case TAB_LEVEL: ui_update_level_tab(); break;
-        // MaxxFan remains a local preview with its own event handlers.
+        case TAB_MAXXFAN: ui_update_maxxfan(); break;
         default: break;
     }
 }
@@ -493,6 +502,9 @@ void ui_update_visible_page() {
 void ui_update_data() {
     if (lv_scr_act() != scr_main) return;
 
+    if (lbl_version) {
+        ui_label_set_text_if_changed(lbl_version, state.debug_mode ? "Demo " CAMPERUI_VERSION : CAMPERUI_VERSION);
+    }
     // Update Status Bar Time
     if (lbl_time) {
         time_t now = time(nullptr);
@@ -562,13 +574,6 @@ void ui_update_data() {
             lv_obj_clear_flag(badge_frost, LV_OBJ_FLAG_HIDDEN);
         } else {
             lv_obj_add_flag(badge_frost, LV_OBJ_FLAG_HIDDEN);
-        }
-    }
-    if (badge_bat) {
-        if (state.bat_soc > 0 && state.bat_soc <= state.warn_bat_soc) {
-            lv_obj_clear_flag(badge_bat, LV_OBJ_FLAG_HIDDEN);
-        } else {
-            lv_obj_add_flag(badge_bat, LV_OBJ_FLAG_HIDDEN);
         }
     }
     if (badge_fresh) {

@@ -18,6 +18,7 @@ enum TabId : uint8_t {
 };
 
 // Global State Structure to hold all sensor data and system settings
+static constexpr int TEMP_SOURCE_COUNT = 13; // temp1..4, ruuvitag0..8 (stable persisted indices)
 struct SystemState {
     // --- Settings (Persisted) ---
     String wifi_ssid;
@@ -47,7 +48,7 @@ struct SystemState {
 
     // Sensor Selection (Persisted)
     int outdoor_temp_sensor; // 0..3 (index of temp sensor for outdoor temp, default 1)
-    int home_temp_source[3]; // -1 hidden, otherwise raw /temp sensor 0..3
+    int home_temp_source[3]; // -1 hidden, otherwise /temp sensor 0..12 (4..12 = Ruuvi 0..8)
     int home_favorite[2]; // 0 hidden, 1..8 relays, 9..16 dimmers
     bool home_show_battery;
     bool home_show_starter;
@@ -97,7 +98,7 @@ struct SystemState {
     float starter_voltage; // optional /batt extension: starter_voltage
     uint8_t battery_fields; // VoltB=1, Ampere=2, battsoc=4, optional starter_voltage=8
     uint8_t solar_fields; // watts=1, amps=2, volts=4
-    uint8_t temp_fields;
+    uint16_t temp_fields;
     uint8_t tank_fields;
     uint8_t relay_fields;
     uint8_t dimmer_fields;
@@ -111,8 +112,9 @@ struct SystemState {
     float outdoor_temp;
     float indoor_humidity;
     float target_temp;
-    float temp_sensors[4];
-    String temp_sensor_names[4];
+    float temp_sensors[TEMP_SOURCE_COUNT];
+    bool temp_is_humidity[TEMP_SOURCE_COUNT];
+    String temp_sensor_names[TEMP_SOURCE_COUNT];
     bool heating_on;
     bool heater_vent_mode;
     bool heater_power_mode;
