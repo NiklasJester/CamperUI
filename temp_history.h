@@ -4,7 +4,7 @@
 #include <Arduino.h>
 #include <lvgl.h>
 
-static constexpr int TEMP_HISTORY_MAX_SAMPLES = 720; // 12 hours @ 1 sample/minute
+static constexpr int TEMP_HISTORY_MAX_SAMPLES = 1440; // 24 hours @ 1 sample/minute
 static constexpr int TEMP_HISTORY_TRACKS = 4;        // 0: Aussen, 1: Innen, 2: Zusatz 1, 3: Zusatz 2
 
 void temp_history_init(void);

@@ -90,6 +90,7 @@ void ui_trigger_water_anim();
 void ui_trigger_dimmers_anim();
 void ui_trigger_switches_anim();
 void ui_trigger_level_anim();
+void ui_trigger_temps_anim();
 
 // Sub-Tab Builders
 void ui_build_power(lv_obj_t *parent);

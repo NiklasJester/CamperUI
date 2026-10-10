@@ -5,5 +5,6 @@
 
 void ui_build_temps(lv_obj_t *parent);
 void ui_update_temps_tab(void);
+void ui_trigger_temps_anim(void);
 
 #endif // UI_TEMPS_H

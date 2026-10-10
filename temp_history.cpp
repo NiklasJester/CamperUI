@@ -9,14 +9,14 @@ static uint32_t last_sample_millis = 0;
 
 void temp_history_seed_demo(void) {
     for (int m = 0; m < TEMP_HISTORY_MAX_SAMPLES; ++m) {
-        // Aussen: 12-hour curve with realistic diurnal variation
-        float t_out = 14.0f + 4.5f * sinf((float)m * (2.0f * (float)M_PI / 720.0f)) + 0.2f * sinf((float)m * 0.15f);
+        // Aussen: 24-hour curve with realistic diurnal variation
+        float t_out = 14.5f + 5.5f * sinf((float)m * (2.0f * (float)M_PI / 1440.0f)) + 0.2f * sinf((float)m * 0.15f);
         // Innen: stable around 21-23 °C
-        float t_in = 21.8f + 1.2f * sinf(((float)m + 120.0f) * (2.0f * (float)M_PI / 720.0f));
+        float t_in = 21.8f + 1.2f * sinf(((float)m + 240.0f) * (2.0f * (float)M_PI / 1440.0f));
         // Track 2 (z.B. Kühlbox): cyclic cooling pattern 4.5 - 7.5 °C
-        float t_c1 = 6.0f + 1.6f * sinf((float)m * (2.0f * (float)M_PI / 50.0f));
+        float t_c1 = 6.0f + 1.6f * sinf((float)m * (2.0f * (float)M_PI / 60.0f));
         // Track 3 (z.B. Ruuvi Schlafbereich): 18.5 - 20.5 °C
-        float t_c2 = 19.5f + 0.9f * cosf((float)m * (2.0f * (float)M_PI / 360.0f));
+        float t_c2 = 19.5f + 0.9f * cosf((float)m * (2.0f * (float)M_PI / 720.0f));
 
         history_samples[m][0] = (int16_t)roundf(t_out * 10.0f);
         history_samples[m][1] = (int16_t)roundf(t_in * 10.0f);
@@ -114,7 +114,7 @@ bool temp_history_get_series(int track_idx, int window_hours, lv_coord_t *out_po
         }
     }
 
-    int total_minutes = constrain(window_hours, 1, 12) * 60;
+    int total_minutes = constrain(window_hours, 1, 24) * 60;
     float step = (float)(total_minutes - 1) / (float)(out_count - 1);
 
     int16_t min_raw = 32767;

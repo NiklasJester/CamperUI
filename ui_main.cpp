@@ -140,6 +140,7 @@ static void select_page(uint8_t index) {
     else if (index == TAB_DIMMERS) ui_trigger_dimmers_anim();
     else if (index == TAB_SWITCHES) ui_trigger_switches_anim();
     else if (index == TAB_LEVEL) ui_trigger_level_anim();
+    else if (index == TAB_TEMPS) ui_trigger_temps_anim();
     update_home_nav();
     // Refresh newly selected controls immediately, rather than waiting for
     // the next periodic update after leaving them dormant in the background.
