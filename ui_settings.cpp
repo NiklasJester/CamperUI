@@ -245,11 +245,6 @@ static void mbox_save_cb(lv_event_t * e) {
     lv_obj_t * mbox = lv_event_get_current_target(e);
     if (code == LV_EVENT_VALUE_CHANGED) {
         lv_msgbox_close_async(mbox);
-        ui_init();
-        lv_scr_load(scr_main);
-    } else if (code == LV_EVENT_DELETE) {
-        ui_init();
-        lv_scr_load(scr_main);
     }
 }
 
