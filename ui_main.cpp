@@ -263,6 +263,7 @@ void ui_init() {
     lv_obj_set_size(scr_main, SCREEN_WIDTH, SCREEN_HEIGHT);
     lv_obj_set_style_bg_opa(scr_main, LV_OPA_COVER, 0);
     lv_obj_set_style_bg_color(scr_main, ui_theme_bg(), 0);
+    lv_obj_set_style_text_font(scr_main, &lv_font_montserrat_14, 0);
 
     // Initialize Settings Screen
     ui_settings_screen_init();

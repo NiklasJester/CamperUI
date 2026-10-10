@@ -375,6 +375,7 @@ void ui_settings_screen_init() {
     scr_settings = lv_obj_create(NULL);
     lv_obj_clear_flag(scr_settings, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_style_bg_color(scr_settings, ui_theme_bg(), 0);
+    lv_obj_set_style_text_font(scr_settings, &lv_font_montserrat_14, 0);
     
     // Create Top Tabview
     // Create Top Tabview (54px header for comfortable touch targets and icons)

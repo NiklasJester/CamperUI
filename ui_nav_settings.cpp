@@ -212,6 +212,7 @@ void ui_open_nav_settings() {
         nav_settings_screen = lv_obj_create(nullptr);
         lv_obj_clear_flag(nav_settings_screen, LV_OBJ_FLAG_SCROLLABLE);
         lv_obj_set_style_bg_color(nav_settings_screen, ui_theme_bg(), 0);
+        lv_obj_set_style_text_font(nav_settings_screen, &lv_font_montserrat_14, 0);
 
         // 1. Top Header Bar
         lv_obj_t *header = lv_obj_create(nav_settings_screen);
@@ -238,6 +239,7 @@ void ui_open_nav_settings() {
 
         lv_obj_t *back_lbl = lv_label_create(back);
         lv_label_set_text(back_lbl, LV_SYMBOL_LEFT " Zurück");
+        lv_obj_set_style_text_font(back_lbl, &lv_font_montserrat_16, 0);
         lv_obj_set_style_text_color(back_lbl, ui_theme_text(), 0);
         lv_obj_center(back_lbl);
 

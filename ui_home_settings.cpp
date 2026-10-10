@@ -125,6 +125,7 @@ void ui_open_home_settings() {
         home_settings_screen = lv_obj_create(nullptr);
         lv_obj_clear_flag(home_settings_screen, LV_OBJ_FLAG_SCROLLABLE);
         lv_obj_set_style_bg_color(home_settings_screen, ui_theme_bg(), 0);
+        lv_obj_set_style_text_font(home_settings_screen, &lv_font_montserrat_14, 0);
         lv_obj_t *back = lv_btn_create(home_settings_screen);
         lv_obj_set_pos(back, 12, 10);
         lv_obj_set_size(back, 105, 42);
@@ -133,7 +134,9 @@ void ui_open_home_settings() {
             ui_home_settings_destroy();
         }, LV_EVENT_CLICKED, nullptr);
         lv_obj_t *back_label = lv_label_create(back);
-        lv_label_set_text(back_label, LV_SYMBOL_LEFT " Zurück"); lv_obj_center(back_label);
+        lv_label_set_text(back_label, LV_SYMBOL_LEFT " Zurück");
+        lv_obj_set_style_text_font(back_label, &lv_font_montserrat_16, 0);
+        lv_obj_center(back_label);
         lv_obj_t *title = lv_label_create(home_settings_screen);
         lv_label_set_text(title, "Home-Einstellungen");
         lv_obj_set_style_text_font(title, &lv_font_montserrat_18, 0);

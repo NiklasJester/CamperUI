@@ -218,6 +218,8 @@ void setup() {
     // 240 MHz full dual-core speed for maximum smooth LVGL UI rendering & touch responsiveness
     setCpuFrequencyMhz(240);
 
+    ui_fonts_init();
+
     USBSerial.begin(115200);
     USBSerial.setTxTimeoutMs(0); // Never block if USB CDC host is not actively reading
     delay(200);
@@ -327,7 +329,6 @@ void setup() {
 
 
 
-    ui_fonts_init();
     ui_init();
     web_ota_init();
     display_request_resync();

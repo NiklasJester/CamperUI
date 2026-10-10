@@ -23,13 +23,19 @@ CHARS = [
 ]
 
 FONT_METRICS = {
+    10: {'line_height': 11, 'base_line': 2},
     12: {'line_height': 15, 'base_line': 3},
     14: {'line_height': 16, 'base_line': 3},
     16: {'line_height': 18, 'base_line': 3},
     18: {'line_height': 21, 'base_line': 4},
     20: {'line_height': 22, 'base_line': 4},
+    22: {'line_height': 24, 'base_line': 4},
     24: {'line_height': 27, 'base_line': 5},
+    26: {'line_height': 29, 'base_line': 5},
     28: {'line_height': 30, 'base_line': 5},
+    30: {'line_height': 33, 'base_line': 6},
+    32: {'line_height': 35, 'base_line': 6},
+    42: {'line_height': 46, 'base_line': 8},
 }
 
 def generate_font(size):
@@ -150,7 +156,7 @@ def generate_font(size):
     return '\n'.join(out)
 
 def main():
-    sizes = [12, 14, 16, 18, 20, 24, 28]
+    sizes = [10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 42]
     c_parts = [
         '#include "ui_fonts.h"',
         '#include <lvgl.h>',
