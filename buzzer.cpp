@@ -18,19 +18,12 @@ void buzzer_init() {
 void buzzer_beep(uint16_t duration_ms) {
     if (!state.buzzer_enabled) return;
 
-    if (duration_ms <= 10) {
-        // Immediate precise micro-pulse for a minimal crisp haptic click (no loop/render jitter)
+    // Fully asynchronous non-blocking pulse to avoid blocking LVGL indev callbacks
+    uint16_t d = (duration_ms < 5) ? 5 : duration_ms;
+    buzzer_off_ms = millis() + d;
+    if (!buzzer_is_active) {
+        buzzer_is_active = true;
         WS_CH32_IO::writeRegister(Wire, WS_CH32_IO::REG_OUTPUT, WS_CH32_IO::OUT_DISPLAY_ON | WS_CH32_IO::PIN_BEE_EN);
-        delayMicroseconds((uint32_t)duration_ms * 1000);
-        WS_CH32_IO::writeRegister(Wire, WS_CH32_IO::REG_OUTPUT, WS_CH32_IO::OUT_DISPLAY_ON);
-        buzzer_is_active = false;
-    } else {
-        // Asynchronous longer beep for alerts/diagnostics
-        buzzer_off_ms = millis() + duration_ms;
-        if (!buzzer_is_active) {
-            buzzer_is_active = true;
-            WS_CH32_IO::writeRegister(Wire, WS_CH32_IO::REG_OUTPUT, WS_CH32_IO::OUT_DISPLAY_ON | WS_CH32_IO::PIN_BEE_EN);
-        }
     }
 }
 

@@ -32,46 +32,47 @@ static void update_dimmer_visuals(int idx) {
     }
 }
 
-static void update_switch_visual(int idx) {
+static int last_switch_state[8] = {-1, -1, -1, -1, -1, -1, -1, -1};
+static int last_wswitch_state[8] = {-1, -1, -1, -1, -1, -1, -1, -1};
+
+static void update_switch_visual(int idx, bool force = false) {
     if (!switches[idx]) return;
     bool on = state.switch_state[idx];
+    if (!force && last_switch_state[idx] == (int)on) return;
+    last_switch_state[idx] = (int)on;
+
     if (on) {
         lv_obj_set_style_bg_color(switches[idx], lv_color_hex(UI_COLOR_SUCCESS), 0);
         lv_obj_set_style_border_color(switches[idx], lv_color_hex(0x34d399), 0);
-        lv_obj_set_style_shadow_color(switches[idx], lv_color_hex(UI_COLOR_SUCCESS), 0);
-        lv_obj_set_style_shadow_opa(switches[idx], LV_OPA_30, 0);
         if (lbl_switch_name[idx]) {
-            lv_obj_set_style_text_color(lbl_switch_name[idx], lv_color_hex(0xffffff), 0);
+            ui_text_color_if_changed(lbl_switch_name[idx], lv_color_hex(0xffffff));
         }
     } else {
         lv_obj_set_style_bg_color(switches[idx], ui_theme_card(), 0);
         lv_obj_set_style_border_color(switches[idx], ui_theme_border(), 0);
-        lv_obj_set_style_shadow_color(switches[idx], lv_color_hex(0x000000), 0);
-        lv_obj_set_style_shadow_opa(switches[idx], state.dark_mode ? LV_OPA_30 : LV_OPA_10, 0);
         if (lbl_switch_name[idx]) {
-            lv_obj_set_style_text_color(lbl_switch_name[idx], ui_theme_text(), 0);
+            ui_text_color_if_changed(lbl_switch_name[idx], ui_theme_text());
         }
     }
 }
 
-static void update_wswitch_visual(int idx) {
+static void update_wswitch_visual(int idx, bool force = false) {
     if (!w_switches[idx]) return;
     bool on = state.wrelay_state[idx];
+    if (!force && last_wswitch_state[idx] == (int)on) return;
+    last_wswitch_state[idx] = (int)on;
+
     if (on) {
         lv_obj_set_style_bg_color(w_switches[idx], lv_color_hex(UI_COLOR_SUCCESS), 0);
         lv_obj_set_style_border_color(w_switches[idx], lv_color_hex(0x34d399), 0);
-        lv_obj_set_style_shadow_color(w_switches[idx], lv_color_hex(UI_COLOR_SUCCESS), 0);
-        lv_obj_set_style_shadow_opa(w_switches[idx], LV_OPA_30, 0);
         if (lbl_wswitch_name[idx]) {
-            lv_obj_set_style_text_color(lbl_wswitch_name[idx], lv_color_hex(0xffffff), 0);
+            ui_text_color_if_changed(lbl_wswitch_name[idx], lv_color_hex(0xffffff));
         }
     } else {
         lv_obj_set_style_bg_color(w_switches[idx], ui_theme_card(), 0);
         lv_obj_set_style_border_color(w_switches[idx], ui_theme_border(), 0);
-        lv_obj_set_style_shadow_color(w_switches[idx], lv_color_hex(0x000000), 0);
-        lv_obj_set_style_shadow_opa(w_switches[idx], state.dark_mode ? LV_OPA_30 : LV_OPA_10, 0);
         if (lbl_wswitch_name[idx]) {
-            lv_obj_set_style_text_color(lbl_wswitch_name[idx], ui_theme_text(), 0);
+            ui_text_color_if_changed(lbl_wswitch_name[idx], ui_theme_text());
         }
     }
 }
@@ -88,7 +89,6 @@ static void relay_btn_event_cb(lv_event_t * e) {
     state.switch_state[idx] = !state.switch_state[idx];
     update_switch_visual(idx);
     http_publish_switch(idx, state.switch_state[idx]);
-    state_save();
 }
 
 static void wrelay_btn_event_cb(lv_event_t * e) {
@@ -100,7 +100,6 @@ static void wrelay_btn_event_cb(lv_event_t * e) {
     state.wrelay_state[idx] = !state.wrelay_state[idx];
     update_wswitch_visual(idx);
     http_publish_wrelay(idx, state.wrelay_state[idx]);
-    state_save();
 }
 
 // ==========================================
@@ -199,8 +198,8 @@ static void switches_anim_ready_cb(lv_anim_t *a) {
     (void)a;
     switches_animating = false;
     for (int i = 0; i < 8; i++) {
-        if (state.switch_visible[i] && switches[i]) update_switch_visual(i);
-        if (state.show_wrelay && state.wrelay_visible[i] && w_switches[i]) update_wswitch_visual(i);
+        if (state.switch_visible[i] && switches[i]) update_switch_visual(i, true);
+        if (state.show_wrelay && state.wrelay_visible[i] && w_switches[i]) update_wswitch_visual(i, true);
     }
 }
 
@@ -221,8 +220,6 @@ void ui_trigger_switches_anim() {
         if (state.switch_visible[i] && switches[i] && state.switch_state[i]) {
             lv_obj_set_style_bg_color(switches[i], ui_theme_card(), 0);
             lv_obj_set_style_border_color(switches[i], ui_theme_border(), 0);
-            lv_obj_set_style_shadow_opa(switches[i], state.dark_mode ? LV_OPA_30 : LV_OPA_10, 0);
-            lv_obj_set_style_shadow_color(switches[i], lv_color_hex(0x000000), 0);
             if (lbl_switch_name[i]) {
                 lv_obj_set_style_text_color(lbl_switch_name[i], ui_theme_text(), 0);
             }
@@ -230,8 +227,6 @@ void ui_trigger_switches_anim() {
         if (state.show_wrelay && state.wrelay_visible[i] && w_switches[i] && state.wrelay_state[i]) {
             lv_obj_set_style_bg_color(w_switches[i], ui_theme_card(), 0);
             lv_obj_set_style_border_color(w_switches[i], ui_theme_border(), 0);
-            lv_obj_set_style_shadow_opa(w_switches[i], state.dark_mode ? LV_OPA_30 : LV_OPA_10, 0);
-            lv_obj_set_style_shadow_color(w_switches[i], lv_color_hex(0x000000), 0);
             if (lbl_wswitch_name[i]) {
                 lv_obj_set_style_text_color(lbl_wswitch_name[i], ui_theme_text(), 0);
             }
@@ -272,7 +267,6 @@ static void dimmer_slider_event_cb(lv_event_t * e) {
         http_publish_dimmer(idx, state.dimmer_val[idx]);
         // Give VanPi time to apply the new value before polling overrides it again
         state.dimmer_hold_until[idx] = millis() + 2000;
-        state_save();
     }
 }
 
@@ -281,7 +275,7 @@ void ui_update_switches_tab() {
         if (state.switch_visible[i] && switches[i]) {
             if (!switches_animating) update_switch_visual(i);
             if (lbl_switch_name[i]) {
-                lv_label_set_text(lbl_switch_name[i], state.switch_names[i].c_str());
+                ui_label_set_text_if_changed(lbl_switch_name[i], state.switch_names[i].c_str());
             }
         }
         if (state.show_wrelay && state.wrelay_visible[i] && w_switches[i]) {
@@ -289,7 +283,7 @@ void ui_update_switches_tab() {
             if (lbl_wswitch_name[i]) {
                 char wlabel[64];
                 snprintf(wlabel, sizeof(wlabel), LV_SYMBOL_WIFI " %s", state.wrelay_names[i].c_str());
-                lv_label_set_text(lbl_wswitch_name[i], wlabel);
+                ui_label_set_text_if_changed(lbl_wswitch_name[i], wlabel);
             }
         }
     }
@@ -303,16 +297,21 @@ void ui_update_dimmers_tab() {
             if (dimmer_animating[i]) continue;
             if (lv_slider_get_value(dimmers[i]) != state.dimmer_val[i]) {
                 lv_slider_set_value(dimmers[i], state.dimmer_val[i], LV_ANIM_OFF);
+                update_dimmer_visuals(i);
             }
-            update_dimmer_visuals(i);
-            if (lbl_dim_name[i] && strcmp(lv_label_get_text(lbl_dim_name[i]), state.dimmer_names[i].c_str()) != 0) {
-                lv_label_set_text(lbl_dim_name[i], state.dimmer_names[i].c_str());
+            if (lbl_dim_name[i]) {
+                ui_label_set_text_if_changed(lbl_dim_name[i], state.dimmer_names[i].c_str());
             }
         }
     }
 }
 
 void ui_build_switches(lv_obj_t *parent) {
+    for (int i = 0; i < 8; i++) {
+        last_switch_state[i] = -1;
+        last_wswitch_state[i] = -1;
+    }
+
     ui_setup_tab_page(parent);
 
     // Relays Container: 440px wide, centered flex row wrap
@@ -339,8 +338,7 @@ void ui_build_switches(lv_obj_t *parent) {
         lv_obj_set_size(switches[i], 212, 94);
         lv_obj_set_style_radius(switches[i], 14, 0);
         lv_obj_set_style_border_width(switches[i], 1, 0);
-        lv_obj_set_style_shadow_width(switches[i], 8, 0);
-        lv_obj_set_style_shadow_ofs_y(switches[i], 3, 0);
+        lv_obj_set_style_shadow_width(switches[i], 0, 0);
         lv_obj_add_event_cb(switches[i], relay_btn_event_cb, LV_EVENT_CLICKED, (void*)(intptr_t)i);
 
         lbl_switch_name[i] = lv_label_create(switches[i]);
@@ -351,7 +349,7 @@ void ui_build_switches(lv_obj_t *parent) {
         lv_obj_set_style_text_align(lbl_switch_name[i], LV_TEXT_ALIGN_CENTER, 0);
         lv_obj_center(lbl_switch_name[i]);
 
-        update_switch_visual(i);
+        update_switch_visual(i, true);
     }
 
     // WiFi Relays
@@ -364,8 +362,7 @@ void ui_build_switches(lv_obj_t *parent) {
         lv_obj_set_size(w_switches[i], 212, 94);
         lv_obj_set_style_radius(w_switches[i], 14, 0);
         lv_obj_set_style_border_width(w_switches[i], 1, 0);
-        lv_obj_set_style_shadow_width(w_switches[i], 8, 0);
-        lv_obj_set_style_shadow_ofs_y(w_switches[i], 3, 0);
+        lv_obj_set_style_shadow_width(w_switches[i], 0, 0);
         lv_obj_add_event_cb(w_switches[i], wrelay_btn_event_cb, LV_EVENT_CLICKED, (void*)(intptr_t)i);
 
         lbl_wswitch_name[i] = lv_label_create(w_switches[i]);

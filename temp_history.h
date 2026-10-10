@@ -18,4 +18,7 @@ bool temp_history_get_series(int track_idx, int window_hours, lv_coord_t *out_po
 // Resets / seeds the history buffer with realistic curves
 void temp_history_seed_demo(void);
 
+// Monotonically increasing revision counter (increments every time new samples are logged)
+uint32_t temp_history_get_version(void);
+
 #endif // TEMP_HISTORY_H

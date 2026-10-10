@@ -251,9 +251,12 @@ static void mbox_save_cb(lv_event_t * e) {
 static void save_settings_cb(lv_event_t * e) {
     char buf[64];
     lv_dropdown_get_selected_str(dd_wifi_ssid, buf, sizeof(buf));
-    state.wifi_ssid = String(buf);
-    state.wifi_pass = String(lv_textarea_get_text(ta_wifi_pass));
-    state.vanpi_ip = String(lv_textarea_get_text(ta_mqtt_ip));
+    {
+        StateLockGuard lock;
+        state.wifi_ssid = String(buf);
+        state.wifi_pass = String(lv_textarea_get_text(ta_wifi_pass));
+        state.vanpi_ip = String(lv_textarea_get_text(ta_mqtt_ip));
+    }
     
     state_save();
     
@@ -354,10 +357,7 @@ void ui_build_settings(lv_obj_t *parent) {
     lv_obj_set_size(btn_open, 320, 60);
     lv_obj_set_style_radius(btn_open, 14, 0);
     lv_obj_set_style_bg_color(btn_open, lv_color_hex(UI_COLOR_PRIMARY), 0);
-    lv_obj_set_style_shadow_width(btn_open, 12, 0);
-    lv_obj_set_style_shadow_color(btn_open, lv_color_hex(UI_COLOR_PRIMARY), 0);
-    lv_obj_set_style_shadow_opa(btn_open, LV_OPA_30, 0);
-    lv_obj_set_style_shadow_ofs_y(btn_open, 4, 0);
+    lv_obj_set_style_shadow_width(btn_open, 0, 0);
     lv_obj_add_event_cb(btn_open, open_settings_cb, LV_EVENT_CLICKED, NULL);
 
     lv_obj_t *lbl_open = lv_label_create(btn_open);

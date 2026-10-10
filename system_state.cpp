@@ -144,7 +144,7 @@ void time_set_manual(int hour, int min) {
 
 void state_init() {
     if (!state_mutex) {
-        state_mutex = xSemaphoreCreateMutex();
+        state_mutex = xSemaphoreCreateRecursiveMutex();
     }
     prefs.begin("camperui", false);
 
@@ -350,6 +350,7 @@ state.display_brightness = prefs.getInt("disp_bright", 100);
 }
 
 void state_save() {
+    StateLockGuard lock;
     for (int i = 0; i < 3; ++i) {
         char key[16]; snprintf(key, sizeof(key), "home_temp%d", i);
         prefs.putInt(key, state.home_temp_source[i]);

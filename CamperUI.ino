@@ -64,17 +64,6 @@ void my_disp_flush(lv_disp_drv_t *disp_drv, const lv_area_t *area, lv_color_t *c
     gfx->draw16bitRGBBitmap(area->x1, area->y1, (uint16_t *)&color_p->full, w, h);
 #endif
 
-    // Prevent scanout drift from accumulating across LVGL refreshes.
-    // This only schedules the IDF restart for VSYNC; it does not change
-    // widget coordinates or reinitialize/allocate a second framebuffer.
-    if (lv_disp_flush_is_last(disp_drv)) {
-        esp_err_t result = rgbpanel->restartTransmission();
-        static bool error_reported = false;
-        if (result != ESP_OK && !error_reported) {
-            error_reported = true;
-            USBSerial.printf("[DISPLAY v8.7] Refresh resync failed: %s\n", esp_err_to_name(result));
-        }
-    }
     lv_disp_flush_ready(disp_drv);
 }
 
@@ -84,6 +73,7 @@ void example_increase_lvgl_tick(void *arg) {
 
 bool ignore_touch_until_release = false;
 bool touch_input_enabled = true;
+bool touch_is_pressed = false;
 
 // Feedback on valid touch interactions (buttons, switches, tabs)
 static void my_touchpad_feedback(lv_indev_drv_t *indev_driver, uint8_t event_code) {
@@ -99,6 +89,7 @@ void my_touchpad_read(lv_indev_drv_t *indev_driver, lv_indev_data_t *data) {
     data->point = last_valid_point;
     if (!gt911_available || !touch_input_enabled) {
         data->state = LV_INDEV_STATE_REL;
+        touch_is_pressed = false;
         return;
     }
     uint8_t touched = GT911.getPoint(x, y, GT911.getSupportTouchPoint());
@@ -116,6 +107,7 @@ void my_touchpad_read(lv_indev_drv_t *indev_driver, lv_indev_data_t *data) {
                                  (unsigned)touched, (int)x[0], (int)y[0]);
             }
             data->state = LV_INDEV_STATE_REL;
+            touch_is_pressed = false;
             return;
         }
         if (!display_is_on) {
@@ -126,11 +118,13 @@ void my_touchpad_read(lv_indev_drv_t *indev_driver, lv_indev_data_t *data) {
             WS_CH32_IO::setPwm(Wire, pwm);
             lv_disp_trig_activity(NULL); // Reset LVGL inactivity timer
             data->state = LV_INDEV_STATE_REL;
+            touch_is_pressed = false;
             return;
         }
 
         if (ignore_touch_until_release) {
             data->state = LV_INDEV_STATE_REL;
+            touch_is_pressed = false;
             return;
         }
 
@@ -158,9 +152,11 @@ void my_touchpad_read(lv_indev_drv_t *indev_driver, lv_indev_data_t *data) {
         data->point.y = touchY;
         last_valid_point = data->point;
         data->state = LV_INDEV_STATE_PR;
+        touch_is_pressed = true;
     } else {
         ignore_touch_until_release = false;
         data->state = LV_INDEV_STATE_REL;
+        touch_is_pressed = false;
     }
 }
 
@@ -277,31 +273,37 @@ void setup() {
     // Keep LVGL's working buffer separate from the RGB framebuffer in PSRAM.
     // A small strip avoids a silent PSRAM fallback and leaves internal RAM
     // available for the RGB driver's bounce buffers and network worker.
-    const uint32_t preferred_bytes = screenWidth * 40 * sizeof(lv_color_t);
     const uint32_t internal_caps = MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT;
-    // Reserve headroom for later UI/network allocations; never use PSRAM.
-    const bool has_headroom = data_worker_started && heap_caps_get_free_size(internal_caps) >= preferred_bytes + 40960 &&
-                              heap_caps_get_largest_free_block(internal_caps) >= preferred_bytes;
-    uint32_t buf_size = screenWidth * (has_headroom ? 20 : 16);
-    lv_color_t *buf1 = (lv_color_t *)heap_caps_malloc(buf_size * sizeof(lv_color_t), MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
-    if (!buf1 && buf_size == screenWidth * 20) {
-        buf_size = screenWidth * 16;
+    uint32_t buf_lines = 20;
+    uint32_t buf_size = screenWidth * buf_lines;
+    lv_color_t *buf1 = (lv_color_t *)heap_caps_malloc(buf_size * sizeof(lv_color_t), internal_caps);
+    lv_color_t *buf2 = (lv_color_t *)heap_caps_malloc(buf_size * sizeof(lv_color_t), internal_caps);
+    if (!buf2 && buf1) {
+        // Fall back to 16 lines if 20-line double-buffer didn't fit
+        heap_caps_free(buf1);
+        buf_lines = 16;
+        buf_size = screenWidth * buf_lines;
         buf1 = (lv_color_t *)heap_caps_malloc(buf_size * sizeof(lv_color_t), internal_caps);
+        buf2 = (lv_color_t *)heap_caps_malloc(buf_size * sizeof(lv_color_t), internal_caps);
     }
     if (!buf1) {
         USBSerial.println("[DISPLAY v8.7] FATAL: internal LVGL draw buffer allocation failed");
-        // Never register a null buffer or silently increase PSRAM contention.
         while (true) delay(1000);
     }
-    USBSerial.printf("[DISPLAY v8.7] LVGL draw buffer: %u bytes, internal RAM only\n",
-                     (unsigned)(buf_size * sizeof(lv_color_t)));
 
 #if LV_USE_LOG != 0
     lv_log_register_print_cb(my_print);
 #endif
 
-    // Only pass buf1 (single buffer mode)
-    lv_disp_draw_buf_init(&draw_buf, buf1, NULL, buf_size);
+    if (buf2) {
+        USBSerial.printf("[DISPLAY v8.7] LVGL double draw buffer enabled: 2x %u bytes (%u lines each), internal RAM only\n",
+                         (unsigned)(buf_size * sizeof(lv_color_t)), (unsigned)buf_lines);
+        lv_disp_draw_buf_init(&draw_buf, buf1, buf2, buf_size);
+    } else {
+        USBSerial.printf("[DISPLAY v8.7] LVGL single draw buffer enabled: 1x %u bytes (%u lines), internal RAM only\n",
+                         (unsigned)(buf_size * sizeof(lv_color_t)), (unsigned)buf_lines);
+        lv_disp_draw_buf_init(&draw_buf, buf1, NULL, buf_size);
+    }
 
     static lv_disp_drv_t disp_drv;
     lv_disp_drv_init(&disp_drv);
@@ -318,6 +320,8 @@ void setup() {
         indev_drv.type = LV_INDEV_TYPE_POINTER;
         indev_drv.read_cb = my_touchpad_read;
         indev_drv.feedback_cb = my_touchpad_feedback;
+        indev_drv.scroll_limit = 4; // Lower scroll threshold (4px) so small horizontal drags trigger scrolling immediately instead of accidental clicks
+        indev_drv.scroll_throw = 15; // Smooth momentum deceleration
         lv_indev_drv_register(&indev_drv);
     }
 
@@ -400,13 +404,23 @@ void loop() {
             USBSerial.printf("[NAV v8] LVGL pool integrity: %s\n", lv_mem_test() == LV_RES_OK ? "OK" : "FAILED");
         }
         if (c == 'd' || c == 'D') {
-            state.debug_mode = !state.debug_mode;
+            bool dbg;
+            {
+                StateLockGuard lock;
+                state.debug_mode = !state.debug_mode;
+                dbg = state.debug_mode;
+            }
             state_save();
-            USBSerial.printf("[COMMAND] Debug Simulation Mode: %s\n", state.debug_mode ? "AKTIV (Dummy-Daten)" : "INAKTIV (Live HTTP)");
+            USBSerial.printf("[COMMAND] Debug Simulation Mode: %s\n", dbg ? "AKTIV (Dummy-Daten)" : "INAKTIV (Live HTTP)");
         }
         if (c == 'w' || c == 'W') {
+            String ssid;
+            {
+                StateLockGuard lock;
+                ssid = state.wifi_ssid;
+            }
             USBSerial.printf("[WIFI] Status: %d, SSID: '%s', IP: %s, RSSI: %d dBm | FreeInternal: %u, FreePSRAM: %u\n",
-                             WiFi.status(), state.wifi_ssid.c_str(), WiFi.localIP().toString().c_str(),
+                             WiFi.status(), ssid.c_str(), WiFi.localIP().toString().c_str(),
                              WiFi.RSSI(),
                              (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
                              (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
@@ -434,8 +448,9 @@ void loop() {
     }
     
     web_ota_loop();
-    if (wait_ms > 5) wait_ms = 5;
-    if (wait_ms > 0) {
+    bool high_fps_needed = (lv_anim_count_running() > 0) || touch_is_pressed;
+    if (wait_ms > 0 && !high_fps_needed) {
+        if (wait_ms > 5) wait_ms = 5;
         delay(wait_ms);
     } else {
         yield();

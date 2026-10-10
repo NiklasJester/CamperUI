@@ -144,14 +144,62 @@ static void select_page(uint8_t index) {
     update_home_nav();
     // Refresh newly selected controls immediately, rather than waiting for
     // the next periodic update after leaving them dormant in the background.
-    ui_update_visible_page();
+    {
+        StateLockGuard lock;
+        ui_update_visible_page();
+    }
 }
 
 bool ui_page_available(TabId page) { return page < TAB_COUNT && pages[page] && state.tab_enabled[page]; }
 void ui_navigate_to(TabId page) { if (ui_page_available(page)) select_page(page); }
 
-static void home_nav_clicked(lv_event_t *event) {
-    select_page((uint8_t)(uintptr_t)lv_event_get_user_data(event));
+static lv_point_t nav_press_point = {0, 0};
+static lv_coord_t nav_press_scroll_x = 0;
+static bool nav_touch_active = false;
+
+static void home_nav_button_cb(lv_event_t *event) {
+    lv_event_code_t code = lv_event_get_code(event);
+    lv_indev_t *indev = lv_indev_get_act();
+
+    if (code == LV_EVENT_PRESSED) {
+        nav_touch_active = true;
+        nav_press_scroll_x = home_nav ? lv_obj_get_scroll_x(home_nav) : 0;
+        if (indev) {
+            lv_indev_get_point(indev, &nav_press_point);
+        }
+    } else if (code == LV_EVENT_CLICKED) {
+        if (!nav_touch_active) return;
+        nav_touch_active = false;
+
+        // 1. Guard: Check if the navigation bar moved/scrolled while touched
+        if (home_nav) {
+            lv_coord_t cur_scroll_x = lv_obj_get_scroll_x(home_nav);
+            if (abs((int)(cur_scroll_x - nav_press_scroll_x)) > 3) {
+                return;
+            }
+        }
+
+        // 2. Guard: Check if input device is actively scrolling
+        if (indev && lv_indev_get_type(indev) == LV_INDEV_TYPE_POINTER) {
+            if (lv_indev_get_scroll_obj(indev) != nullptr) {
+                return;
+            }
+
+            // 3. Guard: Check physical finger movement between press and release
+            lv_point_t release_point;
+            lv_indev_get_point(indev, &release_point);
+            int dx = abs((int)(release_point.x - nav_press_point.x));
+            int dy = abs((int)(release_point.y - nav_press_point.y));
+            if (dx > 6 || dy > 6) {
+                return;
+            }
+        }
+
+        // Valid stationary tap -> switch page
+        select_page((uint8_t)(uintptr_t)lv_event_get_user_data(event));
+    } else if (code == LV_EVENT_PRESS_LOST || code == LV_EVENT_DEFOCUSED) {
+        nav_touch_active = false;
+    }
 }
 
 // Helper to configure consistent padding across all tab pages
@@ -170,11 +218,8 @@ lv_obj_t* ui_create_card(lv_obj_t *parent, int w, int h) {
     lv_obj_t *card = lv_obj_create(parent);
     lv_obj_set_size(card, w, h);
     
-    // Subtle modern shadow
-    lv_obj_set_style_shadow_width(card, 12, 0);
-    lv_obj_set_style_shadow_color(card, lv_color_hex(0x000000), 0);
-    lv_obj_set_style_shadow_opa(card, state.dark_mode ? LV_OPA_40 : LV_OPA_10, 0);
-    lv_obj_set_style_shadow_ofs_y(card, 4, 0);
+    // Fast flat card styling (crisp 1px border, zero software-shadow blur overhead)
+    lv_obj_set_style_shadow_width(card, 0, 0);
     
     // Theme colors
     lv_obj_set_style_bg_color(card, ui_theme_card(), 0);
@@ -427,7 +472,8 @@ void ui_init() {
         lv_obj_add_flag(home_nav, LV_OBJ_FLAG_SCROLLABLE);
         lv_obj_set_scroll_dir(home_nav, LV_DIR_HOR);
         lv_obj_set_scrollbar_mode(home_nav, LV_SCROLLBAR_MODE_OFF);
-        lv_obj_clear_flag(home_nav, LV_OBJ_FLAG_SCROLL_ELASTIC | LV_OBJ_FLAG_SCROLL_MOMENTUM);
+        lv_obj_add_flag(home_nav, LV_OBJ_FLAG_SCROLL_MOMENTUM);
+        lv_obj_clear_flag(home_nav, LV_OBJ_FLAG_SCROLL_ELASTIC);
     }
 
     int btn_slot = 0;
@@ -456,7 +502,7 @@ void ui_init() {
         lv_obj_set_style_radius(button, 10, 0);
         lv_obj_set_style_outline_width(button, 2, LV_STATE_FOCUS_KEY);
         lv_obj_set_style_outline_color(button, lv_color_hex(UI_COLOR_PRIMARY), LV_STATE_FOCUS_KEY);
-        lv_obj_add_event_cb(button, home_nav_clicked, LV_EVENT_CLICKED, (void *)(uintptr_t)tab_id);
+        lv_obj_add_event_cb(button, home_nav_button_cb, LV_EVENT_ALL, (void *)(uintptr_t)tab_id);
         lv_obj_t *icon = lv_label_create(button);
         lv_label_set_text(icon, TAB_METAS[tab_id].icon);
         lv_obj_set_style_text_font(icon, &ui_font_mdi_32, 0);

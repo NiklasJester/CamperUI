@@ -81,19 +81,20 @@ static void update_win_buttons_style(void) {
 static void win_btn_clicked(lv_event_t *e) {
     int win = (int)(intptr_t)lv_event_get_user_data(e);
     state.temps_history_window = win;
-    state_save();
     update_win_buttons_style();
     ui_trigger_temps_anim();
 }
 
 static void temps_anim_cb(void *var, int32_t val) {
     anim_revealed_points = val;
+    StateLockGuard lock;
     ui_update_temps_tab();
 }
 
 static void temps_anim_ready_cb(lv_anim_t *a) {
     temps_animating = false;
     anim_revealed_points = CHART_POINTS;
+    StateLockGuard lock;
     ui_update_temps_tab();
 }
 
@@ -114,7 +115,21 @@ void ui_trigger_temps_anim(void) {
     lv_anim_start(&a);
 }
 
+static int last_layout_custom_count = -1;
+static int last_layout_c1 = -1;
+static int last_layout_c2 = -1;
+static uint32_t last_rendered_hist_ver = 0xFFFFFFFF;
+static int last_rendered_win = -1;
+static int last_rendered_points_to_show = -1;
+
 void ui_build_temps(lv_obj_t *parent) {
+    last_layout_custom_count = -1;
+    last_layout_c1 = -1;
+    last_layout_c2 = -1;
+    last_rendered_hist_ver = 0xFFFFFFFF;
+    last_rendered_win = -1;
+    last_rendered_points_to_show = -1;
+
     root_page = parent;
     ui_setup_tab_page(parent);
     lv_obj_clear_flag(parent, LV_OBJ_FLAG_SCROLLABLE);
@@ -308,117 +323,184 @@ void ui_update_temps_tab(void) {
     int custom_count = (c1_active ? 1 : 0) + (c2_active ? 1 : 0);
 
     // Dynamic card & chart layout depending on number of active sensors
-    if (custom_count == 0) {
-        // Only 2 cards: Outdoor and Indoor side-by-side
-        lv_obj_clear_flag(cards[0], LV_OBJ_FLAG_HIDDEN);
-        lv_obj_set_pos(cards[0], 0, 42);
-        lv_obj_set_size(cards[0], 216, 52);
-        lv_obj_set_width(lbl_names[0], 110);
-        lv_obj_align(lbl_max[0], LV_ALIGN_TOP_RIGHT, -10, 6);
-        lv_obj_align(lbl_min[0], LV_ALIGN_BOTTOM_RIGHT, -10, -6);
+    if (custom_count != last_layout_custom_count ||
+        state.temps_custom_sensor[0] != last_layout_c1 ||
+        state.temps_custom_sensor[1] != last_layout_c2) {
+        last_layout_custom_count = custom_count;
+        last_layout_c1 = state.temps_custom_sensor[0];
+        last_layout_c2 = state.temps_custom_sensor[1];
 
-        lv_obj_clear_flag(cards[1], LV_OBJ_FLAG_HIDDEN);
-        lv_obj_set_pos(cards[1], 224, 42);
-        lv_obj_set_size(cards[1], 216, 52);
-        lv_obj_set_width(lbl_names[1], 110);
-        lv_obj_align(lbl_max[1], LV_ALIGN_TOP_RIGHT, -10, 6);
-        lv_obj_align(lbl_min[1], LV_ALIGN_BOTTOM_RIGHT, -10, -6);
+        if (custom_count == 0) {
+            // Only 2 cards: Outdoor and Indoor side-by-side
+            lv_obj_clear_flag(cards[0], LV_OBJ_FLAG_HIDDEN);
+            lv_obj_set_pos(cards[0], 0, 42);
+            lv_obj_set_size(cards[0], 216, 52);
+            lv_obj_set_width(lbl_names[0], 110);
+            lv_obj_align(lbl_max[0], LV_ALIGN_TOP_RIGHT, -10, 6);
+            lv_obj_align(lbl_min[0], LV_ALIGN_BOTTOM_RIGHT, -10, -6);
 
-        lv_obj_add_flag(cards[2], LV_OBJ_FLAG_HIDDEN);
-        lv_obj_add_flag(cards[3], LV_OBJ_FLAG_HIDDEN);
+            lv_obj_clear_flag(cards[1], LV_OBJ_FLAG_HIDDEN);
+            lv_obj_set_pos(cards[1], 224, 42);
+            lv_obj_set_size(cards[1], 216, 52);
+            lv_obj_set_width(lbl_names[1], 110);
+            lv_obj_align(lbl_max[1], LV_ALIGN_TOP_RIGHT, -10, 6);
+            lv_obj_align(lbl_min[1], LV_ALIGN_BOTTOM_RIGHT, -10, -6);
 
-        // Expand chart card to 256px height
-        lv_obj_set_pos(chart_card, 0, 102);
-        lv_obj_set_size(chart_card, 440, 256);
-        lv_obj_set_pos(chart, 4, 22);
-        lv_obj_set_size(chart, 418, 202);
-    } else if (custom_count == 1) {
-        // 3 cards: Outdoor and Indoor on row 1, single custom sensor on row 2 (full width)
-        lv_obj_clear_flag(cards[0], LV_OBJ_FLAG_HIDDEN);
-        lv_obj_set_pos(cards[0], 0, 40);
-        lv_obj_set_size(cards[0], 216, 52);
-        lv_obj_set_width(lbl_names[0], 110);
-        lv_obj_align(lbl_max[0], LV_ALIGN_TOP_RIGHT, -10, 6);
-        lv_obj_align(lbl_min[0], LV_ALIGN_BOTTOM_RIGHT, -10, -6);
+            lv_obj_add_flag(cards[2], LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(cards[3], LV_OBJ_FLAG_HIDDEN);
 
-        lv_obj_clear_flag(cards[1], LV_OBJ_FLAG_HIDDEN);
-        lv_obj_set_pos(cards[1], 224, 40);
-        lv_obj_set_size(cards[1], 216, 52);
-        lv_obj_set_width(lbl_names[1], 110);
-        lv_obj_align(lbl_max[1], LV_ALIGN_TOP_RIGHT, -10, 6);
-        lv_obj_align(lbl_min[1], LV_ALIGN_BOTTOM_RIGHT, -10, -6);
+            // Expand chart card to 256px height
+            lv_obj_set_pos(chart_card, 0, 102);
+            lv_obj_set_size(chart_card, 440, 256);
+            lv_obj_set_pos(chart, 4, 22);
+            lv_obj_set_size(chart, 418, 202);
+        } else if (custom_count == 1) {
+            // 3 cards: Outdoor and Indoor on row 1, single custom sensor on row 2 (full width)
+            lv_obj_clear_flag(cards[0], LV_OBJ_FLAG_HIDDEN);
+            lv_obj_set_pos(cards[0], 0, 40);
+            lv_obj_set_size(cards[0], 216, 52);
+            lv_obj_set_width(lbl_names[0], 110);
+            lv_obj_align(lbl_max[0], LV_ALIGN_TOP_RIGHT, -10, 6);
+            lv_obj_align(lbl_min[0], LV_ALIGN_BOTTOM_RIGHT, -10, -6);
 
-        int active_idx = c1_active ? 2 : 3;
-        int hidden_idx = c1_active ? 3 : 2;
+            lv_obj_clear_flag(cards[1], LV_OBJ_FLAG_HIDDEN);
+            lv_obj_set_pos(cards[1], 224, 40);
+            lv_obj_set_size(cards[1], 216, 52);
+            lv_obj_set_width(lbl_names[1], 110);
+            lv_obj_align(lbl_max[1], LV_ALIGN_TOP_RIGHT, -10, 6);
+            lv_obj_align(lbl_min[1], LV_ALIGN_BOTTOM_RIGHT, -10, -6);
 
-        lv_obj_add_flag(cards[hidden_idx], LV_OBJ_FLAG_HIDDEN);
+            int active_idx = c1_active ? 2 : 3;
+            int hidden_idx = c1_active ? 3 : 2;
 
-        lv_obj_clear_flag(cards[active_idx], LV_OBJ_FLAG_HIDDEN);
-        lv_obj_set_pos(cards[active_idx], 0, 98);
-        lv_obj_set_size(cards[active_idx], 440, 52);
-        lv_obj_set_width(lbl_names[active_idx], 280);
-        lv_obj_align(lbl_max[active_idx], LV_ALIGN_TOP_RIGHT, -12, 6);
-        lv_obj_align(lbl_min[active_idx], LV_ALIGN_BOTTOM_RIGHT, -12, -6);
+            lv_obj_add_flag(cards[hidden_idx], LV_OBJ_FLAG_HIDDEN);
 
-        lv_obj_set_pos(chart_card, 0, 156);
-        lv_obj_set_size(chart_card, 440, 202);
-        lv_obj_set_pos(chart, 4, 20);
-        lv_obj_set_size(chart, 418, 150);
-    } else {
-        // 4 cards: 2x2 grid
-        lv_obj_clear_flag(cards[0], LV_OBJ_FLAG_HIDDEN);
-        lv_obj_set_pos(cards[0], 0, 40);
-        lv_obj_set_size(cards[0], 216, 52);
-        lv_obj_set_width(lbl_names[0], 110);
-        lv_obj_align(lbl_max[0], LV_ALIGN_TOP_RIGHT, -10, 6);
-        lv_obj_align(lbl_min[0], LV_ALIGN_BOTTOM_RIGHT, -10, -6);
+            lv_obj_clear_flag(cards[active_idx], LV_OBJ_FLAG_HIDDEN);
+            lv_obj_set_pos(cards[active_idx], 0, 98);
+            lv_obj_set_size(cards[active_idx], 440, 52);
+            lv_obj_set_width(lbl_names[active_idx], 280);
+            lv_obj_align(lbl_max[active_idx], LV_ALIGN_TOP_RIGHT, -12, 6);
+            lv_obj_align(lbl_min[active_idx], LV_ALIGN_BOTTOM_RIGHT, -12, -6);
 
-        lv_obj_clear_flag(cards[1], LV_OBJ_FLAG_HIDDEN);
-        lv_obj_set_pos(cards[1], 224, 40);
-        lv_obj_set_size(cards[1], 216, 52);
-        lv_obj_set_width(lbl_names[1], 110);
-        lv_obj_align(lbl_max[1], LV_ALIGN_TOP_RIGHT, -10, 6);
-        lv_obj_align(lbl_min[1], LV_ALIGN_BOTTOM_RIGHT, -10, -6);
+            lv_obj_set_pos(chart_card, 0, 156);
+            lv_obj_set_size(chart_card, 440, 202);
+            lv_obj_set_pos(chart, 4, 20);
+            lv_obj_set_size(chart, 418, 150);
+        } else {
+            // 4 cards: 2x2 grid
+            lv_obj_clear_flag(cards[0], LV_OBJ_FLAG_HIDDEN);
+            lv_obj_set_pos(cards[0], 0, 40);
+            lv_obj_set_size(cards[0], 216, 52);
+            lv_obj_set_width(lbl_names[0], 110);
+            lv_obj_align(lbl_max[0], LV_ALIGN_TOP_RIGHT, -10, 6);
+            lv_obj_align(lbl_min[0], LV_ALIGN_BOTTOM_RIGHT, -10, -6);
 
-        lv_obj_clear_flag(cards[2], LV_OBJ_FLAG_HIDDEN);
-        lv_obj_set_pos(cards[2], 0, 98);
-        lv_obj_set_size(cards[2], 216, 52);
-        lv_obj_set_width(lbl_names[2], 110);
-        lv_obj_align(lbl_max[2], LV_ALIGN_TOP_RIGHT, -10, 6);
-        lv_obj_align(lbl_min[2], LV_ALIGN_BOTTOM_RIGHT, -10, -6);
+            lv_obj_clear_flag(cards[1], LV_OBJ_FLAG_HIDDEN);
+            lv_obj_set_pos(cards[1], 224, 40);
+            lv_obj_set_size(cards[1], 216, 52);
+            lv_obj_set_width(lbl_names[1], 110);
+            lv_obj_align(lbl_max[1], LV_ALIGN_TOP_RIGHT, -10, 6);
+            lv_obj_align(lbl_min[1], LV_ALIGN_BOTTOM_RIGHT, -10, -6);
 
-        lv_obj_clear_flag(cards[3], LV_OBJ_FLAG_HIDDEN);
-        lv_obj_set_pos(cards[3], 224, 98);
-        lv_obj_set_size(cards[3], 216, 52);
-        lv_obj_set_width(lbl_names[3], 110);
-        lv_obj_align(lbl_max[3], LV_ALIGN_TOP_RIGHT, -10, 6);
-        lv_obj_align(lbl_min[3], LV_ALIGN_BOTTOM_RIGHT, -10, -6);
+            lv_obj_clear_flag(cards[2], LV_OBJ_FLAG_HIDDEN);
+            lv_obj_set_pos(cards[2], 0, 98);
+            lv_obj_set_size(cards[2], 216, 52);
+            lv_obj_set_width(lbl_names[2], 110);
+            lv_obj_align(lbl_max[2], LV_ALIGN_TOP_RIGHT, -10, 6);
+            lv_obj_align(lbl_min[2], LV_ALIGN_BOTTOM_RIGHT, -10, -6);
 
-        lv_obj_set_pos(chart_card, 0, 156);
-        lv_obj_set_size(chart_card, 440, 202);
-        lv_obj_set_pos(chart, 4, 20);
-        lv_obj_set_size(chart, 418, 150);
+            lv_obj_clear_flag(cards[3], LV_OBJ_FLAG_HIDDEN);
+            lv_obj_set_pos(cards[3], 224, 98);
+            lv_obj_set_size(cards[3], 216, 52);
+            lv_obj_set_width(lbl_names[3], 110);
+            lv_obj_align(lbl_max[3], LV_ALIGN_TOP_RIGHT, -10, 6);
+            lv_obj_align(lbl_min[3], LV_ALIGN_BOTTOM_RIGHT, -10, -6);
+
+            lv_obj_set_pos(chart_card, 0, 156);
+            lv_obj_set_size(chart_card, 440, 202);
+            lv_obj_set_pos(chart, 4, 20);
+            lv_obj_set_size(chart, 418, 150);
+        }
     }
 
-    int win = constrain(state.temps_history_window, 1, 24);
-    lv_coord_t points[CHART_POINTS];
-    float min_val = 0.0f, max_val = 0.0f;
-
-    float overall_min = 999.0f;
-    float overall_max = -999.0f;
-    bool has_any_series = false;
-
     char buf[48];
+
+    // 1. Live Current Values & Names (updated if changed, zero overhead if identical)
+    if (isfinite(state.outdoor_temp) && state.outdoor_temp > -40.0f && state.outdoor_temp < 80.0f) {
+        snprintf(buf, sizeof(buf), "%.1f C", state.outdoor_temp);
+        ui_label_set_text_if_changed(lbl_vals[0], buf);
+    } else {
+        ui_label_set_text_if_changed(lbl_vals[0], "--");
+    }
+    ui_label_set_text_if_changed(lbl_names[0], "Außen");
+
+    if (isfinite(state.indoor_temp) && state.indoor_temp > -40.0f && state.indoor_temp < 80.0f) {
+        snprintf(buf, sizeof(buf), "%.1f C", state.indoor_temp);
+        ui_label_set_text_if_changed(lbl_vals[1], buf);
+    } else {
+        ui_label_set_text_if_changed(lbl_vals[1], "--");
+    }
+    ui_label_set_text_if_changed(lbl_names[1], "Innen");
+
+    int c1_idx = state.temps_custom_sensor[0];
+    if (c1_active) {
+        float c1_val = state.temp_sensors[c1_idx];
+        if (isfinite(c1_val) && c1_val > -40.0f && c1_val < 80.0f) {
+            snprintf(buf, sizeof(buf), "%.1f C", c1_val);
+            ui_label_set_text_if_changed(lbl_vals[2], buf);
+        } else {
+            ui_label_set_text_if_changed(lbl_vals[2], "--");
+        }
+        const char *nm = state.temp_sensor_names[c1_idx].length() ? state.temp_sensor_names[c1_idx].c_str() : (c1_idx < 4 ? "Temp 3" : "Ruuvi");
+        ui_label_set_text_if_changed(lbl_names[2], nm);
+    } else {
+        ui_label_set_text_if_changed(lbl_vals[2], "--");
+    }
+
+    int c2_idx = state.temps_custom_sensor[1];
+    if (c2_active) {
+        float c2_val = state.temp_sensors[c2_idx];
+        if (isfinite(c2_val) && c2_val > -40.0f && c2_val < 80.0f) {
+            snprintf(buf, sizeof(buf), "%.1f C", c2_val);
+            ui_label_set_text_if_changed(lbl_vals[3], buf);
+        } else {
+            ui_label_set_text_if_changed(lbl_vals[3], "--");
+        }
+        const char *nm = state.temp_sensor_names[c2_idx].length() ? state.temp_sensor_names[c2_idx].c_str() : (c2_idx < 4 ? "Temp 4" : "Ruuvi");
+        ui_label_set_text_if_changed(lbl_names[3], nm);
+    } else {
+        ui_label_set_text_if_changed(lbl_vals[3], "--");
+    }
 
     // Ensure colors reflect active theme
     for (int i = 0; i < 4; ++i) {
         ui_text_color_if_changed(lbl_vals[i], track_color(i));
     }
 
-    // Determine how many points to show for the wipe animation
+    // 2. Chart History Throttling: only recalculate curves when a new minute-sample arrived,
+    // window changed, or reveal animation is in flight.
+    int win = constrain(state.temps_history_window, 1, 24);
+    uint32_t hist_ver = temp_history_get_version();
     int points_to_show = temps_animating ? anim_revealed_points : CHART_POINTS;
     if (points_to_show < 2) points_to_show = 2;
     if (points_to_show > CHART_POINTS) points_to_show = CHART_POINTS;
+
+    bool chart_needs_update = temps_animating ||
+                              (win != last_rendered_win) ||
+                              (hist_ver != last_rendered_hist_ver) ||
+                              (points_to_show != last_rendered_points_to_show);
+
+    if (!chart_needs_update) return;
+
+    last_rendered_win = win;
+    last_rendered_hist_ver = hist_ver;
+    last_rendered_points_to_show = points_to_show;
+
+    lv_coord_t points[CHART_POINTS];
+    float min_val = 0.0f, max_val = 0.0f;
+    float overall_min = 999.0f;
+    float overall_max = -999.0f;
+    bool has_any_series = false;
 
     // Track 0: Außen
     if (temp_history_get_series(0, win, points, CHART_POINTS, &min_val, &max_val)) {
@@ -433,23 +515,15 @@ void ui_update_temps_tab(void) {
         if (max_val > overall_max) overall_max = max_val;
         has_any_series = true;
 
-        if (isfinite(state.outdoor_temp) && state.outdoor_temp > -40.0f && state.outdoor_temp < 80.0f) {
-            snprintf(buf, sizeof(buf), "%.1f C", state.outdoor_temp);
-            ui_label_set_text_if_changed(lbl_vals[0], buf);
-        } else {
-            ui_label_set_text_if_changed(lbl_vals[0], "--");
-        }
         snprintf(buf, sizeof(buf), "Max: %.1f C", max_val);
         ui_label_set_text_if_changed(lbl_max[0], buf);
         snprintf(buf, sizeof(buf), "Min: %.1f C", min_val);
         ui_label_set_text_if_changed(lbl_min[0], buf);
     } else {
         for (int i = 0; i < CHART_POINTS; ++i) lv_chart_set_value_by_id(chart, ser_outdoor, i, LV_CHART_POINT_NONE);
-        ui_label_set_text_if_changed(lbl_vals[0], "--");
         ui_label_set_text_if_changed(lbl_max[0], "Max: --");
         ui_label_set_text_if_changed(lbl_min[0], "Min: --");
     }
-    ui_label_set_text_if_changed(lbl_names[0], "Außen");
 
     // Track 1: Innen
     if (temp_history_get_series(1, win, points, CHART_POINTS, &min_val, &max_val)) {
@@ -464,26 +538,17 @@ void ui_update_temps_tab(void) {
         if (max_val > overall_max) overall_max = max_val;
         has_any_series = true;
 
-        if (isfinite(state.indoor_temp) && state.indoor_temp > -40.0f && state.indoor_temp < 80.0f) {
-            snprintf(buf, sizeof(buf), "%.1f C", state.indoor_temp);
-            ui_label_set_text_if_changed(lbl_vals[1], buf);
-        } else {
-            ui_label_set_text_if_changed(lbl_vals[1], "--");
-        }
         snprintf(buf, sizeof(buf), "Max: %.1f C", max_val);
         ui_label_set_text_if_changed(lbl_max[1], buf);
         snprintf(buf, sizeof(buf), "Min: %.1f C", min_val);
         ui_label_set_text_if_changed(lbl_min[1], buf);
     } else {
         for (int i = 0; i < CHART_POINTS; ++i) lv_chart_set_value_by_id(chart, ser_indoor, i, LV_CHART_POINT_NONE);
-        ui_label_set_text_if_changed(lbl_vals[1], "--");
         ui_label_set_text_if_changed(lbl_max[1], "Max: --");
         ui_label_set_text_if_changed(lbl_min[1], "Min: --");
     }
-    ui_label_set_text_if_changed(lbl_names[1], "Innen");
 
     // Track 2: Zusatz 1
-    int c1_idx = state.temps_custom_sensor[0];
     if (c1_active && temp_history_get_series(2, win, points, CHART_POINTS, &min_val, &max_val)) {
         for (int i = 0; i < CHART_POINTS; ++i) {
             if (i < points_to_show) {
@@ -496,28 +561,17 @@ void ui_update_temps_tab(void) {
         if (max_val > overall_max) overall_max = max_val;
         has_any_series = true;
 
-        float c1_val = state.temp_sensors[c1_idx];
-        if (isfinite(c1_val) && c1_val > -40.0f && c1_val < 80.0f) {
-            snprintf(buf, sizeof(buf), "%.1f C", c1_val);
-            ui_label_set_text_if_changed(lbl_vals[2], buf);
-        } else {
-            ui_label_set_text_if_changed(lbl_vals[2], "--");
-        }
         snprintf(buf, sizeof(buf), "Max: %.1f C", max_val);
         ui_label_set_text_if_changed(lbl_max[2], buf);
         snprintf(buf, sizeof(buf), "Min: %.1f C", min_val);
         ui_label_set_text_if_changed(lbl_min[2], buf);
-        const char *nm = state.temp_sensor_names[c1_idx].length() ? state.temp_sensor_names[c1_idx].c_str() : (c1_idx < 4 ? "Temp 3" : "Ruuvi");
-        ui_label_set_text_if_changed(lbl_names[2], nm);
     } else {
         for (int i = 0; i < CHART_POINTS; ++i) lv_chart_set_value_by_id(chart, ser_custom1, i, LV_CHART_POINT_NONE);
-        ui_label_set_text_if_changed(lbl_vals[2], "--");
         ui_label_set_text_if_changed(lbl_max[2], "Max: --");
         ui_label_set_text_if_changed(lbl_min[2], "Min: --");
     }
 
     // Track 3: Zusatz 2
-    int c2_idx = state.temps_custom_sensor[1];
     if (c2_active && temp_history_get_series(3, win, points, CHART_POINTS, &min_val, &max_val)) {
         for (int i = 0; i < CHART_POINTS; ++i) {
             if (i < points_to_show) {
@@ -530,22 +584,12 @@ void ui_update_temps_tab(void) {
         if (max_val > overall_max) overall_max = max_val;
         has_any_series = true;
 
-        float c2_val = state.temp_sensors[c2_idx];
-        if (isfinite(c2_val) && c2_val > -40.0f && c2_val < 80.0f) {
-            snprintf(buf, sizeof(buf), "%.1f C", c2_val);
-            ui_label_set_text_if_changed(lbl_vals[3], buf);
-        } else {
-            ui_label_set_text_if_changed(lbl_vals[3], "--");
-        }
         snprintf(buf, sizeof(buf), "Max: %.1f C", max_val);
         ui_label_set_text_if_changed(lbl_max[3], buf);
         snprintf(buf, sizeof(buf), "Min: %.1f C", min_val);
         ui_label_set_text_if_changed(lbl_min[3], buf);
-        const char *nm = state.temp_sensor_names[c2_idx].length() ? state.temp_sensor_names[c2_idx].c_str() : (c2_idx < 4 ? "Temp 4" : "Ruuvi");
-        ui_label_set_text_if_changed(lbl_names[3], nm);
     } else {
         for (int i = 0; i < CHART_POINTS; ++i) lv_chart_set_value_by_id(chart, ser_custom2, i, LV_CHART_POINT_NONE);
-        ui_label_set_text_if_changed(lbl_vals[3], "--");
         ui_label_set_text_if_changed(lbl_max[3], "Max: --");
         ui_label_set_text_if_changed(lbl_min[3], "Min: --");
     }

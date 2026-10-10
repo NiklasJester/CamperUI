@@ -323,7 +323,7 @@ static const char TERMINAL_HTML[] PROGMEM = R"rawliteral(
     <header>
       <div class="header-left">
         <h1>🚐 CamperUI Web-Terminal</h1>
-        <span class="badge" id="statBadgeVersion">V1.0.3</span>
+        <span class="badge" id="statBadgeVersion">V1.2.1</span>
         <span class="badge green" id="statBadgeStatus">Bereit</span>
       </div>
       <div>

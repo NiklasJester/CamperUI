@@ -2,12 +2,18 @@
 #include "system_state.h"
 #include <math.h>
 
-static int16_t history_samples[TEMP_HISTORY_MAX_SAMPLES][TEMP_HISTORY_TRACKS];
+static int16_t (*history_samples)[TEMP_HISTORY_TRACKS] = nullptr;
 static int head_idx = 0;
 static int sample_count = 0;
 static uint32_t last_sample_millis = 0;
+static uint32_t history_version = 1;
+
+uint32_t temp_history_get_version(void) {
+    return history_version;
+}
 
 void temp_history_seed_demo(void) {
+    if (!history_samples) return;
     for (int m = 0; m < TEMP_HISTORY_MAX_SAMPLES; ++m) {
         // Aussen: 24-hour curve with realistic diurnal variation
         float t_out = 14.5f + 5.5f * sinf((float)m * (2.0f * (float)M_PI / 1440.0f)) + 0.2f * sinf((float)m * 0.15f);
@@ -26,9 +32,20 @@ void temp_history_seed_demo(void) {
     head_idx = 0;
     sample_count = TEMP_HISTORY_MAX_SAMPLES;
     last_sample_millis = millis();
+    history_version++;
 }
 
 void temp_history_init(void) {
+    if (!history_samples) {
+        history_samples = (int16_t (*)[TEMP_HISTORY_TRACKS])heap_caps_malloc(
+            sizeof(int16_t) * TEMP_HISTORY_MAX_SAMPLES * TEMP_HISTORY_TRACKS, MALLOC_CAP_SPIRAM);
+        if (!history_samples) {
+            history_samples = (int16_t (*)[TEMP_HISTORY_TRACKS])malloc(
+                sizeof(int16_t) * TEMP_HISTORY_MAX_SAMPLES * TEMP_HISTORY_TRACKS);
+        }
+    }
+    if (!history_samples) return;
+
     for (int i = 0; i < TEMP_HISTORY_MAX_SAMPLES; ++i) {
         for (int t = 0; t < TEMP_HISTORY_TRACKS; ++t) {
             history_samples[i][t] = INT16_MIN;
@@ -37,6 +54,7 @@ void temp_history_init(void) {
     head_idx = 0;
     sample_count = 0;
     last_sample_millis = 0;
+    history_version++;
 
     // Seed plausible curves immediately so the charts look alive right from the start
     temp_history_seed_demo();
@@ -69,6 +87,7 @@ static inline int16_t get_track_current_raw(int track_idx) {
 }
 
 void temp_history_tick(void) {
+    if (!history_samples) return;
     uint32_t now = millis();
     // Sample once every 60 seconds (60000 ms)
     if (last_sample_millis != 0 && (now - last_sample_millis < 60000)) {
@@ -94,10 +113,11 @@ void temp_history_tick(void) {
     if (sample_count < TEMP_HISTORY_MAX_SAMPLES) {
         sample_count++;
     }
+    history_version++;
 }
 
 bool temp_history_get_series(int track_idx, int window_hours, lv_coord_t *out_points, int out_count, float *out_min, float *out_max) {
-    if (!out_points || out_count <= 0 || track_idx < 0 || track_idx >= TEMP_HISTORY_TRACKS) {
+    if (!history_samples || !out_points || out_count <= 0 || track_idx < 0 || track_idx >= TEMP_HISTORY_TRACKS) {
         return false;
     }
 
