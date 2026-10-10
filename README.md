@@ -69,6 +69,7 @@
 * On-Screen-Tastatur zum Konfigurieren von WLAN-SSID, Passwort und VanPi-IP.
 * Display-Timeout, Helligkeit und Dark/Light-Mode.
 * **Integrierter Debug-Modus:** Simuliert realistische Sensordaten per Knopfdruck – ideal zum Testen ohne Fahrzeug.
+* **VanPi Tailscale Gateway:** Teste das Display live am Schreibtisch über deinen PC via Tailscale, auch wenn der Camper weit entfernt steht (siehe [Gateway-Anleitung](tools/vanpi_gateway/README.md)).
 
 ### 9. 🔊 Haptisches Feedback (Touch-Ton)
 * **Onboard-Buzzer Anbindung:** Akustische Rückmeldung für Berührungen und Tastendrücke über den hardwareseitigen Piezo-Buzzer des Displays.

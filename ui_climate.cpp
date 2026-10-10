@@ -9,6 +9,7 @@ static lv_obj_t *btn_start_stop;
 static lv_obj_t *lbl_btn_start_stop;
 static lv_obj_t *dd_mode;
 static lv_obj_t *lbl_heater_status;
+static int last_heating_state = -1;
 
 #define HEATER_HOLD_MS 5000
 
@@ -115,15 +116,11 @@ static void update_ui_from_mode() {
     if (state.heating_on) {
         lv_obj_set_style_bg_color(btn_start_stop, lv_color_hex(UI_COLOR_DANGER), 0);
         lv_obj_set_style_border_color(btn_start_stop, lv_color_hex(0xf87171), 0);
-        lv_obj_set_style_shadow_color(btn_start_stop, lv_color_hex(UI_COLOR_DANGER), 0);
-        lv_obj_set_style_shadow_opa(btn_start_stop, LV_OPA_30, 0);
-        lv_label_set_text(lbl_btn_start_stop, "Stop");
+        ui_label_set_text_if_changed(lbl_btn_start_stop, "Stop");
     } else {
         lv_obj_set_style_bg_color(btn_start_stop, lv_color_hex(UI_COLOR_SUCCESS), 0);
         lv_obj_set_style_border_color(btn_start_stop, lv_color_hex(0x34d399), 0);
-        lv_obj_set_style_shadow_color(btn_start_stop, lv_color_hex(UI_COLOR_SUCCESS), 0);
-        lv_obj_set_style_shadow_opa(btn_start_stop, LV_OPA_30, 0);
-        lv_label_set_text(lbl_btn_start_stop, "Start");
+        ui_label_set_text_if_changed(lbl_btn_start_stop, "Start");
     }
 }
 
@@ -225,19 +222,19 @@ void ui_update_climate_tab() {
     
     if (arc_needs_update) {
         update_ui_from_mode();
+        last_heating_state = (int)state.heating_on;
     } else {
-        if (state.heating_on) {
-            lv_obj_set_style_bg_color(btn_start_stop, lv_color_hex(UI_COLOR_DANGER), 0);
-            lv_obj_set_style_border_color(btn_start_stop, lv_color_hex(0xf87171), 0);
-            lv_obj_set_style_shadow_color(btn_start_stop, lv_color_hex(UI_COLOR_DANGER), 0);
-            lv_obj_set_style_shadow_opa(btn_start_stop, LV_OPA_30, 0);
-            lv_label_set_text(lbl_btn_start_stop, "Stop");
-        } else {
-            lv_obj_set_style_bg_color(btn_start_stop, lv_color_hex(UI_COLOR_SUCCESS), 0);
-            lv_obj_set_style_border_color(btn_start_stop, lv_color_hex(0x34d399), 0);
-            lv_obj_set_style_shadow_color(btn_start_stop, lv_color_hex(UI_COLOR_SUCCESS), 0);
-            lv_obj_set_style_shadow_opa(btn_start_stop, LV_OPA_30, 0);
-            lv_label_set_text(lbl_btn_start_stop, "Start");
+        if ((int)state.heating_on != last_heating_state) {
+            last_heating_state = (int)state.heating_on;
+            if (state.heating_on) {
+                lv_obj_set_style_bg_color(btn_start_stop, lv_color_hex(UI_COLOR_DANGER), 0);
+                lv_obj_set_style_border_color(btn_start_stop, lv_color_hex(0xf87171), 0);
+                ui_label_set_text_if_changed(lbl_btn_start_stop, "Stop");
+            } else {
+                lv_obj_set_style_bg_color(btn_start_stop, lv_color_hex(UI_COLOR_SUCCESS), 0);
+                lv_obj_set_style_border_color(btn_start_stop, lv_color_hex(0x34d399), 0);
+                ui_label_set_text_if_changed(lbl_btn_start_stop, "Start");
+            }
         }
     }
 }
@@ -281,8 +278,7 @@ void ui_build_climate(lv_obj_t *parent) {
     lv_obj_set_style_pad_bottom(dd_mode, 19, LV_PART_MAIN);
     lv_obj_set_style_pad_left(dd_mode, 14, LV_PART_MAIN);
     lv_obj_set_style_pad_right(dd_mode, 36, LV_PART_MAIN);
-    lv_obj_set_style_shadow_width(dd_mode, 8, 0);
-    lv_obj_set_style_shadow_ofs_y(dd_mode, 3, 0);
+    lv_obj_set_style_shadow_width(dd_mode, 0, 0);
     
     lv_obj_t * list = lv_dropdown_get_list(dd_mode);
     lv_obj_set_style_text_font(list, &lv_font_montserrat_18, 0);
@@ -302,12 +298,10 @@ void ui_build_climate(lv_obj_t *parent) {
     lv_obj_set_style_arc_color(arc_target, ui_theme_track(), LV_PART_MAIN);
     lv_obj_set_style_arc_width(arc_target, 16, LV_PART_INDICATOR);
     
-    // Tactile knob with clear distinct white background and shadow
+    // Tactile knob with clear distinct white background
     lv_obj_set_style_radius(arc_target, LV_RADIUS_CIRCLE, LV_PART_KNOB);
     lv_obj_set_style_pad_all(arc_target, 7, LV_PART_KNOB);
-    lv_obj_set_style_shadow_width(arc_target, 10, LV_PART_KNOB);
-    lv_obj_set_style_shadow_color(arc_target, lv_color_hex(0x000000), LV_PART_KNOB);
-    lv_obj_set_style_shadow_opa(arc_target, LV_OPA_50, LV_PART_KNOB);
+    lv_obj_set_style_shadow_width(arc_target, 0, LV_PART_KNOB);
     
     lv_obj_add_event_cb(arc_target, arc_target_event_cb, LV_EVENT_VALUE_CHANGED, NULL);
     lv_obj_add_event_cb(arc_target, arc_target_event_cb, LV_EVENT_RELEASED, NULL);
@@ -351,8 +345,7 @@ void ui_build_climate(lv_obj_t *parent) {
     lv_obj_align(btn_start_stop, LV_ALIGN_BOTTOM_MID, 0, 0);
     lv_obj_set_style_radius(btn_start_stop, 14, 0);
     lv_obj_set_style_border_width(btn_start_stop, 1, 0);
-    lv_obj_set_style_shadow_width(btn_start_stop, 8, 0);
-    lv_obj_set_style_shadow_ofs_y(btn_start_stop, 3, 0);
+    lv_obj_set_style_shadow_width(btn_start_stop, 0, 0);
     lv_obj_add_event_cb(btn_start_stop, btn_start_stop_event_cb, LV_EVENT_CLICKED, NULL);
     
     lbl_btn_start_stop = lv_label_create(btn_start_stop);
@@ -360,5 +353,6 @@ void ui_build_climate(lv_obj_t *parent) {
     lv_obj_set_style_text_font(lbl_btn_start_stop, &lv_font_montserrat_20, 0);
     lv_obj_center(lbl_btn_start_stop);
     
+    last_heating_state = -1;
     update_ui_from_mode();
 }

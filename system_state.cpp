@@ -144,7 +144,7 @@ void time_set_manual(int hour, int min) {
 
 void state_init() {
     if (!state_mutex) {
-        state_mutex = xSemaphoreCreateMutex();
+        state_mutex = xSemaphoreCreateRecursiveMutex();
     }
     prefs.begin("camperui", false);
 
@@ -179,7 +179,14 @@ state.display_brightness = prefs.getInt("disp_bright", 100);
     state.warn_fresh_min = prefs.getInt("w_fresh", 15);
     state.warn_waste_max = prefs.getInt("w_waste", 85);
 
-    state.outdoor_temp_sensor = prefs.getInt("out_temp_idx", 1); // Default to Temp 2 (Aussen)
+    state.outdoor_temp_sensor = constrain(prefs.getInt("out_temp_idx", 1), 0, TEMP_SOURCE_COUNT - 1);
+    state.indoor_temp_sensor = constrain(prefs.getInt("in_temp_idx", 0), 0, TEMP_SOURCE_COUNT - 1);
+    state.temps_custom_sensor[0] = constrain(prefs.getInt("t_cust0", -1), -1, TEMP_SOURCE_COUNT - 1);
+    state.temps_custom_sensor[1] = constrain(prefs.getInt("t_cust1", -1), -1, TEMP_SOURCE_COUNT - 1);
+    state.temps_history_window = prefs.getInt("t_win", 1);
+    if (state.temps_history_window != 1 && state.temps_history_window != 6 && state.temps_history_window != 12) {
+        state.temps_history_window = 1;
+    }
     const int home_defaults[3] = {0, 1, 3};
     for (int i = 0; i < 3; ++i) {
         char key[16]; snprintf(key, sizeof(key), "home_temp%d", i);
@@ -343,6 +350,7 @@ state.display_brightness = prefs.getInt("disp_bright", 100);
 }
 
 void state_save() {
+    StateLockGuard lock;
     for (int i = 0; i < 3; ++i) {
         char key[16]; snprintf(key, sizeof(key), "home_temp%d", i);
         prefs.putInt(key, state.home_temp_source[i]);
@@ -376,6 +384,10 @@ void state_save() {
     prefs.putInt("w_waste", state.warn_waste_max);
 
     prefs.putInt("out_temp_idx", state.outdoor_temp_sensor);
+    prefs.putInt("in_temp_idx", state.indoor_temp_sensor);
+    prefs.putInt("t_cust0", state.temps_custom_sensor[0]);
+    prefs.putInt("t_cust1", state.temps_custom_sensor[1]);
+    prefs.putInt("t_win", state.temps_history_window);
     prefs.putBytes("tab_order", state.tab_order, sizeof(state.tab_order));
     prefs.putBytes("tab_en", state.tab_enabled, sizeof(state.tab_enabled));
 

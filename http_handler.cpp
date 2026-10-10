@@ -40,6 +40,7 @@ static String fix_umlauts(const String &in) {
 }
 
 static String get_url() {
+    StateLockGuard lock;
     return "http://" + state.vanpi_ip + ":1880";
 }
 
@@ -79,17 +80,16 @@ void http_fetch_names() {
 }
 
 // Static lookup tables to prevent String heap allocations in parsing loops
-static const char* const RELAY_KEYS[8]   = {"Relay1", "Relay2", "Relay3", "Relay4", "Relay5", "Relay6", "Relay7", "Relay8"};
-static const char* const WRELAY_K1[8]    = {"wrelay1", "wrelay2", "wrelay3", "wrelay4", "wrelay5", "wrelay6", "wrelay7", "wrelay8"};
-static const char* const WRELAY_K2[8]    = {"Wrelay1", "Wrelay2", "Wrelay3", "Wrelay4", "Wrelay5", "Wrelay6", "Wrelay7", "Wrelay8"};
-static const char* const WRELAY_K3[8]    = {"WRelay1", "WRelay2", "WRelay3", "WRelay4", "WRelay5", "WRelay6", "WRelay7", "WRelay8"};
-static const char* const DIMMER_KEYS[8]  = {"dimmer1", "dimmer2", "dimmer3", "dimmer4", "dimmer5", "dimmer6", "dimmer7", "dimmer8"};
-static const char* const LEVEL_KEYS[4]   = {"level1", "level2", "level3", "level4"};
-static const char* const TEMP_KEYS[4]    = {"temp1", "temp2", "temp3", "temp4"};
+static const char* const RELAY_KEYS[8]       = {"Relay1", "Relay2", "Relay3", "Relay4", "Relay5", "Relay6", "Relay7", "Relay8"};
+static const char* const WIFIRELAIS_KEYS[8]   = {"WifiRelay1", "WifiRelay2", "WifiRelay3", "WifiRelay4", "WifiRelay5", "WifiRelay6", "WifiRelay7", "WifiRelay8"};
+static const char* const WRELAY_KEYS_ALT[8]   = {"wrelay1", "wrelay2", "wrelay3", "wrelay4", "wrelay5", "wrelay6", "wrelay7", "wrelay8"};
+static const char* const DIMMER_KEYS[8]      = {"dimmer1", "dimmer2", "dimmer3", "dimmer4", "dimmer5", "dimmer6", "dimmer7", "dimmer8"};
+static const char* const LEVEL_KEYS[4]       = {"level1", "level2", "level3", "level4"};
+static const char* const TEMP_KEYS[4]        = {"temp1", "temp2", "temp3", "temp4"};
 
 // --- Parsers ---
 // GET /batt -> { "VoltB": float|str, "Ampere": float|str, "battsoc": int|str }
-static void parse_batt_json(const String &payload) {
+static void parse_batt_json(const char *payload) {
     StaticJsonDocument<512> doc;
     if (deserializeJson(doc, payload)) return;
 
@@ -102,7 +102,7 @@ static void parse_batt_json(const String &payload) {
 }
 
 // GET /mppt/ -> { "mppt_pv_watts": float, "mppt_pv_amps": float, "mppt_pv_volts": float }
-static void parse_mppt_json(const String &payload) {
+static void parse_mppt_json(const char *payload) {
     StaticJsonDocument<512> doc;
     if (deserializeJson(doc, payload)) return;
 
@@ -113,8 +113,8 @@ static void parse_mppt_json(const String &payload) {
 }
 
 // GET /relay -> { "Relay1": { "state": bool, "name": str, ... }, "Relay2": ... }
-static void parse_relay_json(const String &payload) {
-    StaticJsonDocument<2048> doc;
+static void parse_relay_json(const char *payload) {
+    StaticJsonDocument<1024> doc;
     if (deserializeJson(doc, payload)) return;
 
     StateLockGuard lock;
@@ -136,18 +136,27 @@ static void parse_relay_json(const String &payload) {
     }
 }
 
-// GET /wrelay -> { "wrelay1": { "state": bool|str, "name": str }, ... }
-static void parse_wrelay_json(const String &payload) {
+// GET /wrelay -> { "WifiRelay1": { "state": bool|str, "name": str, ... }, ... }
+static void parse_wrelay_json(const char *payload) {
+    if (!payload || payload[0] == '\0') return;
     StaticJsonDocument<2048> doc;
-    if (deserializeJson(doc, payload)) return;
+    DeserializationError err = deserializeJson(doc, payload);
+    if (err) {
+        Serial.printf("[WRELAY] deserializeJson error: %s\n", err.c_str());
+        return;
+    }
 
     StateLockGuard lock;
     for (int i = 0; i < 8; i++) {
         JsonObject r;
-        if (doc.containsKey(WRELAY_K1[i])) r = doc[WRELAY_K1[i]];
-        else if (doc.containsKey(WRELAY_K2[i])) r = doc[WRELAY_K2[i]];
-        else if (doc.containsKey(WRELAY_K3[i])) r = doc[WRELAY_K3[i]];
-        else continue;
+        if (doc.containsKey(WIFIRELAIS_KEYS[i])) {
+            r = doc[WIFIRELAIS_KEYS[i]];
+        } else if (doc.containsKey(WRELAY_KEYS_ALT[i])) {
+            r = doc[WRELAY_KEYS_ALT[i]];
+        } else {
+            continue;
+        }
+        if (r.isNull()) continue;
 
         if (r.containsKey("state")) {
             if ((int32_t)(millis() - state.wrelay_hold_until[i]) >= 0) {
@@ -166,17 +175,21 @@ static void parse_wrelay_json(const String &payload) {
         }
         if (r.containsKey("name")) {
             const char *n = r["name"].as<const char*>();
-            if (n && n[0] != '\0' && strcmp(n, WRELAY_K1[i]) != 0 && strcmp(n, WRELAY_K2[i]) != 0) {
+            if (n && n[0] != '\0') {
                 String clean = fix_umlauts(n);
-                if (state.wrelay_names[i] != clean) state.wrelay_names[i] = clean;
+                if (state.wrelay_names[i] != clean) {
+                    state.wrelay_names[i] = clean;
+                    Serial.printf("[WRELAY] Relay %d name updated: '%s'\n", i + 1, clean.c_str());
+                }
             }
         }
     }
 }
 
+
 // GET /dimmer -> { "dimmer1": { "state": int(0-100), "name": str, ... }, "dimmer2": ... }
-static void parse_dimmer_json(const String &payload) {
-    StaticJsonDocument<2048> doc;
+static void parse_dimmer_json(const char *payload) {
+    StaticJsonDocument<1024> doc;
     if (deserializeJson(doc, payload)) return;
 
     StateLockGuard lock;
@@ -199,8 +212,8 @@ static void parse_dimmer_json(const String &payload) {
 }
 
 // GET /level -> { "level1": { "state": int, "name": str }, ... }
-static void parse_level_json(const String &payload) {
-    StaticJsonDocument<1024> doc;
+static void parse_level_json(const char *payload) {
+    StaticJsonDocument<768> doc;
     if (deserializeJson(doc, payload)) return;
 
     StateLockGuard lock;
@@ -220,7 +233,7 @@ static void parse_level_json(const String &payload) {
 }
 
 // GET /temp -> { "temp1": { "state": "23.5", "name": str }, "temp2": ... }
-static void parse_temp_json(const String &payload) {
+static void parse_temp_json(const char *payload) {
     StaticJsonDocument<1024> doc;
     if (deserializeJson(doc, payload)) return;
 
@@ -246,9 +259,9 @@ static void parse_temp_json(const String &payload) {
     }
 
     state.temp_fields = fields;
-    int out_idx = constrain(state.outdoor_temp_sensor, 0, 3);
+    int out_idx = constrain(state.outdoor_temp_sensor, 0, TEMP_SOURCE_COUNT - 1);
     state.outdoor_temp = state.temp_sensors[out_idx];
-    int in_idx = (out_idx == 0) ? 1 : 0;
+    int in_idx = constrain(state.indoor_temp_sensor, 0, TEMP_SOURCE_COUNT - 1);
     state.indoor_temp = state.temp_sensors[in_idx];
     if (out_idx != 2 && in_idx != 2) {
         state.indoor_humidity = state.temp_sensors[2];
@@ -257,8 +270,8 @@ static void parse_temp_json(const String &payload) {
 
 // GET /heater -> { "autoterm1": { "heatertoggle": bool, "heatstatus": str, "heaterror": str,
 //   "targettemp_vanpi": num, "mode": str, "powerlevel": int, "fanspeed": int }, ... }
-static void parse_heater_json(const String &payload) {
-    StaticJsonDocument<2048> doc;
+static void parse_heater_json(const char *payload) {
+    StaticJsonDocument<1024> doc;
     if (deserializeJson(doc, payload)) return;
 
     bool has_at = doc.containsKey("autoterm1");
@@ -355,7 +368,7 @@ static void parse_heater_json(const String &payload) {
 }
 
 // GET /position_sensor/?request=true -> { "x_angle": float|str, "y_angle": float|str }
-static void parse_position_json(const String &payload) {
+static void parse_position_json(const char *payload) {
     StaticJsonDocument<512> doc;
     if (deserializeJson(doc, payload)) return;
 
@@ -365,11 +378,9 @@ static void parse_position_json(const String &payload) {
 }
 
 
-// --- HTTP transport ---
-
 static unsigned long vanpi_fail_backoff_until = 0;
 
-static void fetch_endpoint(const char* endpoint, void (*parser)(const String&)) {
+static void fetch_endpoint(const char* endpoint, void (*parser)(const char*)) {
     if (WiFi.status() != WL_CONNECTED) {
         state.vanpi_connected = false;
         return;
@@ -395,7 +406,9 @@ static void fetch_endpoint(const char* endpoint, void (*parser)(const String&)) 
         state.vanpi_connected = true;
         vanpi_fail_backoff_until = 0;
         String payload = http.getString();
-        parser(payload);
+        if (payload.length() > 0) {
+            parser(payload.c_str());
+        }
     } else {
         state.vanpi_connected = false;
         // Host unreachable / refused: back off for 5 seconds before next network call
@@ -444,34 +457,32 @@ void http_loop() {
                     snprintf(data, sizeof(data), "{\"VoltB\":%.2f,\"Ampere\":%.2f,\"battsoc\":%d,\"starter_voltage\":%.2f}",
                         13.2f + .2f * cosf(phase), -2.1f - 4.0f * sinf(phase),
                         (int)lroundf(50 + 45 * cosf(phase)), 12.7f + .1f * sinf(phase));
-                    String dummy(data);
-                    parse_batt_json(dummy);
+                    parse_batt_json(data);
                     break;
                 }
                 case 1: {
-                    String dummy = "{\"Relay1\":{\"state\":true,\"name\":\"Licht Bank\"},\"Relay2\":{\"state\":false,\"name\":\"Kuehlschrank\"},\"Relay3\":{\"state\":true,\"name\":\"Wasserpumpe\"},\"Relay4\":{\"state\":false,\"name\":\"Abwasserventil\"},\"Relay5\":{\"state\":false,\"name\":\"Relais 5\"},\"Relay6\":{\"state\":false,\"name\":\"Relais 6\"},\"Relay7\":{\"state\":false,\"name\":\"Relais 7\"},\"Relay8\":{\"state\":false,\"name\":\"Relais 8\"}}";
+                    const char *dummy = "{\"Relay1\":{\"state\":true,\"name\":\"Licht Bank\"},\"Relay2\":{\"state\":false,\"name\":\"Kuehlschrank\"},\"Relay3\":{\"state\":true,\"name\":\"Wasserpumpe\"},\"Relay4\":{\"state\":false,\"name\":\"Abwasserventil\"},\"Relay5\":{\"state\":false,\"name\":\"Relais 5\"},\"Relay6\":{\"state\":false,\"name\":\"Relais 6\"},\"Relay7\":{\"state\":false,\"name\":\"Relais 7\"},\"Relay8\":{\"state\":false,\"name\":\"Relais 8\"}}";
                     if (!demo_relays_seeded) { parse_relay_json(dummy); demo_relays_seeded = true; }
                     break;
                 }
                 case 2: {
-                    String dummy = "{\"dimmer1\":{\"state\":\"75\",\"name\":\"Deckenlampe\"},\"dimmer2\":{\"state\":\"40\",\"name\":\"Kueche\"},\"dimmer3\":{\"state\":\"0\",\"name\":\"Leselicht\"},\"dimmer4\":{\"state\":\"0\",\"name\":\"Dimmer 4\"},\"dimmer5\":{\"state\":\"0\",\"name\":\"Dimmer 5\"},\"dimmer6\":{\"state\":\"0\",\"name\":\"Dimmer 6\"},\"dimmer7\":{\"state\":\"0\",\"name\":\"Dimmer 7\"},\"dimmer8\":{\"state\":\"0\",\"name\":\"Dimmer 8\"}}";
+                    const char *dummy = "{\"dimmer1\":{\"state\":\"75\",\"name\":\"Deckenlampe\"},\"dimmer2\":{\"state\":\"40\",\"name\":\"Kueche\"},\"dimmer3\":{\"state\":\"0\",\"name\":\"Leselicht\"},\"dimmer4\":{\"state\":\"0\",\"name\":\"Dimmer 4\"},\"dimmer5\":{\"state\":\"0\",\"name\":\"Dimmer 5\"},\"dimmer6\":{\"state\":\"0\",\"name\":\"Dimmer 6\"},\"dimmer7\":{\"state\":\"0\",\"name\":\"Dimmer 7\"},\"dimmer8\":{\"state\":\"0\",\"name\":\"Dimmer 8\"}}";
                     if (!demo_dimmers_seeded) { parse_dimmer_json(dummy); demo_dimmers_seeded = true; }
                     break;
                 }
                 case 3: {
-                    String dummy = "{\"level1\":{\"state\":\"68\",\"name\":\"Frischwasser\"},\"level2\":{\"state\":\"32\",\"name\":\"Grauwasser\"},\"level3\":{\"state\":\"50\",\"name\":\"Tank 3\"},\"level4\":{\"state\":\"0\",\"name\":\"Tank 4\"}}";
+                    const char *dummy = "{\"level1\":{\"state\":\"68\",\"name\":\"Frischwasser\"},\"level2\":{\"state\":\"32\",\"name\":\"Grauwasser\"},\"level3\":{\"state\":\"50\",\"name\":\"Tank 3\"},\"level4\":{\"state\":\"0\",\"name\":\"Tank 4\"}}";
                     parse_level_json(dummy);
                     break;
                 }
                 case 4: {
-                    String dummy = "{\"temp1\":{\"state\":\"22.4\",\"name\":\"Innen\"},\"temp2\":{\"state\":\"14.6\",\"name\":\"Aussen\"},\"temp3\":{\"state\":\"52.0\",\"name\":\"Feuchte\"},\"temp4\":{\"state\":\"7.8\",\"name\":\"Kuehlbox\"}}";
-                    dummy.remove(dummy.length() - 1);
-                    dummy += ",\"ruuvitag0\":{\"state\":22.7,\"name\":\"Ruuvi Wohnraum\",\"hum\":48},\"ruuvitag1\":{\"state\":15.2,\"name\":\"Ruuvi Aussen\"},\"ruuvitag2\":{\"state\":5.3,\"name\":\"Ruuvi Kuehlschrank\"}}";
+                    const char *dummy = "{\"temp1\":{\"state\":\"22.4\",\"name\":\"Innen\"},\"temp2\":{\"state\":\"14.6\",\"name\":\"Aussen\"},\"temp3\":{\"state\":\"52.0\",\"name\":\"Feuchte\"},\"temp4\":{\"state\":\"7.8\",\"name\":\"Kuehlbox\"},"
+                                        "\"ruuvitag0\":{\"state\":22.7,\"name\":\"Ruuvi Wohnraum\",\"hum\":48},\"ruuvitag1\":{\"state\":15.2,\"name\":\"Ruuvi Aussen\"},\"ruuvitag2\":{\"state\":5.3,\"name\":\"Ruuvi Kuehlschrank\"}}";
                     parse_temp_json(dummy);
                     break;
                 }
                 case 5: {
-                    String dummy = "{\"autoterm1\":{\"heatertoggle\":true,\"heatstatus\":\"heating\",\"heaterror\":\"no\",\"targettemp_vanpi\":\"21.5\",\"powerlevel\":\"5\",\"fanspeed\":0,\"mode\":\"temp mode\"}}";
+                    const char *dummy = "{\"autoterm1\":{\"heatertoggle\":true,\"heatstatus\":\"heating\",\"heaterror\":\"no\",\"targettemp_vanpi\":\"21.5\",\"powerlevel\":\"5\",\"fanspeed\":0,\"mode\":\"temp mode\"}}";
                     parse_heater_json(dummy);
                     break;
                 }
@@ -480,18 +491,17 @@ void http_loop() {
                     float volts = 17.9f + .4f * sinf(phase), watts = 148.5f + 60 * sinf(phase);
                     char data[144];
                     snprintf(data, sizeof(data), "{\"mppt_pv_watts\":%.2f,\"mppt_pv_amps\":%.2f,\"mppt_pv_volts\":%.2f}", watts, watts / volts, volts);
-                    String dummy(data);
-                    parse_mppt_json(dummy);
+                    parse_mppt_json(data);
                     break;
                 }
                 case 7: {
-                    String dummy = "{\"x_angle\":\"-0.8\",\"y_angle\":\"1.4\"}";
+                    const char *dummy = "{\"x_angle\":\"-0.8\",\"y_angle\":\"1.4\"}";
                     parse_position_json(dummy);
                     break;
                 }
                 case 8: {
                     if (state.show_wrelay) {
-                        String dummy = "{\"wrelay1\":{\"state\":true,\"name\":\"Aussenlicht\"},\"wrelay2\":{\"state\":false,\"name\":\"Kofferraum\"},\"wrelay3\":{\"state\":false,\"name\":\"Markise\"},\"wrelay4\":{\"state\":false,\"name\":\"WRelais 4\"},\"wrelay5\":{\"state\":false,\"name\":\"WRelais 5\"},\"wrelay6\":{\"state\":false,\"name\":\"WRelais 6\"},\"wrelay7\":{\"state\":false,\"name\":\"WRelais 7\"},\"wrelay8\":{\"state\":false,\"name\":\"WRelais 8\"}}";
+                        const char *dummy = "{\"WifiRelay1\":{\"state\":true,\"name\":\"Aussenlicht\"},\"WifiRelay2\":{\"state\":false,\"name\":\"Kofferraum\"},\"WifiRelay3\":{\"state\":false,\"name\":\"Markise\"},\"WifiRelay4\":{\"state\":false,\"name\":\"WRelais 4\"},\"WifiRelay5\":{\"state\":false,\"name\":\"WRelais 5\"},\"WifiRelay6\":{\"state\":false,\"name\":\"WRelais 6\"},\"WifiRelay7\":{\"state\":false,\"name\":\"WRelais 7\"},\"WifiRelay8\":{\"state\":false,\"name\":\"WRelais 8\"}}";
                         parse_wrelay_json(dummy);
                     }
                     break;
@@ -545,7 +555,7 @@ void http_loop() {
                 if (state.tab_enabled[TAB_LEVEL]) fetch_endpoint("/position_sensor/?request=true", parse_position_json);
                 break;
             case 8:
-                if (state.show_wrelay) fetch_endpoint("/wrelay", parse_wrelay_json);
+                fetch_endpoint("/wrelay", parse_wrelay_json);
                 break;
         }
 
@@ -560,6 +570,8 @@ void http_loop() {
                           state.heater_vent_mode ? "vent" : (state.heater_power_mode ? "power" : "temp"),
                           state.target_temp, state.heater_power_level,
                           state.dimmer_val[0], state.dimmer_val[1], state.dimmer_val[2], state.dimmer_val[3]);
+            Serial.printf("[CAMPER_UART] WRelay: [0]='%s' [1]='%s' fields=0x%02X\n",
+                          state.wrelay_names[0].c_str(), state.wrelay_names[1].c_str(), state.wrelay_fields);
         }
 
         poll_step++;
@@ -655,7 +667,7 @@ bool http_start_task() {
     BaseType_t result = xTaskCreatePinnedToCore(
         http_background_task,
         "http_task",
-        5120,        // 5 KB stack (leaves more internal RAM for WiFi DMA buffers)
+        8192,        // 8 KB stack (ensures ample headroom for HTTPClient, TCP & JSON parsing)
         NULL,
         1,           // Priority 1
         &worker,

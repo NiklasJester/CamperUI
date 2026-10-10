@@ -11,40 +11,41 @@ static lv_obj_t *lbl_pump;
 static lv_obj_t *btn_drain;
 static lv_obj_t *lbl_drain;
 
-static void update_water_button_visuals() {
+static int last_pump_state = -1;
+static int last_drain_state = -1;
+
+static void update_water_button_visuals(bool force = false) {
     // Pump Button
     if (btn_pump && state.pump_relay >= 0 && state.pump_relay < 8) {
         bool on = state.switch_state[state.pump_relay];
-        if (on) {
-            lv_obj_set_style_bg_color(btn_pump, lv_color_hex(UI_COLOR_SUCCESS), 0);
-            lv_obj_set_style_border_color(btn_pump, lv_color_hex(0x34d399), 0);
-            lv_obj_set_style_shadow_color(btn_pump, lv_color_hex(UI_COLOR_SUCCESS), 0);
-            lv_obj_set_style_shadow_opa(btn_pump, LV_OPA_30, 0);
-            lv_obj_set_style_text_color(lbl_pump, lv_color_hex(0xffffff), 0);
-        } else {
-            lv_obj_set_style_bg_color(btn_pump, ui_theme_card(), 0);
-            lv_obj_set_style_border_color(btn_pump, ui_theme_border(), 0);
-            lv_obj_set_style_shadow_color(btn_pump, lv_color_hex(0x000000), 0);
-            lv_obj_set_style_shadow_opa(btn_pump, state.dark_mode ? LV_OPA_30 : LV_OPA_10, 0);
-            lv_obj_set_style_text_color(lbl_pump, ui_theme_text(), 0);
+        if (force || (int)on != last_pump_state) {
+            last_pump_state = (int)on;
+            if (on) {
+                lv_obj_set_style_bg_color(btn_pump, lv_color_hex(UI_COLOR_SUCCESS), 0);
+                lv_obj_set_style_border_color(btn_pump, lv_color_hex(0x34d399), 0);
+                ui_text_color_if_changed(lbl_pump, lv_color_hex(0xffffff));
+            } else {
+                lv_obj_set_style_bg_color(btn_pump, ui_theme_card(), 0);
+                lv_obj_set_style_border_color(btn_pump, ui_theme_border(), 0);
+                ui_text_color_if_changed(lbl_pump, ui_theme_text());
+            }
         }
     }
 
     // Drain Button
     if (btn_drain && state.drain_relay >= 0 && state.drain_relay < 8) {
         bool on = state.switch_state[state.drain_relay];
-        if (on) {
-            lv_obj_set_style_bg_color(btn_drain, lv_color_hex(UI_COLOR_WARNING), 0);
-            lv_obj_set_style_border_color(btn_drain, lv_color_hex(0xfbbf24), 0);
-            lv_obj_set_style_shadow_color(btn_drain, lv_color_hex(UI_COLOR_WARNING), 0);
-            lv_obj_set_style_shadow_opa(btn_drain, LV_OPA_30, 0);
-            lv_obj_set_style_text_color(lbl_drain, lv_color_hex(0xffffff), 0);
-        } else {
-            lv_obj_set_style_bg_color(btn_drain, ui_theme_card(), 0);
-            lv_obj_set_style_border_color(btn_drain, ui_theme_border(), 0);
-            lv_obj_set_style_shadow_color(btn_drain, lv_color_hex(0x000000), 0);
-            lv_obj_set_style_shadow_opa(btn_drain, state.dark_mode ? LV_OPA_30 : LV_OPA_10, 0);
-            lv_obj_set_style_text_color(lbl_drain, ui_theme_text(), 0);
+        if (force || (int)on != last_drain_state) {
+            last_drain_state = (int)on;
+            if (on) {
+                lv_obj_set_style_bg_color(btn_drain, lv_color_hex(UI_COLOR_WARNING), 0);
+                lv_obj_set_style_border_color(btn_drain, lv_color_hex(0xfbbf24), 0);
+                ui_text_color_if_changed(lbl_drain, lv_color_hex(0xffffff));
+            } else {
+                lv_obj_set_style_bg_color(btn_drain, ui_theme_card(), 0);
+                lv_obj_set_style_border_color(btn_drain, ui_theme_border(), 0);
+                ui_text_color_if_changed(lbl_drain, ui_theme_text());
+            }
         }
     }
 }
@@ -182,8 +183,7 @@ void ui_build_water(lv_obj_t *parent) {
     lv_obj_align(btn_pump, LV_ALIGN_BOTTOM_LEFT, 0, 0);
     lv_obj_set_style_radius(btn_pump, 14, 0);
     lv_obj_set_style_border_width(btn_pump, 1, 0);
-    lv_obj_set_style_shadow_width(btn_pump, 8, 0);
-    lv_obj_set_style_shadow_ofs_y(btn_pump, 3, 0);
+    lv_obj_set_style_shadow_width(btn_pump, 0, 0);
     
     lbl_pump = lv_label_create(btn_pump);
     lv_label_set_text_fmt(lbl_pump, "%s  Wasserpumpe", LV_SYMBOL_TINT);
@@ -195,7 +195,6 @@ void ui_build_water(lv_obj_t *parent) {
         if (state.pump_relay >= 0 && state.pump_relay < 8) {
             state.switch_state[state.pump_relay] = !state.switch_state[state.pump_relay];
             http_publish_switch(state.pump_relay, state.switch_state[state.pump_relay]);
-            state_save();
             update_water_button_visuals();
         }
     }, LV_EVENT_CLICKED, NULL);
@@ -206,8 +205,7 @@ void ui_build_water(lv_obj_t *parent) {
     lv_obj_align(btn_drain, LV_ALIGN_BOTTOM_RIGHT, 0, 0);
     lv_obj_set_style_radius(btn_drain, 14, 0);
     lv_obj_set_style_border_width(btn_drain, 1, 0);
-    lv_obj_set_style_shadow_width(btn_drain, 8, 0);
-    lv_obj_set_style_shadow_ofs_y(btn_drain, 3, 0);
+    lv_obj_set_style_shadow_width(btn_drain, 0, 0);
     
     lbl_drain = lv_label_create(btn_drain);
     lv_label_set_text_fmt(lbl_drain, "%s  Abwasser", LV_SYMBOL_DOWN);
@@ -219,10 +217,11 @@ void ui_build_water(lv_obj_t *parent) {
         if (state.drain_relay >= 0 && state.drain_relay < 8) {
             state.switch_state[state.drain_relay] = !state.drain_relay ? false : !state.switch_state[state.drain_relay];
             http_publish_switch(state.drain_relay, state.switch_state[state.drain_relay]);
-            state_save();
             update_water_button_visuals();
         }
     }, LV_EVENT_CLICKED, NULL);
 
-    update_water_button_visuals();
+    last_pump_state = -1;
+    last_drain_state = -1;
+    update_water_button_visuals(true);
 }

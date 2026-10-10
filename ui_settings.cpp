@@ -98,6 +98,13 @@ static lv_obj_t *ta_wifi_pass;
 static lv_obj_t *password_eye_label, *wifi_status_label;
 static lv_obj_t *ta_mqtt_ip;
 static lv_obj_t *dd_out_temp = NULL;
+static lv_obj_t *dd_in_temp = NULL;
+static lv_obj_t *dd_cust_temp1 = NULL;
+static lv_obj_t *dd_cust_temp2 = NULL;
+static int temp_opt_map_primary[TEMP_SOURCE_COUNT];
+static int temp_opt_count_primary = 0;
+static int temp_opt_map_optional[TEMP_SOURCE_COUNT + 1];
+static int temp_opt_count_optional = 0;
 
 
 
@@ -238,20 +245,18 @@ static void mbox_save_cb(lv_event_t * e) {
     lv_obj_t * mbox = lv_event_get_current_target(e);
     if (code == LV_EVENT_VALUE_CHANGED) {
         lv_msgbox_close_async(mbox);
-        ui_init();
-        lv_scr_load(scr_main);
-    } else if (code == LV_EVENT_DELETE) {
-        ui_init();
-        lv_scr_load(scr_main);
     }
 }
 
 static void save_settings_cb(lv_event_t * e) {
     char buf[64];
     lv_dropdown_get_selected_str(dd_wifi_ssid, buf, sizeof(buf));
-    state.wifi_ssid = String(buf);
-    state.wifi_pass = String(lv_textarea_get_text(ta_wifi_pass));
-    state.vanpi_ip = String(lv_textarea_get_text(ta_mqtt_ip));
+    {
+        StateLockGuard lock;
+        state.wifi_ssid = String(buf);
+        state.wifi_pass = String(lv_textarea_get_text(ta_wifi_pass));
+        state.vanpi_ip = String(lv_textarea_get_text(ta_mqtt_ip));
+    }
     
     state_save();
     
@@ -268,25 +273,65 @@ static void save_settings_cb(lv_event_t * e) {
     lv_scr_load(scr_main);
 }
 
-static void update_dd_out_temp_options() {
-    if (!dd_out_temp) return;
+static String build_temp_dropdown_options(bool include_none, int *map_arr, int &count_out) {
     String opts = "";
-    for (int i = 0; i < 4; i++) {
-        if (state.temp_sensor_names[i].length() > 0 && 
-            state.temp_sensor_names[i] != "Sensor " + String(i + 1) && 
-            state.temp_sensor_names[i] != "Temp " + String(i + 1)) {
-            opts += "Sensor " + String(i + 1) + " (" + state.temp_sensor_names[i] + ")";
-        } else {
-            opts += "Sensor " + String(i + 1) + " (Temp " + String(i + 1) + ")";
-        }
-        if (i < 3) opts += "\n";
+    count_out = 0;
+    if (include_none) {
+        opts += "Nicht anzeigen";
+        map_arr[count_out++] = -1;
     }
-    lv_dropdown_set_options(dd_out_temp, opts.c_str());
-    lv_dropdown_set_selected(dd_out_temp, constrain(state.outdoor_temp_sensor, 0, 3));
+    for (int i = 0; i < TEMP_SOURCE_COUNT; ++i) {
+        if (opts.length() > 0) opts += "\n";
+        String label = (i < 4 ? "Temp " + String(i + 1) : "Ruuvi " + String(i - 4));
+        if (state.temp_sensor_names[i].length() > 0 && 
+            state.temp_sensor_names[i] != label) {
+            label += " (" + state.temp_sensor_names[i] + ")";
+        }
+        if (!(state.temp_fields & (1 << i))) {
+            label += " [offline]";
+        }
+        opts += label;
+        map_arr[count_out++] = i;
+    }
+    return opts;
+}
+
+static void update_all_temp_dropdown_options() {
+    String opts_prim = build_temp_dropdown_options(false, temp_opt_map_primary, temp_opt_count_primary);
+    String opts_opt = build_temp_dropdown_options(true, temp_opt_map_optional, temp_opt_count_optional);
+
+    auto select_in_map = [](lv_obj_t *dd, int *map_arr, int count, int current_val) {
+        if (!dd) return;
+        int sel = 0;
+        for (int i = 0; i < count; ++i) {
+            if (map_arr[i] == current_val) {
+                sel = i;
+                break;
+            }
+        }
+        lv_dropdown_set_selected(dd, sel);
+    };
+
+    if (dd_out_temp) {
+        lv_dropdown_set_options(dd_out_temp, opts_prim.c_str());
+        select_in_map(dd_out_temp, temp_opt_map_primary, temp_opt_count_primary, state.outdoor_temp_sensor);
+    }
+    if (dd_in_temp) {
+        lv_dropdown_set_options(dd_in_temp, opts_prim.c_str());
+        select_in_map(dd_in_temp, temp_opt_map_primary, temp_opt_count_primary, state.indoor_temp_sensor);
+    }
+    if (dd_cust_temp1) {
+        lv_dropdown_set_options(dd_cust_temp1, opts_opt.c_str());
+        select_in_map(dd_cust_temp1, temp_opt_map_optional, temp_opt_count_optional, state.temps_custom_sensor[0]);
+    }
+    if (dd_cust_temp2) {
+        lv_dropdown_set_options(dd_cust_temp2, opts_opt.c_str());
+        select_in_map(dd_cust_temp2, temp_opt_map_optional, temp_opt_count_optional, state.temps_custom_sensor[1]);
+    }
 }
 
 static void open_settings_cb(lv_event_t * e) {
-    update_dd_out_temp_options();
+    update_all_temp_dropdown_options();
     lv_textarea_set_password_mode(ta_wifi_pass, true);
     lv_label_set_text(password_eye_label, LV_SYMBOL_EYE_OPEN);
     time_t now = time(nullptr);
@@ -312,10 +357,7 @@ void ui_build_settings(lv_obj_t *parent) {
     lv_obj_set_size(btn_open, 320, 60);
     lv_obj_set_style_radius(btn_open, 14, 0);
     lv_obj_set_style_bg_color(btn_open, lv_color_hex(UI_COLOR_PRIMARY), 0);
-    lv_obj_set_style_shadow_width(btn_open, 12, 0);
-    lv_obj_set_style_shadow_color(btn_open, lv_color_hex(UI_COLOR_PRIMARY), 0);
-    lv_obj_set_style_shadow_opa(btn_open, LV_OPA_30, 0);
-    lv_obj_set_style_shadow_ofs_y(btn_open, 4, 0);
+    lv_obj_set_style_shadow_width(btn_open, 0, 0);
     lv_obj_add_event_cb(btn_open, open_settings_cb, LV_EVENT_CLICKED, NULL);
 
     lv_obj_t *lbl_open = lv_label_create(btn_open);
@@ -858,43 +900,104 @@ void ui_settings_screen_init() {
 
     // Section 2: Sensoren & Leistung
     lv_obj_t *l_sec_sens = lv_label_create(t_val);
-    lv_label_set_text(l_sec_sens, "Sensoren & Leistung");
+    lv_label_set_text(l_sec_sens, "Temperatursensoren & Leistung");
     lv_obj_set_style_text_font(l_sec_sens, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(l_sec_sens, lv_color_hex(UI_COLOR_PRIMARY), 0);
     lv_obj_align(l_sec_sens, LV_ALIGN_TOP_LEFT, 0, 140);
 
+    // Außensensor
     lv_obj_t *l_out_sens = lv_label_create(t_val);
     lv_label_set_text(l_out_sens, "Außensensor:");
     lv_obj_set_style_text_font(l_out_sens, &lv_font_montserrat_14, 0);
     lv_obj_align(l_out_sens, LV_ALIGN_TOP_LEFT, 0, 176);
 
     dd_out_temp = lv_dropdown_create(t_val);
-    lv_dropdown_set_options(dd_out_temp, "Sensor 1 (Temp 1)\nSensor 2 (Temp 2)\nSensor 3 (Temp 3)\nSensor 4 (Temp 4)");
-    lv_dropdown_set_selected(dd_out_temp, constrain(state.outdoor_temp_sensor, 0, 3));
     lv_obj_set_size(dd_out_temp, 280, 44);
     lv_obj_set_style_text_font(dd_out_temp, &lv_font_montserrat_14, 0);
     lv_obj_align(dd_out_temp, LV_ALIGN_TOP_LEFT, 150, 166);
     lv_obj_add_event_cb(dd_out_temp, [](lv_event_t * e) {
         lv_obj_t *dd = lv_event_get_target(e);
-        state.outdoor_temp_sensor = lv_dropdown_get_selected(dd);
-        int out_idx = constrain(state.outdoor_temp_sensor, 0, 3);
-        state.outdoor_temp = state.temp_sensors[out_idx];
-        int in_idx = (out_idx == 0) ? 1 : 0;
-        state.indoor_temp = state.temp_sensors[in_idx];
-        state_save();
+        int sel = lv_dropdown_get_selected(dd);
+        if (sel >= 0 && sel < temp_opt_count_primary) {
+            state.outdoor_temp_sensor = temp_opt_map_primary[sel];
+            if (state.outdoor_temp_sensor >= 0 && state.outdoor_temp_sensor < TEMP_SOURCE_COUNT) {
+                state.outdoor_temp = state.temp_sensors[state.outdoor_temp_sensor];
+            }
+        }
     }, LV_EVENT_VALUE_CHANGED, NULL);
 
+    // Innensensor
+    lv_obj_t *l_in_sens = lv_label_create(t_val);
+    lv_label_set_text(l_in_sens, "Innensensor:");
+    lv_obj_set_style_text_font(l_in_sens, &lv_font_montserrat_14, 0);
+    lv_obj_align(l_in_sens, LV_ALIGN_TOP_LEFT, 0, 230);
+
+    dd_in_temp = lv_dropdown_create(t_val);
+    lv_obj_set_size(dd_in_temp, 280, 44);
+    lv_obj_set_style_text_font(dd_in_temp, &lv_font_montserrat_14, 0);
+    lv_obj_align(dd_in_temp, LV_ALIGN_TOP_LEFT, 150, 220);
+    lv_obj_add_event_cb(dd_in_temp, [](lv_event_t * e) {
+        lv_obj_t *dd = lv_event_get_target(e);
+        int sel = lv_dropdown_get_selected(dd);
+        if (sel >= 0 && sel < temp_opt_count_primary) {
+            state.indoor_temp_sensor = temp_opt_map_primary[sel];
+            if (state.indoor_temp_sensor >= 0 && state.indoor_temp_sensor < TEMP_SOURCE_COUNT) {
+                state.indoor_temp = state.temp_sensors[state.indoor_temp_sensor];
+            }
+        }
+    }, LV_EVENT_VALUE_CHANGED, NULL);
+
+    // Zusatzsensor 1
+    lv_obj_t *l_cust1_sens = lv_label_create(t_val);
+    lv_label_set_text(l_cust1_sens, "Zusatzsensor 1:");
+    lv_obj_set_style_text_font(l_cust1_sens, &lv_font_montserrat_14, 0);
+    lv_obj_align(l_cust1_sens, LV_ALIGN_TOP_LEFT, 0, 284);
+
+    dd_cust_temp1 = lv_dropdown_create(t_val);
+    lv_obj_set_size(dd_cust_temp1, 280, 44);
+    lv_obj_set_style_text_font(dd_cust_temp1, &lv_font_montserrat_14, 0);
+    lv_obj_align(dd_cust_temp1, LV_ALIGN_TOP_LEFT, 150, 274);
+    lv_obj_add_event_cb(dd_cust_temp1, [](lv_event_t * e) {
+        lv_obj_t *dd = lv_event_get_target(e);
+        int sel = lv_dropdown_get_selected(dd);
+        if (sel >= 0 && sel < temp_opt_count_optional) {
+            state.temps_custom_sensor[0] = temp_opt_map_optional[sel];
+        }
+    }, LV_EVENT_VALUE_CHANGED, NULL);
+
+    // Zusatzsensor 2
+    lv_obj_t *l_cust2_sens = lv_label_create(t_val);
+    lv_label_set_text(l_cust2_sens, "Zusatzsensor 2:");
+    lv_obj_set_style_text_font(l_cust2_sens, &lv_font_montserrat_14, 0);
+    lv_obj_align(l_cust2_sens, LV_ALIGN_TOP_LEFT, 0, 338);
+
+    dd_cust_temp2 = lv_dropdown_create(t_val);
+    lv_obj_set_size(dd_cust_temp2, 280, 44);
+    lv_obj_set_style_text_font(dd_cust_temp2, &lv_font_montserrat_14, 0);
+    lv_obj_align(dd_cust_temp2, LV_ALIGN_TOP_LEFT, 150, 328);
+    lv_obj_add_event_cb(dd_cust_temp2, [](lv_event_t * e) {
+        lv_obj_t *dd = lv_event_get_target(e);
+        int sel = lv_dropdown_get_selected(dd);
+        if (sel >= 0 && sel < temp_opt_count_optional) {
+            state.temps_custom_sensor[1] = temp_opt_map_optional[sel];
+        }
+    }, LV_EVENT_VALUE_CHANGED, NULL);
+
+    // Populate dropdown options
+    update_all_temp_dropdown_options();
+
+    // Solar Max
     lv_obj_t *l_solar = lv_label_create(t_val);
     lv_label_set_text(l_solar, "Solar Max (W):");
     lv_obj_set_style_text_font(l_solar, &lv_font_montserrat_14, 0);
-    lv_obj_align(l_solar, LV_ALIGN_TOP_LEFT, 0, 230);
+    lv_obj_align(l_solar, LV_ALIGN_TOP_LEFT, 0, 396);
 
     ta_solar_max = lv_textarea_create(t_val);
     lv_textarea_set_one_line(ta_solar_max, true);
     lv_textarea_set_text(ta_solar_max, String((int)state.solar_max_w).c_str());
     lv_obj_set_size(ta_solar_max, 140, 44);
     lv_obj_set_style_text_font(ta_solar_max, &lv_font_montserrat_14, 0);
-    lv_obj_align(ta_solar_max, LV_ALIGN_TOP_LEFT, 150, 220);
+    lv_obj_align(ta_solar_max, LV_ALIGN_TOP_LEFT, 150, 386);
     lv_obj_add_event_cb(ta_solar_max, ta_event_cb, LV_EVENT_ALL, NULL);
 
     // Section 3: Tank Limits
@@ -902,21 +1005,21 @@ void ui_settings_screen_init() {
     lv_label_set_text(l_tanks, "Tank Maxima (Liter)");
     lv_obj_set_style_text_font(l_tanks, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(l_tanks, lv_color_hex(UI_COLOR_PRIMARY), 0);
-    lv_obj_align(l_tanks, LV_ALIGN_TOP_LEFT, 0, 280);
+    lv_obj_align(l_tanks, LV_ALIGN_TOP_LEFT, 0, 446);
     
     for (int i = 0; i < 4; i++) {
         lv_coord_t col_x = i * 110;
         lv_obj_t *l_t = lv_label_create(t_val);
         lv_label_set_text_fmt(l_t, "T%d:", i+1);
         lv_obj_set_style_text_font(l_t, &lv_font_montserrat_14, 0);
-        lv_obj_align(l_t, LV_ALIGN_TOP_LEFT, col_x, 320);
+        lv_obj_align(l_t, LV_ALIGN_TOP_LEFT, col_x, 486);
         
         ta_tank_max[i] = lv_textarea_create(t_val);
         lv_textarea_set_one_line(ta_tank_max[i], true);
         lv_textarea_set_text(ta_tank_max[i], String(state.tank_max[i]).c_str());
         lv_obj_set_size(ta_tank_max[i], 75, 44);
         lv_obj_set_style_text_font(ta_tank_max[i], &lv_font_montserrat_14, 0);
-        lv_obj_align(ta_tank_max[i], LV_ALIGN_TOP_LEFT, col_x + 28, 310);
+        lv_obj_align(ta_tank_max[i], LV_ALIGN_TOP_LEFT, col_x + 28, 476);
         lv_obj_add_event_cb(ta_tank_max[i], ta_event_cb, LV_EVENT_ALL, NULL);
     }
 
@@ -925,7 +1028,7 @@ void ui_settings_screen_init() {
     lv_label_set_text(l_out_desc, "Hinweis: Der gewählte Außensensor steuert die Frostwarnung & das Außenklima.");
     lv_obj_set_style_text_color(l_out_desc, ui_theme_muted(), 0);
     lv_obj_set_style_text_font(l_out_desc, &lv_font_montserrat_12, 0);
-    lv_obj_align(l_out_desc, LV_ALIGN_TOP_LEFT, 0, 370);
+    lv_obj_align(l_out_desc, LV_ALIGN_TOP_LEFT, 0, 536);
     
     // ==========================================
     // TAB 5: ALARME (KOMFORTABLE 44PX EINGABEN)
@@ -1143,11 +1246,34 @@ void ui_settings_screen_init() {
         if (ta_warn_fresh) state.warn_fresh_min  = String(lv_textarea_get_text(ta_warn_fresh)).toInt();
         if (ta_warn_waste) state.warn_waste_max  = String(lv_textarea_get_text(ta_warn_waste)).toInt();
         if (dd_out_temp) {
-            state.outdoor_temp_sensor = lv_dropdown_get_selected(dd_out_temp);
-            int out_idx = constrain(state.outdoor_temp_sensor, 0, 3);
-            state.outdoor_temp = state.temp_sensors[out_idx];
-            int in_idx = (out_idx == 0) ? 1 : 0;
-            state.indoor_temp = state.temp_sensors[in_idx];
+            int sel = lv_dropdown_get_selected(dd_out_temp);
+            if (sel >= 0 && sel < temp_opt_count_primary) {
+                state.outdoor_temp_sensor = temp_opt_map_primary[sel];
+            }
+        }
+        if (dd_in_temp) {
+            int sel = lv_dropdown_get_selected(dd_in_temp);
+            if (sel >= 0 && sel < temp_opt_count_primary) {
+                state.indoor_temp_sensor = temp_opt_map_primary[sel];
+            }
+        }
+        if (dd_cust_temp1) {
+            int sel = lv_dropdown_get_selected(dd_cust_temp1);
+            if (sel >= 0 && sel < temp_opt_count_optional) {
+                state.temps_custom_sensor[0] = temp_opt_map_optional[sel];
+            }
+        }
+        if (dd_cust_temp2) {
+            int sel = lv_dropdown_get_selected(dd_cust_temp2);
+            if (sel >= 0 && sel < temp_opt_count_optional) {
+                state.temps_custom_sensor[1] = temp_opt_map_optional[sel];
+            }
+        }
+        if (state.outdoor_temp_sensor >= 0 && state.outdoor_temp_sensor < TEMP_SOURCE_COUNT) {
+            state.outdoor_temp = state.temp_sensors[state.outdoor_temp_sensor];
+        }
+        if (state.indoor_temp_sensor >= 0 && state.indoor_temp_sensor < TEMP_SOURCE_COUNT) {
+            state.indoor_temp = state.temp_sensors[state.indoor_temp_sensor];
         }
         if (!state.time_auto_ntp && dd_time_h && dd_time_m) {
             state.manual_hour = lv_dropdown_get_selected(dd_time_h);

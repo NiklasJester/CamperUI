@@ -25,6 +25,9 @@ static lv_obj_t *lbl_cal_msg;
 static bool level_animating = false;
 static float anim_target_dx = 0.0f;
 static float anim_target_dy = 0.0f;
+static int last_is_level = -1;
+static int16_t last_bubble_dx = 9999;
+static int16_t last_bubble_dy = 9999;
 
 static void level_anim_cb(void *var, int32_t val) {
     (void)var;
@@ -93,6 +96,10 @@ static void calibrate_click_cb(lv_event_t * e) {
 }
 
 void ui_build_level(lv_obj_t *parent) {
+    last_is_level = -1;
+    last_bubble_dx = 9999;
+    last_bubble_dy = 9999;
+
     ui_setup_tab_page(parent);
     lv_obj_clear_flag(parent, LV_OBJ_FLAG_SCROLLABLE);
 
@@ -152,9 +159,7 @@ void ui_build_level(lv_obj_t *parent) {
     lv_obj_set_style_bg_color(bubble_obj, lv_color_hex(UI_COLOR_PRIMARY), 0);
     lv_obj_set_style_border_width(bubble_obj, 2, 0);
     lv_obj_set_style_border_color(bubble_obj, lv_color_hex(0xffffff), 0);
-    lv_obj_set_style_shadow_width(bubble_obj, 6, 0);
-    lv_obj_set_style_shadow_color(bubble_obj, lv_color_hex(UI_COLOR_PRIMARY), 0);
-    lv_obj_set_style_shadow_opa(bubble_obj, LV_OPA_60, 0);
+    lv_obj_set_style_shadow_width(bubble_obj, 0, 0);
     lv_obj_center(bubble_obj);
 
     // Level status label under the bubble container
@@ -282,20 +287,27 @@ void ui_update_level_tab() {
     }
 
     if (!level_animating) {
-        lv_obj_align(bubble_obj, LV_ALIGN_CENTER, (int16_t)dx, (int16_t)dy);
+        int16_t idx = (int16_t)dx;
+        int16_t idy = (int16_t)dy;
+        if (idx != last_bubble_dx || idy != last_bubble_dy) {
+            last_bubble_dx = idx;
+            last_bubble_dy = idy;
+            lv_obj_align(bubble_obj, LV_ALIGN_CENTER, idx, idy);
+        }
     }
 
     bool is_level = (fabsf(p) <= 0.5f && fabsf(r) <= 0.5f);
-    if (is_level) {
-        lv_obj_set_style_bg_color(bubble_obj, lv_color_hex(UI_COLOR_SUCCESS), 0);
-        lv_obj_set_style_shadow_color(bubble_obj, lv_color_hex(UI_COLOR_SUCCESS), 0);
-        lv_label_set_text(lbl_level_status, "Perfekt im Blei!");
-        lv_obj_set_style_text_color(lbl_level_status, lv_color_hex(UI_COLOR_SUCCESS), 0);
-    } else {
-        lv_obj_set_style_bg_color(bubble_obj, lv_color_hex(UI_COLOR_WARNING), 0);
-        lv_obj_set_style_shadow_color(bubble_obj, lv_color_hex(UI_COLOR_WARNING), 0);
-        lv_label_set_text(lbl_level_status, "Ausrichten noetig");
-        lv_obj_set_style_text_color(lbl_level_status, lv_color_hex(UI_COLOR_WARNING), 0);
+    if ((int)is_level != last_is_level) {
+        last_is_level = (int)is_level;
+        if (is_level) {
+            lv_obj_set_style_bg_color(bubble_obj, lv_color_hex(UI_COLOR_SUCCESS), 0);
+            ui_label_set_text_if_changed(lbl_level_status, "Perfekt im Blei!");
+            ui_text_color_if_changed(lbl_level_status, lv_color_hex(UI_COLOR_SUCCESS));
+        } else {
+            lv_obj_set_style_bg_color(bubble_obj, lv_color_hex(UI_COLOR_WARNING), 0);
+            ui_label_set_text_if_changed(lbl_level_status, "Ausrichten nötig");
+            ui_text_color_if_changed(lbl_level_status, lv_color_hex(UI_COLOR_WARNING));
+        }
     }
 
     // Wheel compensation calculation
@@ -315,13 +327,13 @@ void ui_update_level_tab() {
     auto update_wheel_label = [](lv_obj_t *lbl, float diff_cm) {
         if (!lbl) return;
         if (diff_cm < 1.0f) {
-            lv_label_set_text(lbl, "OK");
-            lv_obj_set_style_text_color(lbl, lv_color_hex(UI_COLOR_SUCCESS), 0);
+            ui_label_set_text_if_changed(lbl, "OK");
+            ui_text_color_if_changed(lbl, lv_color_hex(UI_COLOR_SUCCESS));
         } else {
             char buf[16];
             snprintf(buf, sizeof(buf), "+%d cm", (int)(diff_cm + 0.5f));
-            lv_label_set_text(lbl, buf);
-            lv_obj_set_style_text_color(lbl, lv_color_hex(UI_COLOR_WARNING), 0);
+            ui_label_set_text_if_changed(lbl, buf);
+            ui_text_color_if_changed(lbl, lv_color_hex(UI_COLOR_WARNING));
         }
     };
 

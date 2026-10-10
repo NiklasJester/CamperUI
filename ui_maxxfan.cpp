@@ -6,11 +6,18 @@ namespace {
 lv_obj_t *root, *modes[3], *adjust, *minus_btn, *plus_btn, *number_label;
 lv_obj_t *lid_btn, *lid_text, *direction_btn, *direction_text, *lid_image, *info;
 void show(lv_obj_t *obj, bool on) {
-    if (on) lv_obj_clear_flag(obj, LV_OBJ_FLAG_HIDDEN); else lv_obj_add_flag(obj, LV_OBJ_FLAG_HIDDEN);
+    if (!obj) return;
+    bool is_hidden = lv_obj_has_flag(obj, LV_OBJ_FLAG_HIDDEN);
+    if (on && is_hidden) lv_obj_clear_flag(obj, LV_OBJ_FLAG_HIDDEN);
+    else if (!on && !is_hidden) lv_obj_add_flag(obj, LV_OBJ_FLAG_HIDDEN);
 }
 void enable(lv_obj_t *obj, bool on) {
-    if (on) lv_obj_clear_state(obj, LV_STATE_DISABLED); else lv_obj_add_state(obj, LV_STATE_DISABLED);
+    if (!obj) return;
+    bool is_disabled = lv_obj_has_state(obj, LV_STATE_DISABLED);
+    if (on && is_disabled) lv_obj_clear_state(obj, LV_STATE_DISABLED);
+    else if (!on && !is_disabled) lv_obj_add_state(obj, LV_STATE_DISABLED);
 }
+static int last_maxxfan_mode = -1;
 lv_obj_t *label(lv_obj_t *parent, const char *s, const lv_font_t *font) {
     lv_obj_t *o = lv_label_create(parent); lv_label_set_text(o, s);
     lv_obj_set_style_text_font(o, font, 0); lv_obj_set_style_text_color(o, ui_theme_text(), 0);
@@ -35,7 +42,7 @@ lv_obj_t *button(lv_obj_t *parent, const char *s, int x, int y, int w, int h, in
     lv_obj_add_event_cb(o, click, LV_EVENT_CLICKED, (void *)(uintptr_t)action); return o;
 }
 }
-void ui_maxxfan_reset() { root = nullptr; }
+void ui_maxxfan_reset() { root = nullptr; last_maxxfan_mode = -1; }
 bool ui_maxxfan_running() { FanStatus s = maxxfan_status(); return s.valid && s.power; }
 void ui_update_maxxfan() {
     if (!root) return;
@@ -43,8 +50,10 @@ void ui_update_maxxfan() {
     int mode = s.automatic ? 2 : s.power ? 1 : 0;
     bool ready = s.valid && !s.pending;
     for (int i = 0; i < 3; ++i) {
-        if (s.valid && mode == i) lv_obj_add_state(modes[i], LV_STATE_CHECKED);
-        else lv_obj_clear_state(modes[i], LV_STATE_CHECKED);
+        bool should_be_checked = (s.valid && mode == i);
+        bool is_checked = lv_obj_has_state(modes[i], LV_STATE_CHECKED);
+        if (should_be_checked && !is_checked) lv_obj_add_state(modes[i], LV_STATE_CHECKED);
+        else if (!should_be_checked && is_checked) lv_obj_clear_state(modes[i], LV_STATE_CHECKED);
         enable(modes[i], ready);
     }
     show(adjust, s.valid && mode != 0);
@@ -55,8 +64,13 @@ void ui_update_maxxfan() {
     enable(plus_btn, ready && v < (s.automatic ? 37 : 10));
     show(direction_btn, s.valid && mode == 1);
     show(lid_btn, !s.valid || mode != 2);
-    lv_obj_set_pos(lid_btn, mode == 1 ? 236 : 0, mode == 0 ? 96 : 194);
-    lv_obj_set_width(lid_btn, mode == 1 ? 228 : 464);
+    if (mode != last_maxxfan_mode) {
+        last_maxxfan_mode = mode;
+        lv_obj_set_pos(lid_btn, mode == 1 ? 236 : 0, mode == 0 ? 96 : 194);
+        lv_obj_set_width(lid_btn, mode == 1 ? 228 : 464);
+        lv_obj_set_pos(lid_image, 162, mode == 1 ? 276 : 194);
+        lv_obj_set_y(info, mode == 1 ? 338 : 292);
+    }
     enable(lid_btn, ready && !s.automatic); enable(direction_btn, ready && mode == 1);
     ui_label_set_text_if_changed(lid_text, !s.valid ? "Dachhaube\n--" : s.lid_open ? "Dachhaube\nOffen" : "Dachhaube\nZu");
     ui_label_set_text_if_changed(direction_text, s.intake ? "Richtung\nRein" : "Richtung\nRaus");

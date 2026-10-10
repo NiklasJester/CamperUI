@@ -281,9 +281,7 @@ void ui_open_nav_settings() {
         lv_obj_center(btn_save);
         lv_obj_set_style_radius(btn_save, 12, 0);
         lv_obj_set_style_bg_color(btn_save, lv_color_hex(UI_COLOR_SUCCESS), 0);
-        lv_obj_set_style_shadow_width(btn_save, 10, 0);
-        lv_obj_set_style_shadow_color(btn_save, lv_color_hex(UI_COLOR_SUCCESS), 0);
-        lv_obj_set_style_shadow_opa(btn_save, LV_OPA_30, 0);
+        lv_obj_set_style_shadow_width(btn_save, 0, 0);
         lv_obj_add_event_cb(btn_save, save_and_restart_clicked, LV_EVENT_CLICKED, nullptr);
 
         lv_obj_t *lbl_save = lv_label_create(btn_save);

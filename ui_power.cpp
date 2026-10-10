@@ -20,6 +20,8 @@ static lv_obj_t *lbl_flow_load_val;
 
 static int last_soc = -1;
 static int last_solar = -1;
+static int last_charge_icon = -1;
+static int last_solar_max = -1;
 
 static void set_arc_val_cb(void * var, int32_t v) {
     lv_arc_set_value((lv_obj_t*)var, v);
@@ -28,6 +30,8 @@ static void set_arc_val_cb(void * var, int32_t v) {
 void ui_trigger_power_anim() {
     last_soc = -1;
     last_solar = -1;
+    last_charge_icon = -1;
+    last_solar_max = -1;
     if (arc_battery) lv_arc_set_value(arc_battery, 0);
     if (arc_solar) lv_arc_set_value(arc_solar, 0);
 }
@@ -79,23 +83,30 @@ void ui_update_power_tab() {
         if (hrs > 99.0f) hrs = 99.0f;
         ui_label_set_float(lbl_bat_ttg, "Restzeit: %.1f h", hrs);
     } else if (state.bat_current > 0.1f) {
-        lv_label_set_text(lbl_bat_ttg, "Wird geladen");
+        ui_label_set_text_if_changed(lbl_bat_ttg, "Wird geladen");
     } else {
-        lv_label_set_text(lbl_bat_ttg, "Standby");
+        ui_label_set_text_if_changed(lbl_bat_ttg, "Standby");
     }
     
     // Charge icon
-    if (state.bat_current > 0.05f) {
-        lv_obj_clear_flag(lbl_bat_charge_icon, LV_OBJ_FLAG_HIDDEN);
-    } else {
-        lv_obj_add_flag(lbl_bat_charge_icon, LV_OBJ_FLAG_HIDDEN);
+    bool charge_icon_on = (state.bat_current > 0.05f);
+    if ((int)charge_icon_on != last_charge_icon) {
+        last_charge_icon = (int)charge_icon_on;
+        if (charge_icon_on) {
+            lv_obj_clear_flag(lbl_bat_charge_icon, LV_OBJ_FLAG_HIDDEN);
+        } else {
+            lv_obj_add_flag(lbl_bat_charge_icon, LV_OBJ_FLAG_HIDDEN);
+        }
     }
                           
     // Solar
     int solar_w = (int)state.solar_power;
     int s_max_upd = (int)state.solar_max_w;
     if (s_max_upd <= 0) s_max_upd = 200;
-    lv_arc_set_range(arc_solar, 0, s_max_upd);
+    if (s_max_upd != last_solar_max) {
+        last_solar_max = s_max_upd;
+        lv_arc_set_range(arc_solar, 0, s_max_upd);
+    }
     
     if (solar_w != last_solar) {
         lv_anim_t a;
@@ -106,7 +117,9 @@ void ui_update_power_tab() {
         lv_anim_set_values(&a, lv_arc_get_value(arc_solar), solar_w);
         lv_anim_start(&a);
         last_solar = solar_w;
-        lv_label_set_text_fmt(lbl_solar_watt, "%d W", solar_w);
+        char buf[32];
+        snprintf(buf, sizeof(buf), "%d W", solar_w);
+        ui_label_set_text_if_changed(lbl_solar_watt, buf);
     }
     ui_label_set_float(lbl_solar_curr, "%.1f A", state.solar_current);
 
@@ -125,28 +138,28 @@ void ui_update_power_tab() {
         // Arrow 1 & Battery node
         if (p_bat > 1.5f) {
             ui_label_set_float(lbl_flow_bat_val, "+%.0f W", p_bat);
-            lv_obj_set_style_text_color(lbl_flow_bat_val, lv_color_hex(UI_COLOR_SUCCESS), 0);
-            lv_label_set_text(lbl_flow_arr1, ">");
-            lv_obj_set_style_text_color(lbl_flow_arr1, lv_color_hex(UI_COLOR_SUCCESS), 0);
+            ui_text_color_if_changed(lbl_flow_bat_val, lv_color_hex(UI_COLOR_SUCCESS));
+            ui_label_set_text_if_changed(lbl_flow_arr1, ">");
+            ui_text_color_if_changed(lbl_flow_arr1, lv_color_hex(UI_COLOR_SUCCESS));
         } else if (p_bat < -1.5f) {
             ui_label_set_float(lbl_flow_bat_val, "%.0f W", p_bat);
-            lv_obj_set_style_text_color(lbl_flow_bat_val, lv_color_hex(UI_COLOR_WARNING), 0);
-            lv_label_set_text(lbl_flow_arr1, "-");
-            lv_obj_set_style_text_color(lbl_flow_arr1, ui_theme_muted(), 0);
+            ui_text_color_if_changed(lbl_flow_bat_val, lv_color_hex(UI_COLOR_WARNING));
+            ui_label_set_text_if_changed(lbl_flow_arr1, "-");
+            ui_text_color_if_changed(lbl_flow_arr1, ui_theme_muted());
         } else {
-            lv_label_set_text(lbl_flow_bat_val, "0 W");
-            lv_obj_set_style_text_color(lbl_flow_bat_val, ui_theme_muted(), 0);
-            lv_label_set_text(lbl_flow_arr1, "-");
-            lv_obj_set_style_text_color(lbl_flow_arr1, ui_theme_muted(), 0);
+            ui_label_set_text_if_changed(lbl_flow_bat_val, "0 W");
+            ui_text_color_if_changed(lbl_flow_bat_val, ui_theme_muted());
+            ui_label_set_text_if_changed(lbl_flow_arr1, "-");
+            ui_text_color_if_changed(lbl_flow_arr1, ui_theme_muted());
         }
 
         // Arrow 2 & Load node
         if (p_load > 1.5f) {
-            lv_label_set_text(lbl_flow_arr2, ">");
-            lv_obj_set_style_text_color(lbl_flow_arr2, lv_color_hex(UI_COLOR_PRIMARY), 0);
+            ui_label_set_text_if_changed(lbl_flow_arr2, ">");
+            ui_text_color_if_changed(lbl_flow_arr2, lv_color_hex(UI_COLOR_PRIMARY));
         } else {
-            lv_label_set_text(lbl_flow_arr2, "-");
-            lv_obj_set_style_text_color(lbl_flow_arr2, ui_theme_muted(), 0);
+            ui_label_set_text_if_changed(lbl_flow_arr2, "-");
+            ui_text_color_if_changed(lbl_flow_arr2, ui_theme_muted());
         }
         ui_label_set_float(lbl_flow_load_val, "%.0f W", p_load);
     }

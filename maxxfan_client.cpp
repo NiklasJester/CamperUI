@@ -33,9 +33,16 @@ bool number(JsonVariant v, int low, int high, int &out) {
     out = (int)f; return true;
 }
 bool fetch(FanStatus &s) {
-    if (state.debug_mode || WiFi.status() != WL_CONNECTED || state.vanpi_ip.length() < 7) return false;
+    String host;
+    bool debug;
+    {
+        StateLockGuard lock;
+        host = state.vanpi_ip;
+        debug = state.debug_mode;
+    }
+    if (debug || WiFi.status() != WL_CONNECTED || host.length() < 7) return false;
     HTTPClient http;
-    http.begin("http://" + state.vanpi_ip + ":1880/maxxfan/");
+    http.begin("http://" + host + ":1880/maxxfan/");
     http.setConnectTimeout(300); http.setTimeout(900);
     int code = http.GET();
     if (code != 200) {
@@ -55,9 +62,16 @@ bool fetch(FanStatus &s) {
     s.valid = true; s.demo = false; s.updated = millis(); return true;
 }
 bool put(const String &path, FanStatus &s) {
-    if (state.debug_mode || WiFi.status() != WL_CONNECTED) return false;
+    String host;
+    bool debug;
+    {
+        StateLockGuard lock;
+        host = state.vanpi_ip;
+        debug = state.debug_mode;
+    }
+    if (debug || WiFi.status() != WL_CONNECTED) return false;
     HTTPClient http;
-    http.begin("http://" + state.vanpi_ip + ":1880/maxxfan/" + path);
+    http.begin("http://" + host + ":1880/maxxfan/" + path);
     http.setConnectTimeout(300); http.setTimeout(1200);
     int code = http.PUT(""); http.end();
     if (code != 200) {
@@ -85,7 +99,14 @@ void finish(FanStatus &s, const char *text) {
     in_flight = false; s.pending = false; message(s, text); store(s); last_poll = millis();
 }
 void issue(FanStatus &s) {
-    if (state.debug_mode != active.demo || state.vanpi_ip != active_host) { finish(s, "Datenquelle gewechselt"); return; }
+    bool debug;
+    String host;
+    {
+        StateLockGuard lock;
+        debug = state.debug_mode;
+        host = state.vanpi_ip;
+    }
+    if (debug != active.demo || host != active_host) { finish(s, "Datenquelle gewechselt"); return; }
     if (matches(s, active)) { finish(s, "Live - VanPi-Zustand bestaetigt"); return; }
     String path;
     waiting_auto = false; waiting_power = false; waiting_vent = false;
@@ -110,7 +131,14 @@ void issue(FanStatus &s) {
 }
 FanStatus maxxfan_status() {
     portENTER_CRITICAL(&guard); FanStatus s = current; portEXIT_CRITICAL(&guard);
-    if (s.demo != state.debug_mode || (!s.demo && (!state.wifi_connected || millis() - s.updated > 15000))) s.valid = false;
+    bool debug;
+    bool wifi_conn;
+    {
+        StateLockGuard lock;
+        debug = state.debug_mode;
+        wifi_conn = state.wifi_connected;
+    }
+    if (s.demo != debug || (!s.demo && (!wifi_conn || millis() - s.updated > 15000))) s.valid = false;
     return s;
 }
 bool maxxfan_request(FanAction action, int value) {
@@ -121,9 +149,14 @@ bool maxxfan_request(FanAction action, int value) {
         (action == FanAction::Temperature && (value < -2 || value > 37 || !s.automatic)) ||
         ((action == FanAction::Lid || action == FanAction::Direction) && (value < 0 || value > 1)) ||
         ((action == FanAction::Lid || action == FanAction::Direction) && s.automatic)) return false;
+    bool debug;
+    {
+        StateLockGuard lock;
+        debug = state.debug_mode;
+    }
     portENTER_CRITICAL(&guard);
     if (current.pending || queued) { portEXIT_CRITICAL(&guard); return false; }
-    requested = {action, value, state.debug_mode}; queued = true; current.pending = true;
+    requested = {action, value, debug}; queued = true; current.pending = true;
     snprintf(current.message, sizeof(current.message), "Warte auf Rueckmeldung...");
     portEXIT_CRITICAL(&guard); return true;
 }
@@ -131,12 +164,21 @@ void maxxfan_worker() {
     FanStatus s = maxxfan_status();
     Request r{}; bool work;
     portENTER_CRITICAL(&guard); work = queued; if (work) r = requested; queued = false; portEXIT_CRITICAL(&guard);
-    if (s.demo != state.debug_mode) {
-        in_flight = false; s = FanStatus{}; s.demo = state.debug_mode;
+    bool debug;
+    String host;
+    bool fan_enabled;
+    {
+        StateLockGuard lock;
+        debug = state.debug_mode;
+        host = state.vanpi_ip;
+        fan_enabled = state.tab_enabled[TAB_MAXXFAN];
+    }
+    if (s.demo != debug) {
+        in_flight = false; s = FanStatus{}; s.demo = debug;
         if (s.demo) { s.valid = true; s.updated = millis(); message(s, "Dummy - keine Schaltbefehle"); }
         store(s); last_poll = 0;
     }
-    if (work && r.demo == state.debug_mode) {
+    if (work && r.demo == debug) {
         if (r.demo) {
             switch (r.action) {
                 case FanAction::Mode: s.automatic = r.value == 2; s.power = r.value != 0; s.lid_open = s.power; break;
@@ -148,11 +190,11 @@ void maxxfan_worker() {
             s.valid = true; s.updated = millis(); s.pending = false;
             message(s, "Dummy - keine Schaltbefehle"); store(s);
         } else if (fetch(s)) {
-            active = r; active_host = state.vanpi_ip; in_flight = true; issue(s);
+            active = r; active_host = host; in_flight = true; issue(s);
         } else { s.valid = false; s.pending = false; store(s); }
         last_poll = millis();
     } else if (in_flight) {
-        if (active.demo != state.debug_mode || active_host != state.vanpi_ip) { finish(s, "Datenquelle gewechselt"); return; }
+        if (active.demo != debug || active_host != host) { finish(s, "Datenquelle gewechselt"); return; }
         if ((int32_t)(millis() - deadline) >= 0) { finish(s, "Keine Bestaetigung - Zustand pruefen"); return; }
         if ((int32_t)(millis() - next_check) >= 0) {
             if (fetch(s)) {
@@ -164,7 +206,7 @@ void maxxfan_worker() {
             }
             next_check = millis() + 300;
         }
-    } else if (!state.debug_mode && state.tab_enabled[TAB_MAXXFAN] && millis() - last_poll >= 2500) {
+    } else if (!debug && fan_enabled && millis() - last_poll >= 2500) {
         s.pending = false;
         if (!fetch(s)) s.valid = false;
         else if (strncmp(s.message, "MaxxFan:", 8) == 0 || strcmp(s.message, "Warte auf VanPi") == 0) message(s, "Live - VanPi-Daten");

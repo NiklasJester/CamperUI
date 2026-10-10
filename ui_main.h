@@ -6,7 +6,7 @@
 #include "ui_mdi_icons.h"
 #include "ui_fonts.h"
 #include <string.h>
-#define CAMPERUI_VERSION "V1.0.3-RV3D.88-dev"
+#define CAMPERUI_VERSION "V1.2.1"
 
 // ==========================================
 // Modern Automotive / Camper Color Palette
@@ -90,6 +90,7 @@ void ui_trigger_water_anim();
 void ui_trigger_dimmers_anim();
 void ui_trigger_switches_anim();
 void ui_trigger_level_anim();
+void ui_trigger_temps_anim();
 
 // Sub-Tab Builders
 void ui_build_power(lv_obj_t *parent);
@@ -125,5 +126,7 @@ extern lv_obj_t *lbl_debug_info;
 extern lv_obj_t *scr_main;
 extern lv_obj_t *scr_settings;
 void ui_settings_screen_init();
+void ui_build_temps(lv_obj_t *parent);
+void ui_update_temps_tab();
 
 #endif // UI_MAIN_H

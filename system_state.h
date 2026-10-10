@@ -10,11 +10,12 @@ enum TabId : uint8_t {
     TAB_POWER = 2,
     TAB_WATER = 3,
     TAB_CLIMATE = 4,
-    TAB_MAXXFAN = 5,
-    TAB_SWITCHES = 6,
-    TAB_LEVEL = 7,
-    TAB_SETTINGS = 8,
-    TAB_COUNT = 9
+    TAB_TEMPS = 5,
+    TAB_MAXXFAN = 6,
+    TAB_SWITCHES = 7,
+    TAB_LEVEL = 8,
+    TAB_SETTINGS = 9,
+    TAB_COUNT = 10
 };
 
 // Global State Structure to hold all sensor data and system settings
@@ -47,7 +48,10 @@ struct SystemState {
     int warn_waste_max;
 
     // Sensor Selection (Persisted)
-    int outdoor_temp_sensor; // 0..3 (index of temp sensor for outdoor temp, default 1)
+    int outdoor_temp_sensor; // 0..12 (index of temp sensor for outdoor temp, default 1)
+    int indoor_temp_sensor;  // 0..12 (index of temp sensor for indoor temp, default 0)
+    int temps_custom_sensor[2]; // -1 hidden, otherwise /temp sensor 0..12
+    int temps_history_window; // 1, 6, or 12 hours
     int home_temp_source[3]; // -1 hidden, otherwise /temp sensor 0..12 (4..12 = Ruuvi 0..8)
     int home_favorite[2]; // 0 hidden, 1..8 relays, 9..16 dimmers
     bool home_show_battery;
@@ -169,11 +173,11 @@ extern Preferences prefs;
 extern SemaphoreHandle_t state_mutex;
 
 inline void state_lock() {
-    if (state_mutex) xSemaphoreTake(state_mutex, portMAX_DELAY);
+    if (state_mutex) xSemaphoreTakeRecursive(state_mutex, portMAX_DELAY);
 }
 
 inline void state_unlock() {
-    if (state_mutex) xSemaphoreGive(state_mutex);
+    if (state_mutex) xSemaphoreGiveRecursive(state_mutex);
 }
 
 class StateLockGuard {
