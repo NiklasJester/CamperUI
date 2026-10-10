@@ -183,7 +183,7 @@ state.display_brightness = prefs.getInt("disp_bright", 100);
     const int home_defaults[3] = {0, 1, 3};
     for (int i = 0; i < 3; ++i) {
         char key[16]; snprintf(key, sizeof(key), "home_temp%d", i);
-        state.home_temp_source[i] = constrain(prefs.getInt(key, home_defaults[i]), -1, 3);
+        state.home_temp_source[i] = constrain(prefs.getInt(key, home_defaults[i]), -1, TEMP_SOURCE_COUNT - 1);
     }
     for (int i = 0; i < 2; ++i) {
         char key[16]; snprintf(key, sizeof(key), "home_fav%d", i);
@@ -275,6 +275,10 @@ state.display_brightness = prefs.getInt("disp_bright", 100);
         state.temp_sensor_names[i] = "Sensor " + String(i + 1);
     }
 
+    for (int i = 0; i < TEMP_SOURCE_COUNT; ++i) {
+        state.temp_sensors[i] = 0; state.temp_is_humidity[i] = false;
+        if (i >= 4) state.temp_sensor_names[i] = "Ruuvi " + String(i - 4);
+    }
     state.indoor_temp = 0.0f;
     state.outdoor_temp = 0.0f;
     state.indoor_humidity = 0.0f;

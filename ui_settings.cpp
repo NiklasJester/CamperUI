@@ -5,6 +5,7 @@
 #include <WiFi.h>
 
 #include "web_ota.h"
+#include "upload_qr.h"
 
 static lv_obj_t *sw_debug = NULL, *sw_demo = NULL;
 static lv_obj_t * http_test_win = NULL;
@@ -16,6 +17,8 @@ static lv_obj_t *cont_man_time = NULL;
 static lv_obj_t *lbl_time_status = NULL;
 static lv_obj_t *lbl_web_ota_url = NULL;
 static lv_obj_t *lbl_web_ota_status = NULL;
+static lv_obj_t *update_qr = NULL;
+static String update_qr_url;
 
 static void close_http_test_cb(lv_event_t * e) {
     if (http_test_win) {
@@ -146,6 +149,13 @@ void ui_update_settings_tab() {
         snprintf(buf, sizeof(buf), "Adresse: http://%s/update", ip.c_str());
         ui_label_set_text_if_changed(lbl_web_ota_url, buf);
 
+        String url = WiFi.status() == WL_CONNECTED ? "http://" + ip + "/update" : "";
+        if (update_qr && update_qr_url != url) {
+            update_qr_url = url;
+            if (url.length() && upload_qr_update(update_qr, url.c_str()))
+                lv_obj_clear_flag(update_qr, LV_OBJ_FLAG_HIDDEN);
+            else lv_obj_add_flag(update_qr, LV_OBJ_FLAG_HIDDEN);
+        }
         if (state.web_ota_active) {
             if (lbl_web_ota_status) {
                 ui_label_set_text_if_changed(lbl_web_ota_status, state.web_ota_msg.c_str());
@@ -153,7 +163,7 @@ void ui_update_settings_tab() {
         } else {
             if (lbl_web_ota_status) {
                 char st_buf[128];
-                snprintf(st_buf, sizeof(st_buf), "Installiert: %s | Status: Bereit fuer Upload", CAMPERUI_VERSION);
+                snprintf(st_buf, sizeof(st_buf), "%s\n%s", CAMPERUI_VERSION, WiFi.status() == WL_CONNECTED ? "Handy im selben WLAN: QR scannen, BIN waehlen." : "WLAN verbinden, um den QR-Code anzuzeigen.");
                 ui_label_set_text_if_changed(lbl_web_ota_status, st_buf);
             }
         }
@@ -477,10 +487,19 @@ void ui_settings_screen_init() {
     lv_label_set_long_mode(wifi_status_label, LV_LABEL_LONG_WRAP);
     lv_label_set_text(wifi_status_label, wifi_connection_details().c_str());
 
-    // Row 5: Web-Update Card
-    lv_obj_t *card_web_ota = ui_create_card(t_net, 440, 90);
-    lv_obj_align(card_web_ota, LV_ALIGN_TOP_LEFT, 0, 275);
+    // Web-Update Card
+    lv_obj_t *card_web_ota = ui_create_card(t_net, 440, 330);
+    lv_obj_align(card_web_ota, LV_ALIGN_TOP_LEFT, 0, 255);
     lv_obj_set_style_pad_all(card_web_ota, 12, 0);
+    update_qr_url = "";
+    // Local monochrome canvas; independent of the installed LVGL QR configuration.
+    update_qr = upload_qr_create(card_web_ota);
+    if (update_qr) {
+        lv_obj_set_pos(update_qr, 118, 116);
+
+        lv_obj_set_style_pad_all(update_qr, 0, 0);
+        lv_obj_add_flag(update_qr, LV_OBJ_FLAG_HIDDEN);
+    }
 
     lv_obj_t *l_web_head = lv_label_create(card_web_ota);
     lv_label_set_text(l_web_head, LV_SYMBOL_DOWNLOAD " Firmware-Update (Browser)");
@@ -501,7 +520,7 @@ void ui_settings_screen_init() {
     lv_obj_set_style_text_font(lbl_web_ota_status, &lv_font_montserrat_12, 0);
     lv_obj_set_style_text_color(lbl_web_ota_status, ui_theme_muted(), 0);
     lv_obj_align(lbl_web_ota_status, LV_ALIGN_TOP_LEFT, 0, 52);
-    lv_label_set_text_fmt(lbl_web_ota_status, "Installiert: %s | Status: Bereit fuer Upload", CAMPERUI_VERSION);
+    lv_label_set_text_fmt(lbl_web_ota_status, "%s\n%s", CAMPERUI_VERSION, WiFi.status() == WL_CONNECTED ? "Handy im selben WLAN: QR scannen, BIN waehlen." : "WLAN verbinden, um den QR-Code anzuzeigen.");
 
     // ==========================================
     // TAB 2: ALLGEMEIN

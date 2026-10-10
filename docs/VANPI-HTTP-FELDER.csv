@@ -1,0 +1,353 @@
+﻿Endpoint;Feld;Bedeutung;Einheit;CamperUI_V87;Quelle;Hinweis
+/batt;VoltB;Batteriespannung;V;Ja;MainBattVolt;
+/batt;Ampere;Batteriestrom;A;Ja;MainBattAmps;
+/batt;battsoc;Ladezustand;%;Ja;MainBattSoc;
+/batt;starter_voltage;Starterspannung;V;Optional;;"CamperUI-Erweiterung/Dummy; NICHT im mitgelieferten /batt-Flow vorhanden."
+/mppt/;mppt_pv_amps;PV-Strom;A;Ja;mppt_pv_amps;
+/mppt/;mppt_pv_volts;PV-Spannung;V;Ja;mppt_pv_volts;
+/mppt/;mppt_pv_watts;PV-Leistung;W;Ja;mppt_pv_watts;
+/mppt/;mppt_pv_total;PV-Gesamtwert;Nicht im HTTP-Handler definiert;Nein;mppt_pv_total;
+/temp;temp1.state;Temperatursensor 1: Messwert/Zustand;°C;Ja;;
+/temp;temp1.name;Temperatursensor 1: Name;Text;Ja;;
+/temp;temp1.type;Sensortyp;Text;Nein;;"Hier ds18b20; der Flow liefert Temperatur, keine fest zugewiesene Feuchte."
+/temp;temp2.state;Temperatursensor 2: Messwert/Zustand;°C;Ja;;
+/temp;temp2.name;Temperatursensor 2: Name;Text;Ja;;
+/temp;temp2.type;Sensortyp;Text;Nein;;"Hier ds18b20; der Flow liefert Temperatur, keine fest zugewiesene Feuchte."
+/temp;temp3.state;Temperatursensor 3: Messwert/Zustand;°C;Ja;;
+/temp;temp3.name;Temperatursensor 3: Name;Text;Ja;;
+/temp;temp3.type;Sensortyp;Text;Nein;;"Hier ds18b20; der Flow liefert Temperatur, keine fest zugewiesene Feuchte."
+/temp;temp4.state;Temperatursensor 4: Messwert/Zustand;°C;Ja;;
+/temp;temp4.name;Temperatursensor 4: Name;Text;Ja;;
+/temp;temp4.type;Sensortyp;Text;Nein;;"Hier ds18b20; der Flow liefert Temperatur, keine fest zugewiesene Feuchte."
+/level;level1.state;Tank 1: Messwert/Zustand;%;Ja;;
+/level;level1.name;Tank 1: Name;Text;Ja;;
+/level;level2.state;Tank 2: Messwert/Zustand;%;Ja;;
+/level;level2.name;Tank 2: Name;Text;Ja;;
+/level;level3.state;Tank 3: Messwert/Zustand;%;Ja;;
+/level;level3.name;Tank 3: Name;Text;Ja;;
+/level;level4.state;Tank 4: Messwert/Zustand;%;Ja;;
+/level;level4.name;Tank 4: Name;Text;Ja;;
+/relay/;Relay1.state;Relais 1: Messwert/Zustand;bool;Ja;;
+/relay/;Relay1.name;Relais 1: Name;Text;Ja;;
+/relay/;Relay2.state;Relais 2: Messwert/Zustand;bool;Ja;;
+/relay/;Relay2.name;Relais 2: Name;Text;Ja;;
+/relay/;Relay3.state;Relais 3: Messwert/Zustand;bool;Ja;;
+/relay/;Relay3.name;Relais 3: Name;Text;Ja;;
+/relay/;Relay4.state;Relais 4: Messwert/Zustand;bool;Ja;;
+/relay/;Relay4.name;Relais 4: Name;Text;Ja;;
+/relay/;Relay5.state;Relais 5: Messwert/Zustand;bool;Ja;;
+/relay/;Relay5.name;Relais 5: Name;Text;Ja;;
+/relay/;Relay6.state;Relais 6: Messwert/Zustand;bool;Ja;;
+/relay/;Relay6.name;Relais 6: Name;Text;Ja;;
+/relay/;Relay7.state;Relais 7: Messwert/Zustand;bool;Ja;;
+/relay/;Relay7.name;Relais 7: Name;Text;Ja;;
+/relay/;Relay8.state;Relais 8: Messwert/Zustand;bool;Ja;;
+/relay/;Relay8.name;Relais 8: Name;Text;Ja;;
+/dimmer/;dimmer1.state;Dimmer 1: Messwert/Zustand;0–100 %;Ja;;
+/dimmer/;dimmer1.name;Dimmer 1: Name;Text;Ja;;
+/dimmer/;dimmer2.state;Dimmer 2: Messwert/Zustand;0–100 %;Ja;;
+/dimmer/;dimmer2.name;Dimmer 2: Name;Text;Ja;;
+/dimmer/;dimmer3.state;Dimmer 3: Messwert/Zustand;0–100 %;Ja;;
+/dimmer/;dimmer3.name;Dimmer 3: Name;Text;Ja;;
+/dimmer/;dimmer4.state;Dimmer 4: Messwert/Zustand;0–100 %;Ja;;
+/dimmer/;dimmer4.name;Dimmer 4: Name;Text;Ja;;
+/dimmer/;dimmer5.state;Dimmer 5: Messwert/Zustand;0–100 %;Ja;;
+/dimmer/;dimmer5.name;Dimmer 5: Name;Text;Ja;;
+/dimmer/;dimmer6.state;Dimmer 6: Messwert/Zustand;0–100 %;Ja;;
+/dimmer/;dimmer6.name;Dimmer 6: Name;Text;Ja;;
+/dimmer/;dimmer7.state;Dimmer 7: Messwert/Zustand;0–100 %;Ja;;
+/dimmer/;dimmer7.name;Dimmer 7: Name;Text;Ja;;
+/dimmer/;dimmer8.state;Dimmer 8: Messwert/Zustand;0–100 %;Ja;;"Basishardware liefert 7 Dimmer; Kanal 8 gehört zum optionalen Pro-Zweig mit 15 Kanälen."
+/dimmer/;dimmer8.name;Dimmer 8: Name;Text;Ja;;"Basishardware liefert 7 Dimmer; Kanal 8 gehört zum optionalen Pro-Zweig mit 15 Kanälen."
+/temp;dimmytemp1.state;Temperatur;°C;Nein;;dimmytemp=true
+/temp;dimmytemp1.name;Sensorname;Text;Nein;;dimmytemp=true
+/temp;dimmytemp1.type;Sensortyp;Text;Nein;;dimmytemp=true
+/temp;dimmytemp2.state;Temperatur;°C;Nein;;dimmytemp=true
+/temp;dimmytemp2.name;Sensorname;Text;Nein;;dimmytemp=true
+/temp;dimmytemp2.type;Sensortyp;Text;Nein;;dimmytemp=true
+/temp;ntc1.state;Temperatur;°C;Nein;;ntcOverwrites.ntcN=true
+/temp;ntc1.name;Sensorname;Text;Nein;;ntcOverwrites.ntcN=true
+/temp;ntc1.type;Sensortyp;Text;Nein;;ntcOverwrites.ntcN=true
+/temp;ntc2.state;Temperatur;°C;Nein;;ntcOverwrites.ntcN=true
+/temp;ntc2.name;Sensorname;Text;Nein;;ntcOverwrites.ntcN=true
+/temp;ntc2.type;Sensortyp;Text;Nein;;ntcOverwrites.ntcN=true
+/temp;ntc3.state;Temperatur;°C;Nein;;ntcOverwrites.ntcN=true
+/temp;ntc3.name;Sensorname;Text;Nein;;ntcOverwrites.ntcN=true
+/temp;ntc3.type;Sensortyp;Text;Nein;;ntcOverwrites.ntcN=true
+/temp;ntc4.state;Temperatur;°C;Nein;;ntcOverwrites.ntcN=true
+/temp;ntc4.name;Sensorname;Text;Nein;;ntcOverwrites.ntcN=true
+/temp;ntc4.type;Sensortyp;Text;Nein;;ntcOverwrites.ntcN=true
+/temp;ruuvitag0.state;Temperatur;°C;Nein;;ruuvitags=true
+/temp;ruuvitag0.name;Sensorname;Text;Nein;;ruuvitags=true
+/temp;ruuvitag0.type;Sensortyp;Text;Nein;;ruuvitags=true
+/temp;ruuvitag0.hum;Relative Feuchte;%;Nein;;ruuvitags=true
+/temp;ruuvitag0.batt;Sensorbatterie;mV;Nein;;ruuvitags=true
+/temp;ruuvitag0.lowBatt;Batteriewarnung;bool;Nein;;ruuvitags=true
+/temp;ruuvitag1.state;Temperatur;°C;Nein;;ruuvitags=true
+/temp;ruuvitag1.name;Sensorname;Text;Nein;;ruuvitags=true
+/temp;ruuvitag1.type;Sensortyp;Text;Nein;;ruuvitags=true
+/temp;ruuvitag1.hum;Relative Feuchte;%;Nein;;ruuvitags=true
+/temp;ruuvitag1.batt;Sensorbatterie;mV;Nein;;ruuvitags=true
+/temp;ruuvitag1.lowBatt;Batteriewarnung;bool;Nein;;ruuvitags=true
+/temp;ruuvitag2.state;Temperatur;°C;Nein;;ruuvitags=true
+/temp;ruuvitag2.name;Sensorname;Text;Nein;;ruuvitags=true
+/temp;ruuvitag2.type;Sensortyp;Text;Nein;;ruuvitags=true
+/temp;ruuvitag2.hum;Relative Feuchte;%;Nein;;ruuvitags=true
+/temp;ruuvitag2.batt;Sensorbatterie;mV;Nein;;ruuvitags=true
+/temp;ruuvitag2.lowBatt;Batteriewarnung;bool;Nein;;ruuvitags=true
+/relay/;Relay1–N.autooff;Zusatzinformation zum Kanal;Im Handler prüfen;Nein;;"Nur falls im jeweiligen Hardware-/Custom-Zweig erzeugt; kein einheitliches Schema für alle Kanäle."
+/relay/;Relay1–N.offtime;Zusatzinformation zum Kanal;Im Handler prüfen;Nein;;"Nur falls im jeweiligen Hardware-/Custom-Zweig erzeugt; kein einheitliches Schema für alle Kanäle."
+/relay/;Relay1–N.source;Zusatzinformation zum Kanal;Im Handler prüfen;Nein;;"Nur falls im jeweiligen Hardware-/Custom-Zweig erzeugt; kein einheitliches Schema für alle Kanäle."
+/wrelay/;WifiRelay1–8.autooff;Zusatzinformation zum Kanal;Im Handler prüfen;Nein;;"Nur falls im jeweiligen Hardware-/Custom-Zweig erzeugt; kein einheitliches Schema für alle Kanäle."
+/wrelay/;WifiRelay1–8.offtime;Zusatzinformation zum Kanal;Im Handler prüfen;Nein;;"Nur falls im jeweiligen Hardware-/Custom-Zweig erzeugt; kein einheitliches Schema für alle Kanäle."
+/wrelay/;WifiRelay1–8.firmware;Zusatzinformation zum Kanal;Im Handler prüfen;Nein;;"Nur falls im jeweiligen Hardware-/Custom-Zweig erzeugt; kein einheitliches Schema für alle Kanäle."
+/dimmer/;dimmer1–N.autooff;Zusatzinformation zum Kanal;Im Handler prüfen;Nein;;"Nur falls im jeweiligen Hardware-/Custom-Zweig erzeugt; kein einheitliches Schema für alle Kanäle."
+/dimmer/;dimmer1–N.offtime;Zusatzinformation zum Kanal;Im Handler prüfen;Nein;;"Nur falls im jeweiligen Hardware-/Custom-Zweig erzeugt; kein einheitliches Schema für alle Kanäle."
+/dimmer/;dimmer1–N.source;Zusatzinformation zum Kanal;Im Handler prüfen;Nein;;"Nur falls im jeweiligen Hardware-/Custom-Zweig erzeugt; kein einheitliches Schema für alle Kanäle."
+/relay/;Relay9.state;Zusätzlicher Kanal/Zustand oder Name;;Nein;;"Abhängig von Erweiterung/Hardware; zusätzliche Custom-Kanäle können darüber hinausgehen."
+/relay/;Relay9.name;Zusätzlicher Kanal/Zustand oder Name;;Nein;;"Abhängig von Erweiterung/Hardware; zusätzliche Custom-Kanäle können darüber hinausgehen."
+/relay/;Relay10.state;Zusätzlicher Kanal/Zustand oder Name;;Nein;;"Abhängig von Erweiterung/Hardware; zusätzliche Custom-Kanäle können darüber hinausgehen."
+/relay/;Relay10.name;Zusätzlicher Kanal/Zustand oder Name;;Nein;;"Abhängig von Erweiterung/Hardware; zusätzliche Custom-Kanäle können darüber hinausgehen."
+/relay/;Relay11.state;Zusätzlicher Kanal/Zustand oder Name;;Nein;;"Abhängig von Erweiterung/Hardware; zusätzliche Custom-Kanäle können darüber hinausgehen."
+/relay/;Relay11.name;Zusätzlicher Kanal/Zustand oder Name;;Nein;;"Abhängig von Erweiterung/Hardware; zusätzliche Custom-Kanäle können darüber hinausgehen."
+/relay/;Relay12.state;Zusätzlicher Kanal/Zustand oder Name;;Nein;;"Abhängig von Erweiterung/Hardware; zusätzliche Custom-Kanäle können darüber hinausgehen."
+/relay/;Relay12.name;Zusätzlicher Kanal/Zustand oder Name;;Nein;;"Abhängig von Erweiterung/Hardware; zusätzliche Custom-Kanäle können darüber hinausgehen."
+/relay/;Relay13.state;Zusätzlicher Kanal/Zustand oder Name;;Nein;;"Abhängig von Erweiterung/Hardware; zusätzliche Custom-Kanäle können darüber hinausgehen."
+/relay/;Relay13.name;Zusätzlicher Kanal/Zustand oder Name;;Nein;;"Abhängig von Erweiterung/Hardware; zusätzliche Custom-Kanäle können darüber hinausgehen."
+/relay/;Relay14.state;Zusätzlicher Kanal/Zustand oder Name;;Nein;;"Abhängig von Erweiterung/Hardware; zusätzliche Custom-Kanäle können darüber hinausgehen."
+/relay/;Relay14.name;Zusätzlicher Kanal/Zustand oder Name;;Nein;;"Abhängig von Erweiterung/Hardware; zusätzliche Custom-Kanäle können darüber hinausgehen."
+/relay/;Relay15.state;Zusätzlicher Kanal/Zustand oder Name;;Nein;;"Abhängig von Erweiterung/Hardware; zusätzliche Custom-Kanäle können darüber hinausgehen."
+/relay/;Relay15.name;Zusätzlicher Kanal/Zustand oder Name;;Nein;;"Abhängig von Erweiterung/Hardware; zusätzliche Custom-Kanäle können darüber hinausgehen."
+/relay/;Relay16.state;Zusätzlicher Kanal/Zustand oder Name;;Nein;;"Abhängig von Erweiterung/Hardware; zusätzliche Custom-Kanäle können darüber hinausgehen."
+/relay/;Relay16.name;Zusätzlicher Kanal/Zustand oder Name;;Nein;;"Abhängig von Erweiterung/Hardware; zusätzliche Custom-Kanäle können darüber hinausgehen."
+/dimmer/;dimmer9.state;Zusätzlicher Kanal/Zustand oder Name;;Nein;;"Abhängig von Erweiterung/Hardware; zusätzliche Custom-Kanäle können darüber hinausgehen."
+/dimmer/;dimmer9.name;Zusätzlicher Kanal/Zustand oder Name;;Nein;;"Abhängig von Erweiterung/Hardware; zusätzliche Custom-Kanäle können darüber hinausgehen."
+/dimmer/;dimmer10.state;Zusätzlicher Kanal/Zustand oder Name;;Nein;;"Abhängig von Erweiterung/Hardware; zusätzliche Custom-Kanäle können darüber hinausgehen."
+/dimmer/;dimmer10.name;Zusätzlicher Kanal/Zustand oder Name;;Nein;;"Abhängig von Erweiterung/Hardware; zusätzliche Custom-Kanäle können darüber hinausgehen."
+/dimmer/;dimmer11.state;Zusätzlicher Kanal/Zustand oder Name;;Nein;;"Abhängig von Erweiterung/Hardware; zusätzliche Custom-Kanäle können darüber hinausgehen."
+/dimmer/;dimmer11.name;Zusätzlicher Kanal/Zustand oder Name;;Nein;;"Abhängig von Erweiterung/Hardware; zusätzliche Custom-Kanäle können darüber hinausgehen."
+/dimmer/;dimmer12.state;Zusätzlicher Kanal/Zustand oder Name;;Nein;;"Abhängig von Erweiterung/Hardware; zusätzliche Custom-Kanäle können darüber hinausgehen."
+/dimmer/;dimmer12.name;Zusätzlicher Kanal/Zustand oder Name;;Nein;;"Abhängig von Erweiterung/Hardware; zusätzliche Custom-Kanäle können darüber hinausgehen."
+/dimmer/;dimmer13.state;Zusätzlicher Kanal/Zustand oder Name;;Nein;;"Abhängig von Erweiterung/Hardware; zusätzliche Custom-Kanäle können darüber hinausgehen."
+/dimmer/;dimmer13.name;Zusätzlicher Kanal/Zustand oder Name;;Nein;;"Abhängig von Erweiterung/Hardware; zusätzliche Custom-Kanäle können darüber hinausgehen."
+/dimmer/;dimmer14.state;Zusätzlicher Kanal/Zustand oder Name;;Nein;;"Abhängig von Erweiterung/Hardware; zusätzliche Custom-Kanäle können darüber hinausgehen."
+/dimmer/;dimmer14.name;Zusätzlicher Kanal/Zustand oder Name;;Nein;;"Abhängig von Erweiterung/Hardware; zusätzliche Custom-Kanäle können darüber hinausgehen."
+/dimmer/;dimmer15.state;Zusätzlicher Kanal/Zustand oder Name;;Nein;;"Abhängig von Erweiterung/Hardware; zusätzliche Custom-Kanäle können darüber hinausgehen."
+/dimmer/;dimmer15.name;Zusätzlicher Kanal/Zustand oder Name;;Nein;;"Abhängig von Erweiterung/Hardware; zusätzliche Custom-Kanäle können darüber hinausgehen."
+/wrelay/;WifiRelay1.state;Zusätzlicher Kanal/Zustand oder Name;;Nein;;"Abhängig von Erweiterung/Hardware; zusätzliche Custom-Kanäle können darüber hinausgehen."
+/wrelay/;WifiRelay1.name;Zusätzlicher Kanal/Zustand oder Name;;Nein;;"Abhängig von Erweiterung/Hardware; zusätzliche Custom-Kanäle können darüber hinausgehen."
+/wrelay/;WifiRelay2.state;Zusätzlicher Kanal/Zustand oder Name;;Nein;;"Abhängig von Erweiterung/Hardware; zusätzliche Custom-Kanäle können darüber hinausgehen."
+/wrelay/;WifiRelay2.name;Zusätzlicher Kanal/Zustand oder Name;;Nein;;"Abhängig von Erweiterung/Hardware; zusätzliche Custom-Kanäle können darüber hinausgehen."
+/wrelay/;WifiRelay3.state;Zusätzlicher Kanal/Zustand oder Name;;Nein;;"Abhängig von Erweiterung/Hardware; zusätzliche Custom-Kanäle können darüber hinausgehen."
+/wrelay/;WifiRelay3.name;Zusätzlicher Kanal/Zustand oder Name;;Nein;;"Abhängig von Erweiterung/Hardware; zusätzliche Custom-Kanäle können darüber hinausgehen."
+/wrelay/;WifiRelay4.state;Zusätzlicher Kanal/Zustand oder Name;;Nein;;"Abhängig von Erweiterung/Hardware; zusätzliche Custom-Kanäle können darüber hinausgehen."
+/wrelay/;WifiRelay4.name;Zusätzlicher Kanal/Zustand oder Name;;Nein;;"Abhängig von Erweiterung/Hardware; zusätzliche Custom-Kanäle können darüber hinausgehen."
+/wrelay/;WifiRelay5.state;Zusätzlicher Kanal/Zustand oder Name;;Nein;;"Abhängig von Erweiterung/Hardware; zusätzliche Custom-Kanäle können darüber hinausgehen."
+/wrelay/;WifiRelay5.name;Zusätzlicher Kanal/Zustand oder Name;;Nein;;"Abhängig von Erweiterung/Hardware; zusätzliche Custom-Kanäle können darüber hinausgehen."
+/wrelay/;WifiRelay6.state;Zusätzlicher Kanal/Zustand oder Name;;Nein;;"Abhängig von Erweiterung/Hardware; zusätzliche Custom-Kanäle können darüber hinausgehen."
+/wrelay/;WifiRelay6.name;Zusätzlicher Kanal/Zustand oder Name;;Nein;;"Abhängig von Erweiterung/Hardware; zusätzliche Custom-Kanäle können darüber hinausgehen."
+/wrelay/;WifiRelay7.state;Zusätzlicher Kanal/Zustand oder Name;;Nein;;"Abhängig von Erweiterung/Hardware; zusätzliche Custom-Kanäle können darüber hinausgehen."
+/wrelay/;WifiRelay7.name;Zusätzlicher Kanal/Zustand oder Name;;Nein;;"Abhängig von Erweiterung/Hardware; zusätzliche Custom-Kanäle können darüber hinausgehen."
+/wrelay/;WifiRelay8.state;Zusätzlicher Kanal/Zustand oder Name;;Nein;;"Abhängig von Erweiterung/Hardware; zusätzliche Custom-Kanäle können darüber hinausgehen."
+/wrelay/;WifiRelay8.name;Zusätzlicher Kanal/Zustand oder Name;;Nein;;"Abhängig von Erweiterung/Hardware; zusätzliche Custom-Kanäle können darüber hinausgehen."
+/bms;BMSamps;BMS: BMSamps;"Zellwerte: V (Quelle /1000); sonst Geräte-/Treiberdefinition";Nein;BMSamps;Zellwerte werden als String mit zwei Nachkommastellen ausgegeben. Einheiten der übrigen Werte nicht allein aus Namen ableiten.
+/bms;BMScap;BMS: BMScap;"Zellwerte: V (Quelle /1000); sonst Geräte-/Treiberdefinition";Nein;BMScap;Zellwerte werden als String mit zwei Nachkommastellen ausgegeben. Einheiten der übrigen Werte nicht allein aus Namen ableiten.
+/bms;BMSnominalAh;BMS: BMSnominalAh;"Zellwerte: V (Quelle /1000); sonst Geräte-/Treiberdefinition";Nein;BMSnominalAh;Zellwerte werden als String mit zwei Nachkommastellen ausgegeben. Einheiten der übrigen Werte nicht allein aus Namen ableiten.
+/bms;BMScell1;BMS: BMScell1;"Zellwerte: V (Quelle /1000); sonst Geräte-/Treiberdefinition";Nein;BMScell1;Zellwerte werden als String mit zwei Nachkommastellen ausgegeben. Einheiten der übrigen Werte nicht allein aus Namen ableiten.
+/bms;BMScell2;BMS: BMScell2;"Zellwerte: V (Quelle /1000); sonst Geräte-/Treiberdefinition";Nein;BMScell2;Zellwerte werden als String mit zwei Nachkommastellen ausgegeben. Einheiten der übrigen Werte nicht allein aus Namen ableiten.
+/bms;BMScell3;BMS: BMScell3;"Zellwerte: V (Quelle /1000); sonst Geräte-/Treiberdefinition";Nein;BMScell3;Zellwerte werden als String mit zwei Nachkommastellen ausgegeben. Einheiten der übrigen Werte nicht allein aus Namen ableiten.
+/bms;BMScell4;BMS: BMScell4;"Zellwerte: V (Quelle /1000); sonst Geräte-/Treiberdefinition";Nein;BMScell4;Zellwerte werden als String mit zwei Nachkommastellen ausgegeben. Einheiten der übrigen Werte nicht allein aus Namen ableiten.
+/bms;BMSmaxcap;BMS: BMSmaxcap;"Zellwerte: V (Quelle /1000); sonst Geräte-/Treiberdefinition";Nein;BMSmaxcap;Zellwerte werden als String mit zwei Nachkommastellen ausgegeben. Einheiten der übrigen Werte nicht allein aus Namen ableiten.
+/bms;BMSmaxvolt;BMS: BMSmaxvolt;"Zellwerte: V (Quelle /1000); sonst Geräte-/Treiberdefinition";Nein;BMSmaxvolt;Zellwerte werden als String mit zwei Nachkommastellen ausgegeben. Einheiten der übrigen Werte nicht allein aus Namen ableiten.
+/bms;BMSminvolt;BMS: BMSminvolt;"Zellwerte: V (Quelle /1000); sonst Geräte-/Treiberdefinition";Nein;BMSminvolt;Zellwerte werden als String mit zwei Nachkommastellen ausgegeben. Einheiten der übrigen Werte nicht allein aus Namen ableiten.
+/bms;BMSpower;BMS: BMSpower;"Zellwerte: V (Quelle /1000); sonst Geräte-/Treiberdefinition";Nein;BMSpower;Zellwerte werden als String mit zwei Nachkommastellen ausgegeben. Einheiten der übrigen Werte nicht allein aus Namen ableiten.
+/bms;BMSsoc;BMS: BMSsoc;"Zellwerte: V (Quelle /1000); sonst Geräte-/Treiberdefinition";Nein;BMSsoc;Zellwerte werden als String mit zwei Nachkommastellen ausgegeben. Einheiten der übrigen Werte nicht allein aus Namen ableiten.
+/bms;BMStemp;BMS: BMStemp;"Zellwerte: V (Quelle /1000); sonst Geräte-/Treiberdefinition";Nein;BMStemp;Zellwerte werden als String mit zwei Nachkommastellen ausgegeben. Einheiten der übrigen Werte nicht allein aus Namen ableiten.
+/bms;BMSvolt;BMS: BMSvolt;"Zellwerte: V (Quelle /1000); sonst Geräte-/Treiberdefinition";Nein;BMSvolt;Zellwerte werden als String mit zwei Nachkommastellen ausgegeben. Einheiten der übrigen Werte nicht allein aus Namen ableiten.
+/heater;heatertoggle;Heizungswert: heatertoggle;Typ/Einheit geräteabhängig;Teilweise;;"generic/Autoterm-Unterobjekte nur bei aktivierter Integration; CamperUI wertet nicht das ganze Objekt aus."
+/heater;heatstatus;Heizungswert: heatstatus;Typ/Einheit geräteabhängig;Teilweise;;"generic/Autoterm-Unterobjekte nur bei aktivierter Integration; CamperUI wertet nicht das ganze Objekt aus."
+/heater;heattemp;Heizungswert: heattemp;Typ/Einheit geräteabhängig;Nein;;"generic/Autoterm-Unterobjekte nur bei aktivierter Integration; CamperUI wertet nicht das ganze Objekt aus."
+/heater;heatvolt;Heizungswert: heatvolt;V;Nein;;"generic/Autoterm-Unterobjekte nur bei aktivierter Integration; CamperUI wertet nicht das ganze Objekt aus."
+/heater;heatfan;Heizungswert: heatfan;Typ/Einheit geräteabhängig;Nein;;"generic/Autoterm-Unterobjekte nur bei aktivierter Integration; CamperUI wertet nicht das ganze Objekt aus."
+/heater;heatglow;Heizungswert: heatglow;Typ/Einheit geräteabhängig;Nein;;"generic/Autoterm-Unterobjekte nur bei aktivierter Integration; CamperUI wertet nicht das ganze Objekt aus."
+/heater;heatwpump;Heizungswert: heatwpump;Typ/Einheit geräteabhängig;Nein;;"generic/Autoterm-Unterobjekte nur bei aktivierter Integration; CamperUI wertet nicht das ganze Objekt aus."
+/heater;heaterror;Heizungswert: heaterror;Typ/Einheit geräteabhängig;Teilweise;;"generic/Autoterm-Unterobjekte nur bei aktivierter Integration; CamperUI wertet nicht das ganze Objekt aus."
+/heater;targettemp_vanpi;Heizungswert: targettemp_vanpi;°C;Teilweise;;"generic/Autoterm-Unterobjekte nur bei aktivierter Integration; CamperUI wertet nicht das ganze Objekt aus."
+/heater;runtime_m;Heizungswert: runtime_m;min;Nein;;"generic/Autoterm-Unterobjekte nur bei aktivierter Integration; CamperUI wertet nicht das ganze Objekt aus."
+/heater;runtime_remaining_s;Heizungswert: runtime_remaining_s;s;Nein;;"generic/Autoterm-Unterobjekte nur bei aktivierter Integration; CamperUI wertet nicht das ganze Objekt aus."
+/heater;timer_state;Heizungswert: timer_state;Typ/Einheit geräteabhängig;Nein;;"generic/Autoterm-Unterobjekte nur bei aktivierter Integration; CamperUI wertet nicht das ganze Objekt aus."
+/heater;timer;Heizungswert: timer;Typ/Einheit geräteabhängig;Nein;;"generic/Autoterm-Unterobjekte nur bei aktivierter Integration; CamperUI wertet nicht das ganze Objekt aus."
+/heater;tempsensor;Heizungswert: tempsensor;Typ/Einheit geräteabhängig;Nein;;"generic/Autoterm-Unterobjekte nur bei aktivierter Integration; CamperUI wertet nicht das ganze Objekt aus."
+/heater;tempsensor_name;Heizungswert: tempsensor_name;Typ/Einheit geräteabhängig;Nein;;"generic/Autoterm-Unterobjekte nur bei aktivierter Integration; CamperUI wertet nicht das ganze Objekt aus."
+/heater;heater_name;Heizungswert: heater_name;Typ/Einheit geräteabhängig;Nein;;"generic/Autoterm-Unterobjekte nur bei aktivierter Integration; CamperUI wertet nicht das ganze Objekt aus."
+/heater;generic.heatertoggle;Heizungswert: heatertoggle;Typ/Einheit geräteabhängig;Nein;;"generic/Autoterm-Unterobjekte nur bei aktivierter Integration; CamperUI wertet nicht das ganze Objekt aus."
+/heater;generic.heatstatus;Heizungswert: heatstatus;Typ/Einheit geräteabhängig;Nein;;"generic/Autoterm-Unterobjekte nur bei aktivierter Integration; CamperUI wertet nicht das ganze Objekt aus."
+/heater;generic.heattemp;Heizungswert: heattemp;Typ/Einheit geräteabhängig;Nein;;"generic/Autoterm-Unterobjekte nur bei aktivierter Integration; CamperUI wertet nicht das ganze Objekt aus."
+/heater;generic.heatvolt;Heizungswert: heatvolt;V;Nein;;"generic/Autoterm-Unterobjekte nur bei aktivierter Integration; CamperUI wertet nicht das ganze Objekt aus."
+/heater;generic.heatfan;Heizungswert: heatfan;Typ/Einheit geräteabhängig;Nein;;"generic/Autoterm-Unterobjekte nur bei aktivierter Integration; CamperUI wertet nicht das ganze Objekt aus."
+/heater;generic.heatglow;Heizungswert: heatglow;Typ/Einheit geräteabhängig;Nein;;"generic/Autoterm-Unterobjekte nur bei aktivierter Integration; CamperUI wertet nicht das ganze Objekt aus."
+/heater;generic.heatwpump;Heizungswert: heatwpump;Typ/Einheit geräteabhängig;Nein;;"generic/Autoterm-Unterobjekte nur bei aktivierter Integration; CamperUI wertet nicht das ganze Objekt aus."
+/heater;generic.heaterror;Heizungswert: heaterror;Typ/Einheit geräteabhängig;Nein;;"generic/Autoterm-Unterobjekte nur bei aktivierter Integration; CamperUI wertet nicht das ganze Objekt aus."
+/heater;generic.targettemp_vanpi;Heizungswert: targettemp_vanpi;°C;Nein;;"generic/Autoterm-Unterobjekte nur bei aktivierter Integration; CamperUI wertet nicht das ganze Objekt aus."
+/heater;generic.runtime_m;Heizungswert: runtime_m;min;Nein;;"generic/Autoterm-Unterobjekte nur bei aktivierter Integration; CamperUI wertet nicht das ganze Objekt aus."
+/heater;generic.runtime_remaining_s;Heizungswert: runtime_remaining_s;s;Nein;;"generic/Autoterm-Unterobjekte nur bei aktivierter Integration; CamperUI wertet nicht das ganze Objekt aus."
+/heater;generic.timer_state;Heizungswert: timer_state;Typ/Einheit geräteabhängig;Nein;;"generic/Autoterm-Unterobjekte nur bei aktivierter Integration; CamperUI wertet nicht das ganze Objekt aus."
+/heater;generic.timer;Heizungswert: timer;Typ/Einheit geräteabhängig;Nein;;"generic/Autoterm-Unterobjekte nur bei aktivierter Integration; CamperUI wertet nicht das ganze Objekt aus."
+/heater;generic.tempsensor;Heizungswert: tempsensor;Typ/Einheit geräteabhängig;Nein;;"generic/Autoterm-Unterobjekte nur bei aktivierter Integration; CamperUI wertet nicht das ganze Objekt aus."
+/heater;generic.tempsensor_name;Heizungswert: tempsensor_name;Typ/Einheit geräteabhängig;Nein;;"generic/Autoterm-Unterobjekte nur bei aktivierter Integration; CamperUI wertet nicht das ganze Objekt aus."
+/heater;generic.heater_name;Heizungswert: heater_name;Typ/Einheit geräteabhängig;Nein;;"generic/Autoterm-Unterobjekte nur bei aktivierter Integration; CamperUI wertet nicht das ganze Objekt aus."
+/heater;autoterm1.heatertoggle;Heizungswert: heatertoggle;Typ/Einheit geräteabhängig;Teilweise;;"generic/Autoterm-Unterobjekte nur bei aktivierter Integration; CamperUI wertet nicht das ganze Objekt aus."
+/heater;autoterm1.heatstatus;Heizungswert: heatstatus;Typ/Einheit geräteabhängig;Teilweise;;"generic/Autoterm-Unterobjekte nur bei aktivierter Integration; CamperUI wertet nicht das ganze Objekt aus."
+/heater;autoterm1.heattemp;Heizungswert: heattemp;Typ/Einheit geräteabhängig;Nein;;"generic/Autoterm-Unterobjekte nur bei aktivierter Integration; CamperUI wertet nicht das ganze Objekt aus."
+/heater;autoterm1.heatvolt;Heizungswert: heatvolt;V;Nein;;"generic/Autoterm-Unterobjekte nur bei aktivierter Integration; CamperUI wertet nicht das ganze Objekt aus."
+/heater;autoterm1.heatfan;Heizungswert: heatfan;Typ/Einheit geräteabhängig;Nein;;"generic/Autoterm-Unterobjekte nur bei aktivierter Integration; CamperUI wertet nicht das ganze Objekt aus."
+/heater;autoterm1.heatglow;Heizungswert: heatglow;Typ/Einheit geräteabhängig;Nein;;"generic/Autoterm-Unterobjekte nur bei aktivierter Integration; CamperUI wertet nicht das ganze Objekt aus."
+/heater;autoterm1.heatwpump;Heizungswert: heatwpump;Typ/Einheit geräteabhängig;Nein;;"generic/Autoterm-Unterobjekte nur bei aktivierter Integration; CamperUI wertet nicht das ganze Objekt aus."
+/heater;autoterm1.heaterror;Heizungswert: heaterror;Typ/Einheit geräteabhängig;Teilweise;;"generic/Autoterm-Unterobjekte nur bei aktivierter Integration; CamperUI wertet nicht das ganze Objekt aus."
+/heater;autoterm1.targettemp_vanpi;Heizungswert: targettemp_vanpi;°C;Teilweise;;"generic/Autoterm-Unterobjekte nur bei aktivierter Integration; CamperUI wertet nicht das ganze Objekt aus."
+/heater;autoterm1.runtime_m;Heizungswert: runtime_m;min;Nein;;"generic/Autoterm-Unterobjekte nur bei aktivierter Integration; CamperUI wertet nicht das ganze Objekt aus."
+/heater;autoterm1.runtime_remaining_s;Heizungswert: runtime_remaining_s;s;Nein;;"generic/Autoterm-Unterobjekte nur bei aktivierter Integration; CamperUI wertet nicht das ganze Objekt aus."
+/heater;autoterm1.timer_state;Heizungswert: timer_state;Typ/Einheit geräteabhängig;Nein;;"generic/Autoterm-Unterobjekte nur bei aktivierter Integration; CamperUI wertet nicht das ganze Objekt aus."
+/heater;autoterm1.timer;Heizungswert: timer;Typ/Einheit geräteabhängig;Nein;;"generic/Autoterm-Unterobjekte nur bei aktivierter Integration; CamperUI wertet nicht das ganze Objekt aus."
+/heater;autoterm1.tempsensor;Heizungswert: tempsensor;Typ/Einheit geräteabhängig;Nein;;"generic/Autoterm-Unterobjekte nur bei aktivierter Integration; CamperUI wertet nicht das ganze Objekt aus."
+/heater;autoterm1.tempsensor_name;Heizungswert: tempsensor_name;Typ/Einheit geräteabhängig;Nein;;"generic/Autoterm-Unterobjekte nur bei aktivierter Integration; CamperUI wertet nicht das ganze Objekt aus."
+/heater;autoterm1.heater_name;Heizungswert: heater_name;Typ/Einheit geräteabhängig;Nein;;"generic/Autoterm-Unterobjekte nur bei aktivierter Integration; CamperUI wertet nicht das ganze Objekt aus."
+/heater;autoterm1.mode;Heizungswert: mode;Typ/Einheit geräteabhängig;Teilweise;;"generic/Autoterm-Unterobjekte nur bei aktivierter Integration; CamperUI wertet nicht das ganze Objekt aus."
+/heater;autoterm1.fanspeed;Heizungswert: fanspeed;Typ/Einheit geräteabhängig;Teilweise;;"generic/Autoterm-Unterobjekte nur bei aktivierter Integration; CamperUI wertet nicht das ganze Objekt aus."
+/heater;autoterm1.powerlevel;Heizungswert: powerlevel;Typ/Einheit geräteabhängig;Teilweise;;"generic/Autoterm-Unterobjekte nur bei aktivierter Integration; CamperUI wertet nicht das ganze Objekt aus."
+/heater;autoterm2.heatertoggle;Heizungswert: heatertoggle;Typ/Einheit geräteabhängig;Nein;;"generic/Autoterm-Unterobjekte nur bei aktivierter Integration; CamperUI wertet nicht das ganze Objekt aus."
+/heater;autoterm2.heatstatus;Heizungswert: heatstatus;Typ/Einheit geräteabhängig;Nein;;"generic/Autoterm-Unterobjekte nur bei aktivierter Integration; CamperUI wertet nicht das ganze Objekt aus."
+/heater;autoterm2.heattemp;Heizungswert: heattemp;Typ/Einheit geräteabhängig;Nein;;"generic/Autoterm-Unterobjekte nur bei aktivierter Integration; CamperUI wertet nicht das ganze Objekt aus."
+/heater;autoterm2.heatvolt;Heizungswert: heatvolt;V;Nein;;"generic/Autoterm-Unterobjekte nur bei aktivierter Integration; CamperUI wertet nicht das ganze Objekt aus."
+/heater;autoterm2.heatfan;Heizungswert: heatfan;Typ/Einheit geräteabhängig;Nein;;"generic/Autoterm-Unterobjekte nur bei aktivierter Integration; CamperUI wertet nicht das ganze Objekt aus."
+/heater;autoterm2.heatglow;Heizungswert: heatglow;Typ/Einheit geräteabhängig;Nein;;"generic/Autoterm-Unterobjekte nur bei aktivierter Integration; CamperUI wertet nicht das ganze Objekt aus."
+/heater;autoterm2.heatwpump;Heizungswert: heatwpump;Typ/Einheit geräteabhängig;Nein;;"generic/Autoterm-Unterobjekte nur bei aktivierter Integration; CamperUI wertet nicht das ganze Objekt aus."
+/heater;autoterm2.heaterror;Heizungswert: heaterror;Typ/Einheit geräteabhängig;Nein;;"generic/Autoterm-Unterobjekte nur bei aktivierter Integration; CamperUI wertet nicht das ganze Objekt aus."
+/heater;autoterm2.targettemp_vanpi;Heizungswert: targettemp_vanpi;°C;Nein;;"generic/Autoterm-Unterobjekte nur bei aktivierter Integration; CamperUI wertet nicht das ganze Objekt aus."
+/heater;autoterm2.runtime_m;Heizungswert: runtime_m;min;Nein;;"generic/Autoterm-Unterobjekte nur bei aktivierter Integration; CamperUI wertet nicht das ganze Objekt aus."
+/heater;autoterm2.runtime_remaining_s;Heizungswert: runtime_remaining_s;s;Nein;;"generic/Autoterm-Unterobjekte nur bei aktivierter Integration; CamperUI wertet nicht das ganze Objekt aus."
+/heater;autoterm2.timer_state;Heizungswert: timer_state;Typ/Einheit geräteabhängig;Nein;;"generic/Autoterm-Unterobjekte nur bei aktivierter Integration; CamperUI wertet nicht das ganze Objekt aus."
+/heater;autoterm2.timer;Heizungswert: timer;Typ/Einheit geräteabhängig;Nein;;"generic/Autoterm-Unterobjekte nur bei aktivierter Integration; CamperUI wertet nicht das ganze Objekt aus."
+/heater;autoterm2.tempsensor;Heizungswert: tempsensor;Typ/Einheit geräteabhängig;Nein;;"generic/Autoterm-Unterobjekte nur bei aktivierter Integration; CamperUI wertet nicht das ganze Objekt aus."
+/heater;autoterm2.tempsensor_name;Heizungswert: tempsensor_name;Typ/Einheit geräteabhängig;Nein;;"generic/Autoterm-Unterobjekte nur bei aktivierter Integration; CamperUI wertet nicht das ganze Objekt aus."
+/heater;autoterm2.heater_name;Heizungswert: heater_name;Typ/Einheit geräteabhängig;Nein;;"generic/Autoterm-Unterobjekte nur bei aktivierter Integration; CamperUI wertet nicht das ganze Objekt aus."
+/heater;autoterm2.mode;Heizungswert: mode;Typ/Einheit geräteabhängig;Nein;;"generic/Autoterm-Unterobjekte nur bei aktivierter Integration; CamperUI wertet nicht das ganze Objekt aus."
+/heater;autoterm2.fanspeed;Heizungswert: fanspeed;Typ/Einheit geräteabhängig;Nein;;"generic/Autoterm-Unterobjekte nur bei aktivierter Integration; CamperUI wertet nicht das ganze Objekt aus."
+/heater;autoterm2.powerlevel;Heizungswert: powerlevel;Typ/Einheit geräteabhängig;Nein;;"generic/Autoterm-Unterobjekte nur bei aktivierter Integration; CamperUI wertet nicht das ganze Objekt aus."
+/heater;tempsensors.*;Temperatur-/Feuchtesensoren einschließlich optionaler Quellen;;Nein;;
+/heater;autoterm2.parallel;Parallelbetrieb;;Nein;;
+/heater;truma_CI;Zusätzliches Geräteobjekt;;Nein;;"Featureabhängiger Rückgabezweig; teilweise durchgereichte/dynamische Datenstruktur."
+/heater;timberline;Zusätzliches Geräteobjekt;;Nein;;"Featureabhängiger Rückgabezweig; teilweise durchgereichte/dynamische Datenstruktur."
+/heater;ventilation.maxxfan;Zusätzliches Geräteobjekt;;Nein;;"Featureabhängiger Rückgabezweig; teilweise durchgereichte/dynamische Datenstruktur."
+/heater;ventilation.bayernluefter;Zusätzliches Geräteobjekt;;Nein;;"Featureabhängiger Rückgabezweig; teilweise durchgereichte/dynamische Datenstruktur."
+/heater;boiler;Zusätzliches Geräteobjekt;;Nein;;"Featureabhängiger Rückgabezweig; teilweise durchgereichte/dynamische Datenstruktur."
+/heater;smartboil;Zusätzliches Geräteobjekt;;Nein;;"Featureabhängiger Rückgabezweig; teilweise durchgereichte/dynamische Datenstruktur."
+/heater;dometic_rc10_CI;Zusätzliches Geräteobjekt;;Nein;;"Featureabhängiger Rückgabezweig; teilweise durchgereichte/dynamische Datenstruktur."
+/heater;smartboil.deviceId;Smartboil: deviceId;Geräte-/Produzentendefinition;Nein;;Nur bei sichtbarer Smartboil-Integration und gültigem Geräteobjekt.
+/heater;smartboil.connected;Smartboil: connected;Geräte-/Produzentendefinition;Nein;;Nur bei sichtbarer Smartboil-Integration und gültigem Geräteobjekt.
+/heater;smartboil.lastUpdate;Smartboil: lastUpdate;Geräte-/Produzentendefinition;Nein;;Nur bei sichtbarer Smartboil-Integration und gültigem Geräteobjekt.
+/heater;smartboil.uptime;Smartboil: uptime;Geräte-/Produzentendefinition;Nein;;Nur bei sichtbarer Smartboil-Integration und gültigem Geräteobjekt.
+/heater;smartboil.temperature;Smartboil: temperature;Geräte-/Produzentendefinition;Nein;;Nur bei sichtbarer Smartboil-Integration und gültigem Geräteobjekt.
+/heater;smartboil.targetTemp;Smartboil: targetTemp;Geräte-/Produzentendefinition;Nein;;Nur bei sichtbarer Smartboil-Integration und gültigem Geräteobjekt.
+/heater;smartboil.hysteresis;Smartboil: hysteresis;Geräte-/Produzentendefinition;Nein;;Nur bei sichtbarer Smartboil-Integration und gültigem Geräteobjekt.
+/heater;smartboil.ledBrightness;Smartboil: ledBrightness;Geräte-/Produzentendefinition;Nein;;Nur bei sichtbarer Smartboil-Integration und gültigem Geräteobjekt.
+/heater;smartboil.dcEnabled;Smartboil: dcEnabled;Geräte-/Produzentendefinition;Nein;;Nur bei sichtbarer Smartboil-Integration und gültigem Geräteobjekt.
+/heater;smartboil.acEnabled;Smartboil: acEnabled;Geräte-/Produzentendefinition;Nein;;Nur bei sichtbarer Smartboil-Integration und gültigem Geräteobjekt.
+/heater;smartboil.autoHeat;Smartboil: autoHeat;Geräte-/Produzentendefinition;Nein;;Nur bei sichtbarer Smartboil-Integration und gültigem Geräteobjekt.
+/heater;smartboil.boostMode;Smartboil: boostMode;Geräte-/Produzentendefinition;Nein;;Nur bei sichtbarer Smartboil-Integration und gültigem Geräteobjekt.
+/heater;smartboil.dcSimple;Smartboil: dcSimple;Geräte-/Produzentendefinition;Nein;;Nur bei sichtbarer Smartboil-Integration und gültigem Geräteobjekt.
+/heater;smartboil.dcActive;Smartboil: dcActive;Geräte-/Produzentendefinition;Nein;;Nur bei sichtbarer Smartboil-Integration und gültigem Geräteobjekt.
+/heater;smartboil.acActive;Smartboil: acActive;Geräte-/Produzentendefinition;Nein;;Nur bei sichtbarer Smartboil-Integration und gültigem Geräteobjekt.
+/heater;smartboil.acConnected;Smartboil: acConnected;Geräte-/Produzentendefinition;Nein;;Nur bei sichtbarer Smartboil-Integration und gültigem Geräteobjekt.
+/heater;smartboil.hvacAction;Smartboil: hvacAction;Geräte-/Produzentendefinition;Nein;;Nur bei sichtbarer Smartboil-Integration und gültigem Geräteobjekt.
+/heater;smartboil.lastError;Smartboil: lastError;Geräte-/Produzentendefinition;Nein;;Nur bei sichtbarer Smartboil-Integration und gültigem Geräteobjekt.
+/heater;smartboil.firmware;Smartboil: firmware;Geräte-/Produzentendefinition;Nein;;Nur bei sichtbarer Smartboil-Integration und gültigem Geräteobjekt.
+/dimmer/;rgbw1.state;RGBW-Kanal: state;;Nein;;Optionaler Dimmy-Pro-Zweig.
+/dimmer/;rgbw1.name;RGBW-Kanal: name;;Nein;;Optionaler Dimmy-Pro-Zweig.
+/dimmer/;rgbw1.autooff;RGBW-Kanal: autooff;;Nein;;Optionaler Dimmy-Pro-Zweig.
+/dimmer/;rgbw1.offtime;RGBW-Kanal: offtime;;Nein;;Optionaler Dimmy-Pro-Zweig.
+/dimmer/;rgbw2.state;RGBW-Kanal: state;;Nein;;Optionaler Dimmy-Pro-Zweig.
+/dimmer/;rgbw2.name;RGBW-Kanal: name;;Nein;;Optionaler Dimmy-Pro-Zweig.
+/dimmer/;rgbw2.autooff;RGBW-Kanal: autooff;;Nein;;Optionaler Dimmy-Pro-Zweig.
+/dimmer/;rgbw2.offtime;RGBW-Kanal: offtime;;Nein;;Optionaler Dimmy-Pro-Zweig.
+/maxxfan/;maxxfan.fan_power;Lüfter ein/aus;bool;Nein;maxxfan_power;"Flow verwendet Ersatzwerte; vorhandene Felder beweisen keine aktive Hardware."
+/maxxfan/;maxxfan.fan_direction;Richtung;in/out;Nein;maxxfan_direction;"Flow verwendet Ersatzwerte; vorhandene Felder beweisen keine aktive Hardware."
+/maxxfan/;maxxfan.fan_temp;Automatik-Solltemperatur;°C;Nein;maxxfanAuto_temp;"Flow verwendet Ersatzwerte; vorhandene Felder beweisen keine aktive Hardware."
+/maxxfan/;maxxfan.fan_auto;Automatik ein/aus;bool;Nein;maxxfan_auto;"Flow verwendet Ersatzwerte; vorhandene Felder beweisen keine aktive Hardware."
+/maxxfan/;maxxfan.fan_speed;Stufe;1–10;Nein;maxxfan_speed;"Flow verwendet Ersatzwerte; vorhandene Felder beweisen keine aktive Hardware."
+/maxxfan/;maxxfan.fan_vent;Klappe;open/close;Nein;maxxfan_vent;"Flow verwendet Ersatzwerte; vorhandene Felder beweisen keine aktive Hardware."
+/fan/;maxxfan.fan_power;Lüfter ein/aus;bool;Nein;maxxfan_power;"Flow verwendet Ersatzwerte; vorhandene Felder beweisen keine aktive Hardware."
+/fan/;maxxfan.fan_direction;Richtung;in/out;Nein;maxxfan_direction;"Flow verwendet Ersatzwerte; vorhandene Felder beweisen keine aktive Hardware."
+/fan/;maxxfan.fan_temp;Automatik-Solltemperatur;°C;Nein;maxxfanAuto_temp;"Flow verwendet Ersatzwerte; vorhandene Felder beweisen keine aktive Hardware."
+/fan/;maxxfan.fan_auto;Automatik ein/aus;bool;Nein;maxxfan_auto;"Flow verwendet Ersatzwerte; vorhandene Felder beweisen keine aktive Hardware."
+/fan/;maxxfan.fan_speed;Stufe;1–10;Nein;maxxfan_speed;"Flow verwendet Ersatzwerte; vorhandene Felder beweisen keine aktive Hardware."
+/fan/;maxxfan.fan_vent;Klappe;open/close;Nein;maxxfan_vent;"Flow verwendet Ersatzwerte; vorhandene Felder beweisen keine aktive Hardware."
+/bayernluefter/;bayernluefter.SystemOn;Lüfterexport: SystemOn;Geräteexport;Nein;bayernluefter_state;"Dynamische Exportfelder; diese Namen werden vom Flow verwendet. Laufzeitfelder werden zusätzlich ergänzt."
+/bayernluefter/;bayernluefter.SystemMode;Lüfterexport: SystemMode;Geräteexport;Nein;bayernluefter_state;"Dynamische Exportfelder; diese Namen werden vom Flow verwendet. Laufzeitfelder werden zusätzlich ergänzt."
+/bayernluefter/;bayernluefter.Speed_In;Lüfterexport: Speed_In;Geräteexport;Nein;bayernluefter_state;"Dynamische Exportfelder; diese Namen werden vom Flow verwendet. Laufzeitfelder werden zusätzlich ergänzt."
+/bayernluefter/;bayernluefter.Speed_Out;Lüfterexport: Speed_Out;Geräteexport;Nein;bayernluefter_state;"Dynamische Exportfelder; diese Namen werden vom Flow verwendet. Laufzeitfelder werden zusätzlich ergänzt."
+/bayernluefter/;bayernluefter.Speed_AntiFreeze;Lüfterexport: Speed_AntiFreeze;Geräteexport;Nein;bayernluefter_state;"Dynamische Exportfelder; diese Namen werden vom Flow verwendet. Laufzeitfelder werden zusätzlich ergänzt."
+/bayernluefter/;bayernluefter.Temp_In;Lüfterexport: Temp_In;Geräteexport;Nein;bayernluefter_state;"Dynamische Exportfelder; diese Namen werden vom Flow verwendet. Laufzeitfelder werden zusätzlich ergänzt."
+/bayernluefter/;bayernluefter.Temp_Out;Lüfterexport: Temp_Out;Geräteexport;Nein;bayernluefter_state;"Dynamische Exportfelder; diese Namen werden vom Flow verwendet. Laufzeitfelder werden zusätzlich ergänzt."
+/bayernluefter/;bayernluefter.Temp_Fresh;Lüfterexport: Temp_Fresh;Geräteexport;Nein;bayernluefter_state;"Dynamische Exportfelder; diese Namen werden vom Flow verwendet. Laufzeitfelder werden zusätzlich ergänzt."
+/bayernluefter/;bayernluefter.rel_Humidity_In;Lüfterexport: rel_Humidity_In;Geräteexport;Nein;bayernluefter_state;"Dynamische Exportfelder; diese Namen werden vom Flow verwendet. Laufzeitfelder werden zusätzlich ergänzt."
+/bayernluefter/;bayernluefter.rel_Humidity_Out;Lüfterexport: rel_Humidity_Out;Geräteexport;Nein;bayernluefter_state;"Dynamische Exportfelder; diese Namen werden vom Flow verwendet. Laufzeitfelder werden zusätzlich ergänzt."
+/bayernluefter/;bayernluefter.abs_Humidity_In;Lüfterexport: abs_Humidity_In;Geräteexport;Nein;bayernluefter_state;"Dynamische Exportfelder; diese Namen werden vom Flow verwendet. Laufzeitfelder werden zusätzlich ergänzt."
+/bayernluefter/;bayernluefter.abs_Humidity_Out;Lüfterexport: abs_Humidity_Out;Geräteexport;Nein;bayernluefter_state;"Dynamische Exportfelder; diese Namen werden vom Flow verwendet. Laufzeitfelder werden zusätzlich ergänzt."
+/bayernluefter/;bayernluefter.Efficiency;Lüfterexport: Efficiency;Geräteexport;Nein;bayernluefter_state;"Dynamische Exportfelder; diese Namen werden vom Flow verwendet. Laufzeitfelder werden zusätzlich ergänzt."
+/bayernluefter/;bayernluefter.Humidity_Transport;Lüfterexport: Humidity_Transport;Geräteexport;Nein;bayernluefter_state;"Dynamische Exportfelder; diese Namen werden vom Flow verwendet. Laufzeitfelder werden zusätzlich ergänzt."
+/bayernluefter/;bayernluefter.DeviceName;Lüfterexport: DeviceName;Geräteexport;Nein;bayernluefter_state;"Dynamische Exportfelder; diese Namen werden vom Flow verwendet. Laufzeitfelder werden zusätzlich ergänzt."
+/bayernluefter/;bayernluefter.Date;Lüfterexport: Date;Geräteexport;Nein;bayernluefter_state;"Dynamische Exportfelder; diese Namen werden vom Flow verwendet. Laufzeitfelder werden zusätzlich ergänzt."
+/bayernluefter/;bayernluefter.Time;Lüfterexport: Time;Geräteexport;Nein;bayernluefter_state;"Dynamische Exportfelder; diese Namen werden vom Flow verwendet. Laufzeitfelder werden zusätzlich ergänzt."
+/bayernluefter/;bayernluefter.MAC;Lüfterexport: MAC;Geräteexport;Nein;bayernluefter_state;"Dynamische Exportfelder; diese Namen werden vom Flow verwendet. Laufzeitfelder werden zusätzlich ergänzt."
+/bayernluefter/;bayernluefter.LocalIP;Lüfterexport: LocalIP;Geräteexport;Nein;bayernluefter_state;"Dynamische Exportfelder; diese Namen werden vom Flow verwendet. Laufzeitfelder werden zusätzlich ergänzt."
+/bayernluefter/;bayernluefter.RSSI;Lüfterexport: RSSI;Geräteexport;Nein;bayernluefter_state;"Dynamische Exportfelder; diese Namen werden vom Flow verwendet. Laufzeitfelder werden zusätzlich ergänzt."
+/bayernluefter/;bayernluefter.FW_MainController;Lüfterexport: FW_MainController;Geräteexport;Nein;bayernluefter_state;"Dynamische Exportfelder; diese Namen werden vom Flow verwendet. Laufzeitfelder werden zusätzlich ergänzt."
+/bayernluefter/;bayernluefter.FW_WiFi;Lüfterexport: FW_WiFi;Geräteexport;Nein;bayernluefter_state;"Dynamische Exportfelder; diese Namen werden vom Flow verwendet. Laufzeitfelder werden zusätzlich ergänzt."
+/bayernluefter/;bayernluefter.runtime;Lüfterexport: runtime;Geräteexport;Nein;bayernluefter_state;"Dynamische Exportfelder; diese Namen werden vom Flow verwendet. Laufzeitfelder werden zusätzlich ergänzt."
+/bayernluefter/;bayernluefter.runtime_remaining_s;Lüfterexport: runtime_remaining_s;Geräteexport;Nein;bayernluefter_state;"Dynamische Exportfelder; diese Namen werden vom Flow verwendet. Laufzeitfelder werden zusätzlich ergänzt."
+/boiler/;boiler_activated;Boilerstatus/-Konfiguration: boiler_activated;Im Produzenten definiert;Nein;boiler_values;
+/boiler/;boiler_relay.relay;Boilerstatus/-Konfiguration: boiler_relay.relay;Im Produzenten definiert;Nein;boiler_values;
+/boiler/;boiler_relay.state;Boilerstatus/-Konfiguration: boiler_relay.state;Im Produzenten definiert;Nein;boiler_values;
+/boiler/;boiler_relay.name;Boilerstatus/-Konfiguration: boiler_relay.name;Im Produzenten definiert;Nein;boiler_values;
+/boiler/;emergency_limit;Boilerstatus/-Konfiguration: emergency_limit;Im Produzenten definiert;Nein;boiler_values;
+/boiler/;standard_runtime;Boilerstatus/-Konfiguration: standard_runtime;Im Produzenten definiert;Nein;boiler_values;
+/boiler/;waterlevel_min;Boilerstatus/-Konfiguration: waterlevel_min;Im Produzenten definiert;Nein;boiler_values;
+/boiler/;waterlevel_current;Boilerstatus/-Konfiguration: waterlevel_current;Im Produzenten definiert;Nein;boiler_values;
+/boiler/;autotemp_control;Boilerstatus/-Konfiguration: autotemp_control;Im Produzenten definiert;Nein;boiler_values;
+/boiler/;hysteresis;Boilerstatus/-Konfiguration: hysteresis;Im Produzenten definiert;Nein;boiler_values;
+/boiler/;target_temp;Boilerstatus/-Konfiguration: target_temp;Im Produzenten definiert;Nein;boiler_values;
+/boiler/;boiler_temp;Boilerstatus/-Konfiguration: boiler_temp;Im Produzenten definiert;Nein;boiler_values;
+/boiler/;emergency_shutdown;Boilerstatus/-Konfiguration: emergency_shutdown;Im Produzenten definiert;Nein;boiler_values;
+/boiler/;boiler_emergency_reason;Boilerstatus/-Konfiguration: boiler_emergency_reason;Im Produzenten definiert;Nein;boiler_values;
+/boiler/;boiler_connected_heater;Boilerstatus/-Konfiguration: boiler_connected_heater;Im Produzenten definiert;Nein;boiler_values;
+/boiler/;boiler_boost_state;Boilerstatus/-Konfiguration: boiler_boost_state;Im Produzenten definiert;Nein;boiler_values;
+/gps;lat;Breitengrad;Grad;Nein;;
+/gps;lon;Längengrad;Grad;Nein;;
+/gps;date;Aktualisierungszeit;Datum/Zeit;Nein;;
+/info/;VanPi_Ctrl;Systeminformation: VanPi_Ctrl;;Nein;;
+/info/;install_date;Systeminformation: install_date;;Nein;;
+/info/;current_date;Systeminformation: current_date;;Nein;;
+/info/;uptime;Systeminformation: uptime;;Nein;;
+/info/;van_name;Systeminformation: van_name;;Nein;;
+/info/;cpu_temp;Systeminformation: cpu_temp;;Nein;;
+/info/;cpu_usage;Systeminformation: cpu_usage;;Nein;;
+/info/;board_temp;Systeminformation: board_temp;;Nein;;
+/info/;ttgo;Systeminformation: ttgo;;Nein;;
+/debug;BatteryDataDelivery;Diagnose: BatteryDataDelivery;;Nein;;
+/debug;accesspoint;Diagnose: accesspoint;;Nein;;
+/debug;eth0IP;Diagnose: eth0IP;;Nein;;
+/debug;pkwshuntactive;Diagnose: pkwshuntactive;;Nein;;
+/debug;version;Diagnose: version;;Nein;;
+/debug;wifiIP;Diagnose: wifiIP;;Nein;;
+/position_sensor/?request=true;x_angle;Neigung;Grad;Ja;x_angle;
+/position_sensor/?request=true;y_angle;Neigung;Grad;Ja;y_angle;
+/names;Relay*/WifiRelay*/Dimmer*/Level*/Temp*.name;Kanal-/Sensornamen;;Nein;;
+/names;Relay*/WifiRelay*/Dimmer*/Level*/Temp*.globalVariable;Interne Variable für den Namen;;Nein;;"Namensvariable wie Ndimmer3; keine Variable zum Schalten des Kanalzustands."
+/conniot;connection.state;Konstante Testantwort;bool;Nein;;"Im Export immer true; kein Nachweis einer Internet-/IoT-Verbindung."
+/smartboil;<Geräteobjekt>;Dynamische/zusammengestellte Antwort;;Nein;smartboil.devices[deviceId];"Schlüssel dynamisch aus Gerätemeldungen; kein festes Schema im HTTP-Handler."
+/dometic_rc10_ci/;<Geräteobjekt>;Dynamische/zusammengestellte Antwort;;Nein;rc10State;"CAN-/Gerätedaten durchgereicht; timestamp wird ergänzt, status.power_on im Flow verwendet."
+/timberline;<Geräteobjekt>;Dynamische/zusammengestellte Antwort;;Nein;timberline;"Gespeichertes Geräteobjekt direkt zurückgegeben; konkrete Schlüssel live abgleichen."
+/lte_bridge;lteBridge;Dynamische/zusammengestellte Antwort;;Nein;flow.lteBridge_data;"Letzte eingehende Bridge-Nachricht inklusive ergänztem Zeitstempel; dynamische Struktur."
+/app_home/;<zusammengestellte Auswahl>;Dynamische/zusammengestellte Antwort;;Nein;Auswahl über Query-Parameter;"re/r, w, di/d, t, b, l, ru; Antwort nach folgenden verbundenen Knoten aufgebaut."
+/network;<Netzwerkantwort>;Dynamische/zusammengestellte Antwort;;Nein;Systemabfragen;"Zusammengestellte Netzwerkdaten; kein einzelnes festes Sensorobjekt."

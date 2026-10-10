@@ -2,7 +2,7 @@
 #include "http_handler.h"
 #include <math.h>
 namespace {
-lv_obj_t *root, *version, *mode_text;
+lv_obj_t *root;
 lv_obj_t *favorites[2], *favorite_text[2], *temperatures[3], *temp_name[3], *temp_value[3];
 lv_obj_t *battery, *bat_title, *bat_power, *bat_detail, *starter;
 lv_obj_t *solar, *solar_power, *solar_detail, *water, *water_title, *water_value, *water_bar;
@@ -17,14 +17,14 @@ void visible(lv_obj_t *obj, bool show) {
 }
 void layout() {
     if (!root) return;
-    int y = 32, count = (state.home_favorite[0] != 0) + (state.home_favorite[1] != 0), column = 0;
+    int y = 0, count = (state.home_favorite[0] != 0) + (state.home_favorite[1] != 0), column = 0;
     for (int i = 0; i < 2; ++i) {
         bool show = state.home_favorite[i] != 0; visible(favorites[i], show); if (!show) continue;
         int width = count == 1 ? 464 : 228;
         lv_obj_set_pos(favorites[i], column++ * 236, y); lv_obj_set_width(favorites[i], width);
         lv_obj_set_width(favorite_text[i], width - 24); lv_obj_center(favorite_text[i]);
     }
-    if (count) y += 44;
+    if (count) y += 64;
     count = column = 0;
     for (int i = 0; i < 3; ++i) if (state.home_temp_source[i] >= 0) ++count;
     for (int i = 0; i < 3; ++i) {
@@ -63,22 +63,21 @@ void favorite_click(lv_event_t *event) {
     }
     ui_update_home();
 }
-void mode_click(lv_event_t *) {
-    state.debug_mode = !state.debug_mode; ui_sync_demo_controls(); state_save(); ui_update_home(); ui_update_data();
+void card_click(lv_event_t *event) { ui_navigate_to((TabId)(uintptr_t)lv_event_get_user_data(event)); }
+void link(lv_obj_t *card, TabId target) {
+    lv_obj_add_flag(card, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_event_cb(card, card_click, LV_EVENT_CLICKED, (void *)(uintptr_t)target);
 }
 void value(lv_obj_t *obj, const char *format, float number, bool ready) {
     if (ready && isfinite(number)) ui_label_set_float(obj, format, number);
     else ui_label_set_text_if_changed(obj, "--");
 }
 }
+void ui_home_reset() { root = nullptr; }
 void ui_home_layout_changed() { layout(); }
 void ui_update_home() {
     if (!root) return;
     char text[96];
-    snprintf(text, sizeof(text), "%s %s", state.debug_mode ? "Demo" :
-        state.vanpi_connected ? "Live" : "Live offline", CAMPERUI_VERSION);
-    ui_label_set_text_if_changed(version, text);
-    ui_label_set_text_if_changed(mode_text, state.debug_mode ? "Dummy > Live" : "Live > Dummy");
     bool ready = source_ready();
     for (int i = 0; i < 2; ++i) {
         int selection = state.home_favorite[i]; if (selection < 1 || selection > 16) continue;
@@ -91,10 +90,10 @@ void ui_update_home() {
         if (valid && on) lv_obj_add_state(favorites[i], LV_STATE_CHECKED); else lv_obj_clear_state(favorites[i], LV_STATE_CHECKED);
     }
     for (int i = 0; i < 3; ++i) {
-        int source = state.home_temp_source[i]; if (source < 0 || source > 3) continue;
+        int source = state.home_temp_source[i]; if (source < 0 || source >= TEMP_SOURCE_COUNT) continue;
         ui_label_set_text_if_changed(temp_name[i], state.temp_sensor_names[source].c_str());
         // Dummy temp3 contains humidity; never mislabel it as Celsius.
-        value(temp_value[i], state.debug_mode && source == 2 ? "%.1f %%" : "%.1f C",
+        value(temp_value[i], state.temp_is_humidity[source] ? "%.1f %%" : "%.1f C",
               state.temp_sensors[source], ready && (state.temp_fields & (1 << source)));
     }
     if (ready && (state.battery_fields & 4)) {
@@ -139,13 +138,9 @@ void ui_build_home(lv_obj_t *parent) {
     lv_obj_set_style_pad_all(parent, 8, 0); lv_obj_set_style_bg_color(parent, ui_theme_bg(), 0);
     lv_obj_set_style_bg_opa(parent, LV_OPA_COVER, 0); lv_obj_set_scroll_dir(parent, LV_DIR_VER);
     lv_obj_set_scrollbar_mode(parent, LV_SCROLLBAR_MODE_AUTO); lv_obj_add_flag(parent, LV_OBJ_FLAG_SCROLLABLE);
-    label(parent, "HOME", 0, 4, &lv_font_montserrat_12);
-    lv_obj_t *mode = lv_btn_create(parent); lv_obj_set_pos(mode, 64, 0); lv_obj_set_size(mode, 136, 26);
-    mode_text = label(mode, "Dummy > Live", 0, 0, &lv_font_montserrat_12); lv_obj_center(mode_text);
-    lv_obj_add_event_cb(mode, mode_click, LV_EVENT_CLICKED, NULL);
-    version = label(parent, "", 0, 4, &lv_font_montserrat_12); lv_obj_align(version, LV_ALIGN_TOP_RIGHT, 0, 4);
+
     for (int i = 0; i < 2; ++i) {
-        favorites[i] = lv_btn_create(parent); lv_obj_set_height(favorites[i], 36);
+        favorites[i] = lv_btn_create(parent); lv_obj_set_height(favorites[i], 56);
         lv_obj_set_style_radius(favorites[i], 12, 0); lv_obj_set_style_bg_color(favorites[i], ui_theme_card(), 0);
         lv_obj_set_style_bg_color(favorites[i], lv_color_hex(UI_COLOR_PRIMARY), LV_STATE_CHECKED);
         lv_obj_set_style_text_color(favorites[i], lv_color_hex(0xffffff), LV_STATE_CHECKED);
@@ -177,5 +172,7 @@ void ui_build_home(lv_obj_t *parent) {
     water_bar = lv_bar_create(water); lv_obj_set_pos(water_bar, 0, 26); lv_obj_set_size(water_bar, 438, 8);
     lv_bar_set_range(water_bar, 0, 100); lv_obj_set_style_bg_color(water_bar, ui_theme_track(), LV_PART_MAIN);
     lv_obj_set_style_bg_color(water_bar, lv_color_hex(UI_COLOR_PRIMARY), LV_PART_INDICATOR);
+    for (auto card : temperatures) link(card, TAB_CLIMATE);
+    link(battery, TAB_POWER); link(solar, TAB_POWER); link(water, TAB_WATER);
     layout();
 }
