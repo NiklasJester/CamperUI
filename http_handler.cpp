@@ -246,9 +246,9 @@ static void parse_temp_json(const String &payload) {
     }
 
     state.temp_fields = fields;
-    int out_idx = constrain(state.outdoor_temp_sensor, 0, 3);
+    int out_idx = constrain(state.outdoor_temp_sensor, 0, TEMP_SOURCE_COUNT - 1);
     state.outdoor_temp = state.temp_sensors[out_idx];
-    int in_idx = (out_idx == 0) ? 1 : 0;
+    int in_idx = constrain(state.indoor_temp_sensor, 0, TEMP_SOURCE_COUNT - 1);
     state.indoor_temp = state.temp_sensors[in_idx];
     if (out_idx != 2 && in_idx != 2) {
         state.indoor_humidity = state.temp_sensors[2];

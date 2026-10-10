@@ -33,7 +33,8 @@ const TabMeta TAB_METAS[TAB_COUNT] = {
     {TAB_DIMMERS, "Dimmer", MDI_LIGHTBULB},
     {TAB_POWER, "Power", MDI_BATTERY_CHARGING},
     {TAB_WATER, "Wasser", MDI_WATER},
-    {TAB_CLIMATE, "Klima", MDI_THERMOMETER},
+    {TAB_CLIMATE, "Klima", MDI_FIRE},
+    {TAB_TEMPS, "Temps", MDI_THERMOMETER},
     {TAB_MAXXFAN, "MaxxFan", MDI_FAN},
     {TAB_SWITCHES, "Schalter", MDI_TOGGLE_SWITCH},
     {TAB_LEVEL, "Level", MDI_SPIRIT_LEVEL},
@@ -394,6 +395,7 @@ void ui_init() {
             case TAB_POWER:    ui_build_power(pages[i]); break;
             case TAB_WATER:    ui_build_water(pages[i]); break;
             case TAB_CLIMATE:  ui_build_climate(pages[i]); break;
+            case TAB_TEMPS:    ui_build_temps(pages[i]); break;
             case TAB_MAXXFAN:  ui_build_maxxfan(pages[i]); break;
             case TAB_SWITCHES: ui_build_switches(pages[i]); break;
             case TAB_LEVEL:    ui_build_level(pages[i]); break;
@@ -496,6 +498,7 @@ void ui_update_visible_page() {
         case TAB_POWER: ui_update_power_tab(); break;
         case TAB_WATER: ui_update_water_tab(); break;
         case TAB_CLIMATE: ui_update_climate_tab(); break;
+        case TAB_TEMPS: ui_update_temps_tab(); break;
         case TAB_SWITCHES: ui_update_switches_tab(); break;
         case TAB_LEVEL: ui_update_level_tab(); break;
         case TAB_MAXXFAN: ui_update_maxxfan(); break;

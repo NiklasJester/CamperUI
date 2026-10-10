@@ -14,6 +14,7 @@
 #include "web_ota.h"
 #include "buzzer.h"
 #include "debug_log.h"
+#include "temp_history.h"
 
 // Hardware and Touch Controller
 TouchDrvGT911 GT911;
@@ -227,6 +228,7 @@ void setup() {
     USBSerial.printf("CPU frequency: %u MHz\n", (unsigned)getCpuFrequencyMhz());
 
     state_init();
+    temp_history_init();
     http_init();
 
     // Initialize CH32V003 IO expander (powers on LCD and resets GT911/ST7701S)
@@ -416,6 +418,7 @@ void loop() {
     }
 
     buzzer_loop();
+    temp_history_tick();
 
     // Update UI dynamically
     static uint32_t last_ui_ms = 0;
