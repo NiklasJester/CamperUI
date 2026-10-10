@@ -1,4 +1,6 @@
 #include "http_handler.h"
+#include "maxxfan_client.h"
+#include <math.h>
 #include <WiFi.h>
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
@@ -204,20 +206,27 @@ static void parse_temp_json(String payload) {
     DynamicJsonDocument doc(8192);
     if (deserializeJson(doc, payload)) return;
 
-    for (int i = 0; i < 4; i++) {
-        String key = "temp" + String(i + 1);
-        if (!doc.containsKey(key)) continue;
+    uint16_t fields = 0;
+    for (int i = 0; i < TEMP_SOURCE_COUNT; i++) {
+        String key = i < 4 ? "temp" + String(i + 1) : "ruuvitag" + String(i - 4);
         JsonObject t = doc[key];
-        if (t.containsKey("name")) {
-            String n = t["name"].as<String>();
-            if (n.length() > 0 && n != key) state.temp_sensor_names[i] = fix_umlauts(n);
+        if (t.isNull()) continue;
+        String n = t["name"] | ""; n.replace('\n', ' '); n.replace('\r', ' ');
+        if (n.length()) {
+            String name = fix_umlauts(n).substring(0, 48);
+            if (state.temp_sensor_names[i] != name) state.temp_sensor_names[i] = name;
         }
-        if (t.containsKey("state")) {
-            state.temp_sensors[i] = jsonFloat(t["state"]);
-            state.temp_fields |= (1 << i);
+        state.temp_is_humidity[i] = state.debug_mode && i == 2;
+        if (!t["state"].isNull()) {
+            String raw = t["state"].as<String>(); raw.trim(); raw.replace(',', '.');
+            char *end; float v = strtof(raw.c_str(), &end);
+            if (end != raw.c_str() && !*end && isfinite(v)) {
+                state.temp_sensors[i] = v; fields |= (1 << i);
+            }
         }
     }
 
+    state.temp_fields = fields;
     int out_idx = constrain(state.outdoor_temp_sensor, 0, 3);
     state.outdoor_temp = state.temp_sensors[out_idx];
     int in_idx = (out_idx == 0) ? 1 : 0;
@@ -393,7 +402,8 @@ void http_loop() {
         state.solar_power = state.solar_current = state.solar_voltage = 0;
         state.indoor_temp = state.outdoor_temp = 0;
         state.heating_on = state.fan_on = false;
-        for (int i = 0; i < 4; ++i) { state.temp_sensors[i] = 0; state.tank_level[i] = 0; }
+        for (int i = 0; i < TEMP_SOURCE_COUNT; ++i) { state.temp_sensors[i] = 0; state.temp_is_humidity[i] = false; }
+        for (int i = 0; i < 4; ++i) state.tank_level[i] = 0;
         for (int i = 0; i < 8; ++i) {
             state.dimmer_hold_until[i] = state.relay_hold_until[i] = 0;
             state.switch_state[i] = false; state.dimmer_val[i] = 0;
@@ -413,7 +423,12 @@ void http_loop() {
             switch (poll_step) {
                 case 0: {
                     // String-encoded float/int values
-                    String dummy = "{\"VoltB\":\"13.4\",\"Ampere\":\"-2.1\",\"battsoc\":\"88\",\"starter_voltage\":\"12.7\"}";
+                    float phase = (millis() % 240000UL) * (2.0f * PI / 240000.0f);
+                    char data[160];
+                    snprintf(data, sizeof(data), "{\"VoltB\":%.2f,\"Ampere\":%.2f,\"battsoc\":%d,\"starter_voltage\":%.2f}",
+                        13.2f + .2f * cosf(phase), -2.1f - 4.0f * sinf(phase),
+                        (int)lroundf(50 + 45 * cosf(phase)), 12.7f + .1f * sinf(phase));
+                    String dummy(data);
                     parse_batt_json(dummy);
                     break;
                 }
@@ -434,6 +449,8 @@ void http_loop() {
                 }
                 case 4: {
                     String dummy = "{\"temp1\":{\"state\":\"22.4\",\"name\":\"Innen\"},\"temp2\":{\"state\":\"14.6\",\"name\":\"Aussen\"},\"temp3\":{\"state\":\"52.0\",\"name\":\"Feuchte\"},\"temp4\":{\"state\":\"7.8\",\"name\":\"Kuehlbox\"}}";
+                    dummy.remove(dummy.length() - 1);
+                    dummy += ",\"ruuvitag0\":{\"state\":22.7,\"name\":\"Ruuvi Wohnraum\",\"hum\":48},\"ruuvitag1\":{\"state\":15.2,\"name\":\"Ruuvi Aussen\"},\"ruuvitag2\":{\"state\":5.3,\"name\":\"Ruuvi Kuehlschrank\"}}";
                     parse_temp_json(dummy);
                     break;
                 }
@@ -443,7 +460,11 @@ void http_loop() {
                     break;
                 }
                 case 6: {
-                    String dummy = "{\"mppt_pv_watts\":\"148.5\",\"mppt_pv_amps\":\"8.3\",\"mppt_pv_volts\":\"17.9\"}";
+                    float phase = (millis() % 180000UL) * (2.0f * PI / 180000.0f);
+                    float volts = 17.9f + .4f * sinf(phase), watts = 148.5f + 60 * sinf(phase);
+                    char data[144];
+                    snprintf(data, sizeof(data), "{\"mppt_pv_watts\":%.2f,\"mppt_pv_amps\":%.2f,\"mppt_pv_volts\":%.2f}", watts, watts / volts, volts);
+                    String dummy(data);
                     parse_mppt_json(dummy);
                     break;
                 }
@@ -595,6 +616,8 @@ static void http_background_task(void *pvParameters) {
         while (http_cmd_queue && xQueueReceive(http_cmd_queue, &cmd, 0) == pdTRUE) {
             http_put(String(cmd.path));
         }
+
+        maxxfan_worker();
 
         // 2. Poll endpoints
         http_loop();

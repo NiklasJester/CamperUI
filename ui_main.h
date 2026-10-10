@@ -5,7 +5,7 @@
 #include "system_state.h"
 #include "ui_mdi_icons.h"
 #include <string.h>
-#define CAMPERUI_VERSION "V1.0.3"
+#define CAMPERUI_VERSION "V1.0.3-RV3D.88-dev"
 
 // ==========================================
 // Modern Automotive / Camper Color Palette
@@ -62,6 +62,11 @@ void ui_debug_navigation(const char *stage, bool force = false);
 // Tab Updates
 void ui_update_data();
 void ui_update_home();
+void ui_update_maxxfan();
+void ui_home_reset();
+void ui_maxxfan_reset();
+void ui_navigate_to(TabId page);
+bool ui_page_available(TabId page);
 void ui_home_layout_changed();
 void ui_build_home_settings(lv_obj_t *parent);
 void ui_home_settings_refresh();
