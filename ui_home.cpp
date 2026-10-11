@@ -26,9 +26,9 @@ void layout() {
     }
     if (count) y += 64;
     count = column = 0;
-    for (int i = 0; i < 3; ++i) if (state.home_temp_source[i] >= 0) ++count;
+    for (int i = 0; i < 3; ++i) if (state.home_show_temp[i] && ui_home_temperature_source(i) >= 0) ++count;
     for (int i = 0; i < 3; ++i) {
-        bool show = state.home_temp_source[i] >= 0; visible(temperatures[i], show); if (!show) continue;
+        bool show = state.home_show_temp[i] && ui_home_temperature_source(i) >= 0; visible(temperatures[i], show); if (!show) continue;
         int width = (464 - (count - 1) * 8) / count;
         lv_obj_set_pos(temperatures[i], column++ * (width + 8), y);
         lv_obj_set_width(temperatures[i], width); lv_obj_set_width(temp_name[i], width - 24);
@@ -90,7 +90,7 @@ void ui_update_home() {
         if (valid && on) lv_obj_add_state(favorites[i], LV_STATE_CHECKED); else lv_obj_clear_state(favorites[i], LV_STATE_CHECKED);
     }
     for (int i = 0; i < 3; ++i) {
-        int source = state.home_temp_source[i]; if (source < 0 || source >= TEMP_SOURCE_COUNT) continue;
+        int source = ui_home_temperature_source(i); if (source < 0 || source >= TEMP_SOURCE_COUNT) continue;
         ui_label_set_text_if_changed(temp_name[i], state.temp_sensor_names[source].c_str());
         // Dummy temp3 contains humidity; never mislabel it as Celsius.
         value(temp_value[i], state.temp_is_humidity[source] ? "%.1f %%" : "%.1f C",
@@ -103,7 +103,7 @@ void ui_update_home() {
     }
     ui_label_set_text_if_changed(bat_title, text);
     ui_text_color_if_changed(bat_title, ready && (state.battery_fields & 4) ?
-        lv_color_hex(state.bat_soc < 20 ? UI_COLOR_DANGER : state.bat_soc <= 40 ? 0xffdf00 : UI_COLOR_SUCCESS) : ui_theme_muted());
+        ui_battery_soc_color(state.bat_soc) : ui_theme_muted());
     value(bat_power, "%.1f W", state.bat_voltage * state.bat_current, ready && (state.battery_fields & 3) == 3);
 
     char v_buf[16], a_buf[16];

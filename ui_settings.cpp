@@ -18,6 +18,7 @@ static lv_obj_t *lbl_time_status = NULL;
 static lv_obj_t *lbl_web_ota_url = NULL;
 static lv_obj_t *lbl_web_ota_status = NULL;
 static lv_obj_t *update_qr = NULL;
+static lv_obj_t *card_web_ota = NULL;
 static String update_qr_url;
 
 static void close_http_test_cb(lv_event_t * e) {
@@ -119,6 +120,7 @@ static lv_obj_t *ta_tank_max[4];
 
 static lv_obj_t *ta_warn_frost;
 static lv_obj_t *ta_warn_bat;
+static lv_obj_t *ta_warn_bat_yellow;
 static lv_obj_t *ta_warn_fresh;
 static lv_obj_t *ta_warn_waste;
 
@@ -139,6 +141,11 @@ void ui_update_settings_tab() {
     if (lv_scr_act() == scr_settings && wifi_status_label) {
         String details = wifi_connection_details();
         ui_label_set_text_if_changed(wifi_status_label, details.c_str());
+        if (card_web_ota) {
+            lv_obj_update_layout(wifi_status_label);
+            lv_obj_set_y(card_web_ota, lv_obj_get_y(wifi_status_label) +
+                lv_obj_get_height(wifi_status_label) + 16);
+        }
     }
     if (lv_scr_act() == scr_settings && lbl_time_status) {
         time_t now = time(nullptr);
@@ -271,6 +278,8 @@ static void save_settings_cb(lv_event_t * e) {
     
     // Load main screen beneath the dialog
     lv_scr_load(scr_main);
+    // Visibility is applied when cards are built; rebuild after the event returns.
+    ui_init();
 }
 
 static String build_temp_dropdown_options(bool include_none, int *map_arr, int &count_out) {
@@ -530,8 +539,10 @@ void ui_settings_screen_init() {
     lv_label_set_text(wifi_status_label, wifi_connection_details().c_str());
 
     // Web-Update Card
-    lv_obj_t *card_web_ota = ui_create_card(t_net, 440, 330);
-    lv_obj_align(card_web_ota, LV_ALIGN_TOP_LEFT, 0, 255);
+    card_web_ota = ui_create_card(t_net, 440, 330);
+    lv_obj_update_layout(wifi_status_label);
+    lv_obj_set_pos(card_web_ota, 0, lv_obj_get_y(wifi_status_label) +
+        lv_obj_get_height(wifi_status_label) + 16);
     lv_obj_set_style_pad_all(card_web_ota, 12, 0);
     update_qr_url = "";
     // Local monochrome canvas; independent of the installed LVGL QR configuration.
@@ -1061,44 +1072,65 @@ void ui_settings_screen_init() {
 
     // 2. Batterie
     lv_obj_t *l_b = lv_label_create(t_alm);
-    lv_label_set_text(l_b, "Batterie Schwach (<= % SoC):");
+    lv_label_set_text(l_b, "Batterie Rot (<= % SoC):");
     lv_obj_set_style_text_font(l_b, &lv_font_montserrat_14, 0);
     lv_obj_align(l_b, LV_ALIGN_TOP_LEFT, 0, 100);
 
     ta_warn_bat = lv_textarea_create(t_alm);
     lv_textarea_set_one_line(ta_warn_bat, true);
+    lv_textarea_set_accepted_chars(ta_warn_bat, "0123456789");
+    lv_textarea_set_max_length(ta_warn_bat, 3);
     lv_textarea_set_text(ta_warn_bat, String(state.warn_bat_soc).c_str());
     lv_obj_set_size(ta_warn_bat, 110, 44);
     lv_obj_set_style_text_font(ta_warn_bat, &lv_font_montserrat_14, 0);
     lv_obj_align(ta_warn_bat, LV_ALIGN_TOP_LEFT, 310, 90);
     lv_obj_add_event_cb(ta_warn_bat, ta_event_cb, LV_EVENT_ALL, NULL);
 
+    lv_obj_t *l_by = lv_label_create(t_alm);
+    lv_label_set_text(l_by, "Batterie Gelb (<= % SoC):");
+    lv_obj_set_style_text_font(l_by, &lv_font_montserrat_14, 0);
+    lv_obj_set_pos(l_by, 0, 154);
+    ta_warn_bat_yellow = lv_textarea_create(t_alm);
+    lv_textarea_set_one_line(ta_warn_bat_yellow, true);
+    lv_textarea_set_text(ta_warn_bat_yellow, String(state.warn_bat_yellow_soc).c_str());
+    lv_textarea_set_accepted_chars(ta_warn_bat_yellow, "0123456789");
+    lv_textarea_set_max_length(ta_warn_bat_yellow, 3);
+    lv_obj_set_size(ta_warn_bat_yellow, 110, 44);
+    lv_obj_set_style_text_font(ta_warn_bat_yellow, &lv_font_montserrat_14, 0);
+    lv_obj_set_pos(ta_warn_bat_yellow, 310, 144);
+    lv_obj_add_event_cb(ta_warn_bat_yellow, ta_event_cb, LV_EVENT_ALL, nullptr);
+    lv_obj_t *battery_note = lv_label_create(t_alm);
+    lv_label_set_text(battery_note, "Oberhalb Gelb: Blau. Rot muss kleiner als Gelb sein.");
+    lv_obj_set_width(battery_note, 430);
+    lv_obj_set_style_text_font(battery_note, &lv_font_montserrat_12, 0);
+    lv_obj_set_pos(battery_note, 0, 194);
+
     // 3. Frischwasser
     lv_obj_t *l_fr = lv_label_create(t_alm);
     lv_label_set_text(l_fr, "Frischwasser Leer (<= %):");
     lv_obj_set_style_text_font(l_fr, &lv_font_montserrat_14, 0);
-    lv_obj_align(l_fr, LV_ALIGN_TOP_LEFT, 0, 154);
+    lv_obj_align(l_fr, LV_ALIGN_TOP_LEFT, 0, 236);
 
     ta_warn_fresh = lv_textarea_create(t_alm);
     lv_textarea_set_one_line(ta_warn_fresh, true);
     lv_textarea_set_text(ta_warn_fresh, String(state.warn_fresh_min).c_str());
     lv_obj_set_size(ta_warn_fresh, 110, 44);
     lv_obj_set_style_text_font(ta_warn_fresh, &lv_font_montserrat_14, 0);
-    lv_obj_align(ta_warn_fresh, LV_ALIGN_TOP_LEFT, 310, 144);
+    lv_obj_align(ta_warn_fresh, LV_ALIGN_TOP_LEFT, 310, 226);
     lv_obj_add_event_cb(ta_warn_fresh, ta_event_cb, LV_EVENT_ALL, NULL);
 
     // 4. Abwasser
     lv_obj_t *l_wa = lv_label_create(t_alm);
     lv_label_set_text(l_wa, "Abwasser Voll (>= %):");
     lv_obj_set_style_text_font(l_wa, &lv_font_montserrat_14, 0);
-    lv_obj_align(l_wa, LV_ALIGN_TOP_LEFT, 0, 208);
+    lv_obj_align(l_wa, LV_ALIGN_TOP_LEFT, 0, 290);
 
     ta_warn_waste = lv_textarea_create(t_alm);
     lv_textarea_set_one_line(ta_warn_waste, true);
     lv_textarea_set_text(ta_warn_waste, String(state.warn_waste_max).c_str());
     lv_obj_set_size(ta_warn_waste, 110, 44);
     lv_obj_set_style_text_font(ta_warn_waste, &lv_font_montserrat_14, 0);
-    lv_obj_align(ta_warn_waste, LV_ALIGN_TOP_LEFT, 310, 198);
+    lv_obj_align(ta_warn_waste, LV_ALIGN_TOP_LEFT, 310, 280);
     lv_obj_add_event_cb(ta_warn_waste, ta_event_cb, LV_EVENT_ALL, NULL);
 
     // ==========================================
@@ -1237,6 +1269,16 @@ void ui_settings_screen_init() {
     lv_obj_set_style_bg_color(btn_save, lv_color_hex(UI_COLOR_SUCCESS), 0);
     lv_obj_set_style_radius(btn_save, 10, 0);
     lv_obj_add_event_cb(btn_save, [](lv_event_t * e) {
+        int red = String(lv_textarea_get_text(ta_warn_bat)).toInt();
+        int yellow = String(lv_textarea_get_text(ta_warn_bat_yellow)).toInt();
+        if (red < 0 || red >= yellow || yellow > 100 ||
+            !strlen(lv_textarea_get_text(ta_warn_bat)) || !strlen(lv_textarea_get_text(ta_warn_bat_yellow))) {
+            lv_obj_t *error = lv_msgbox_create(nullptr, "Batterie-Schwellen",
+                "Bitte 0 <= Rot < Gelb <= 100 eingeben.", nullptr, true);
+            if (error) lv_obj_center(error);
+            return;
+        }
+        state.warn_bat_yellow_soc = yellow;
         state.solar_max_w = String(lv_textarea_get_text(ta_solar_max)).toFloat();
         for (int i=0; i<4; i++) {
             state.tank_max[i] = String(lv_textarea_get_text(ta_tank_max[i])).toInt();

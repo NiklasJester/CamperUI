@@ -181,15 +181,24 @@ static void save_and_restart_clicked(lv_event_t *) {
     // Show reboot message
     lv_obj_t *mbox = lv_msgbox_create(NULL, "Gespeichert", "Menue-Konfiguration gespeichert!\nCamperUI startet neu...", NULL, false);
     lv_obj_center(mbox);
-    lv_timer_handler();
-
-    delay(600);
-    ESP.restart();
+    // Never re-enter LVGL or block inside a button event.
+    lv_timer_t *restart_timer = lv_timer_create([](lv_timer_t *) { ESP.restart(); }, 600, nullptr);
+    if (restart_timer) lv_timer_set_repeat_count(restart_timer, 1);
 }
 
 } // namespace
 
-void ui_open_nav_settings() {
+static void open_nav_settings_deferred(void *) {
+    lv_mem_monitor_t memory;
+    lv_mem_monitor(&memory);
+    if (memory.free_biggest_size < 32768) {
+        Serial.printf("[NAV] Not enough LVGL memory: free=%u largest=%u\n",
+                      (unsigned)memory.free_size, (unsigned)memory.free_biggest_size);
+        lv_obj_t *warning = lv_msgbox_create(nullptr, "Speicher knapp",
+            "Tabs koennen gerade nicht geoeffnet werden.\nLVGL-Konfiguration pruefen und neu starten.", nullptr, true);
+        if (warning) lv_obj_center(warning);
+        return;
+    }
     // Copy current state to working buffers and validate bounds
     memcpy(cur_order, state.tab_order, sizeof(cur_order));
     memcpy(cur_enabled, state.tab_enabled, sizeof(cur_enabled));
@@ -233,8 +242,10 @@ void ui_open_nav_settings() {
         lv_obj_set_style_border_color(back, ui_theme_border(), 0);
         lv_obj_set_style_border_width(back, 1, 0);
         lv_obj_add_event_cb(back, [](lv_event_t *) {
-            lv_scr_load(scr_main);
-            ui_nav_settings_destroy();
+            lv_async_call([](void *) {
+                lv_scr_load(scr_main);
+                ui_nav_settings_destroy();
+            }, nullptr);
         }, LV_EVENT_CLICKED, nullptr);
 
         lv_obj_t *back_lbl = lv_label_create(back);
@@ -293,6 +304,10 @@ void ui_open_nav_settings() {
 
     update_row_display();
     lv_scr_load(nav_settings_screen);
+}
+
+void ui_open_nav_settings() {
+    lv_async_call(open_nav_settings_deferred, nullptr);
 }
 
 bool ui_nav_settings_is_active() {

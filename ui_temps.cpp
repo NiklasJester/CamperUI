@@ -1,5 +1,6 @@
 #include "ui_temps.h"
 #include "ui_main.h"
+#include "ui_chart_style.h"
 #include "temp_history.h"
 #include <stdio.h>
 #include <math.h>
@@ -56,8 +57,7 @@ static void update_win_buttons_style(void) {
     int win = state.temps_history_window;
     auto style_btn = [](lv_obj_t *btn, bool active) {
         if (!btn) return;
-        lv_obj_set_style_bg_color(btn, active ? lv_color_hex(UI_COLOR_PRIMARY) : ui_theme_track(), 0);
-        lv_obj_set_style_text_color(btn, active ? lv_color_hex(0xffffff) : ui_theme_muted(), 0);
+        ui_chart_button_style(btn, active);
     };
     style_btn(btn_win_1h,  win == 1);
     style_btn(btn_win_6h,  win == 6);
@@ -247,12 +247,7 @@ void ui_build_temps(lv_obj_t *parent) {
     chart_card = lv_obj_create(parent);
     lv_obj_set_pos(chart_card, 0, 152);
     lv_obj_set_size(chart_card, 440, 206);
-    lv_obj_set_style_bg_color(chart_card, ui_theme_card(), 0);
-    lv_obj_set_style_border_color(chart_card, ui_theme_border(), 0);
-    lv_obj_set_style_border_width(chart_card, 1, 0);
-    lv_obj_set_style_radius(chart_card, 12, 0);
-    lv_obj_set_style_pad_all(chart_card, 6, 0);
-    lv_obj_clear_flag(chart_card, LV_OBJ_FLAG_SCROLLABLE);
+    ui_chart_card_style(chart_card);
 
     // Scale header labels (12px font for readability)
     lbl_scale_top = lv_label_create(chart_card);
@@ -269,21 +264,23 @@ void ui_build_temps(lv_obj_t *parent) {
 
     // The Line Chart
     chart = lv_chart_create(chart_card);
-    lv_obj_set_pos(chart, 4, 20);
-    lv_obj_set_size(chart, 418, 154);
+    lv_obj_set_pos(chart, 52, 20);
+    lv_obj_set_size(chart, 370, 154);
     lv_chart_set_type(chart, LV_CHART_TYPE_LINE);
     lv_chart_set_point_count(chart, CHART_POINTS);
+    lv_chart_set_axis_tick(chart, LV_CHART_AXIS_PRIMARY_Y, 5, 0, 4, 1, true, 50);
+    lv_obj_set_style_text_font(chart, &lv_font_montserrat_12, LV_PART_TICKS);
+    lv_obj_set_style_text_color(chart, ui_theme_muted(), LV_PART_TICKS);
+    lv_obj_add_event_cb(chart, [](lv_event_t *event) {
+        lv_obj_draw_part_dsc_t *part = lv_event_get_draw_part_dsc(event);
+        if (part && part->type == LV_CHART_DRAW_PART_TICK_LABEL &&
+            part->id == LV_CHART_AXIS_PRIMARY_Y && part->text) {
+            snprintf(part->text, part->text_length, "%.1f", part->value / 10.0f);
+        }
+    }, LV_EVENT_DRAW_PART_BEGIN, nullptr);
 
-    // Clean modern chart styling
-    lv_obj_set_style_bg_opa(chart, LV_OPA_TRANSP, 0);
-    lv_obj_set_style_border_width(chart, 0, 0);
+    ui_chart_grid_style(chart);
     lv_chart_set_div_line_count(chart, 4, 0);
-    lv_obj_set_style_line_color(chart, ui_theme_border(), LV_PART_MAIN);
-    lv_obj_set_style_line_opa(chart, LV_OPA_40, LV_PART_MAIN);
-
-    // 3px wide curves for bold, distinct curves
-    lv_obj_set_style_size(chart, 0, LV_PART_INDICATOR);
-    lv_obj_set_style_line_width(chart, 3, LV_PART_ITEMS);
 
     // Add 4 Series with track colors
     ser_outdoor = lv_chart_add_series(chart, track_color(0), LV_CHART_AXIS_PRIMARY_Y);
@@ -352,8 +349,8 @@ void ui_update_temps_tab(void) {
             // Expand chart card to 256px height
             lv_obj_set_pos(chart_card, 0, 102);
             lv_obj_set_size(chart_card, 440, 256);
-            lv_obj_set_pos(chart, 4, 22);
-            lv_obj_set_size(chart, 418, 202);
+            lv_obj_set_pos(chart, 52, 22);
+            lv_obj_set_size(chart, 370, 202);
         } else if (custom_count == 1) {
             // 3 cards: Outdoor and Indoor on row 1, single custom sensor on row 2 (full width)
             lv_obj_clear_flag(cards[0], LV_OBJ_FLAG_HIDDEN);
@@ -384,8 +381,8 @@ void ui_update_temps_tab(void) {
 
             lv_obj_set_pos(chart_card, 0, 156);
             lv_obj_set_size(chart_card, 440, 202);
-            lv_obj_set_pos(chart, 4, 20);
-            lv_obj_set_size(chart, 418, 150);
+            lv_obj_set_pos(chart, 52, 20);
+            lv_obj_set_size(chart, 370, 150);
         } else {
             // 4 cards: 2x2 grid
             lv_obj_clear_flag(cards[0], LV_OBJ_FLAG_HIDDEN);
@@ -418,8 +415,8 @@ void ui_update_temps_tab(void) {
 
             lv_obj_set_pos(chart_card, 0, 156);
             lv_obj_set_size(chart_card, 440, 202);
-            lv_obj_set_pos(chart, 4, 20);
-            lv_obj_set_size(chart, 418, 150);
+            lv_obj_set_pos(chart, 52, 20);
+            lv_obj_set_size(chart, 370, 150);
         }
     }
 
@@ -595,7 +592,7 @@ void ui_update_temps_tab(void) {
     }
 
     // Auto-scale Y-axis range
-    if (has_any_series && overall_max > overall_min) {
+    if (has_any_series) {
         float span = overall_max - overall_min;
         if (span < 4.0f) {
             float mid = (overall_max + overall_min) * 0.5f;

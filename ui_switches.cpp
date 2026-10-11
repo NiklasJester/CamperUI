@@ -86,9 +86,8 @@ static void relay_btn_event_cb(lv_event_t * e) {
         switches_animating = false;
     }
     int idx = (int)(intptr_t)lv_event_get_user_data(e);
-    state.switch_state[idx] = !state.switch_state[idx];
+    http_publish_switch(idx, !state.switch_state[idx]);
     update_switch_visual(idx);
-    http_publish_switch(idx, state.switch_state[idx]);
 }
 
 static void wrelay_btn_event_cb(lv_event_t * e) {
@@ -97,9 +96,8 @@ static void wrelay_btn_event_cb(lv_event_t * e) {
         switches_animating = false;
     }
     int idx = (int)(intptr_t)lv_event_get_user_data(e);
-    state.wrelay_state[idx] = !state.wrelay_state[idx];
+    http_publish_wrelay(idx, !state.wrelay_state[idx]);
     update_wswitch_visual(idx);
-    http_publish_wrelay(idx, state.wrelay_state[idx]);
 }
 
 // ==========================================

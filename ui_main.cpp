@@ -1,4 +1,5 @@
 #include "ui_main.h"
+#include "ui_energy_history.h"
 #include "wifi_diagnostics.h"
 #include <WiFi.h>
 #include "HWCDC.h"
@@ -65,7 +66,7 @@ void ui_debug_navigation(const char *stage, bool force) {
     static uint8_t last_faults = 0;
     static lv_area_t last_nav_area = {};
     if (!lv_obj_is_valid(home_nav) || !lv_obj_is_valid(content) || !lv_obj_is_valid(status_bar)) {
-        USBSerial.printf("[NAV v8] %s: invalid UI object\n", stage);
+        USBSerial.printf("[NAV " CAMPERUI_VERSION "] %s: invalid UI object\n", stage);
         return;
     }
 
@@ -92,7 +93,7 @@ void ui_debug_navigation(const char *stage, bool force) {
     if (force || faults != last_faults || (faults && moved)) {
         lv_mem_monitor_t memory;
         lv_mem_monitor(&memory);
-        USBSerial.printf("[NAV v8] %s page=%u faults=%u nav=(%d,%d) %dx%d scroll=(%d,%d) "
+        USBSerial.printf("[NAV " CAMPERUI_VERSION "] %s page=%u faults=%u nav=(%d,%d) %dx%d scroll=(%d,%d) "
                          "content=(%d,%d) %dx%d lvgl_free=%u frag=%u%%\n",
                          stage, (unsigned)active_page, (unsigned)faults,
                          (int)nav_area.x1, (int)nav_area.y1,
@@ -274,7 +275,9 @@ static void rebuild_ui(void *) {
     if (home_nav) nav_scroll_x = lv_obj_get_scroll_x(home_nav);
     lv_obj_t *temporary = lv_obj_create(nullptr);
     lv_scr_load(temporary);
+    ui_energy_history_destroy();
     ui_home_settings_destroy();
+    ui_nav_settings_destroy();
     ui_home_reset(); ui_maxxfan_reset();
     if (old_main) lv_obj_del(old_main);
     if (old_settings) lv_obj_del(old_settings);
@@ -537,6 +540,7 @@ void ui_init() {
 }
 
 void ui_update_visible_page() {
+    if (ui_energy_history_active()) { ui_energy_history_update(); return; }
     if (lv_scr_act() != scr_main) return;
     if (active_page >= TAB_COUNT || !pages[active_page]) return;
     switch (active_page) {
@@ -588,13 +592,7 @@ void ui_update_data() {
     ui_label_set_text_if_changed(lbl_soc, soc_text);
     if (state.battery_icon_mode) {
         lv_obj_clear_flag(lbl_soc_icon, LV_OBJ_FLAG_HIDDEN);
-        if (state.bat_soc <= state.warn_bat_soc) {
-            ui_text_color_if_changed(lbl_soc_icon, lv_color_hex(UI_COLOR_DANGER), 0);
-        } else if (state.bat_soc <= 40) {
-            ui_text_color_if_changed(lbl_soc_icon, lv_color_hex(UI_COLOR_WARNING), 0);
-        } else {
-            ui_text_color_if_changed(lbl_soc_icon, lv_color_hex(UI_COLOR_SUCCESS), 0);
-        }
+        ui_text_color_if_changed(lbl_soc_icon, ui_battery_soc_color(state.bat_soc), 0);
     } else {
         lv_obj_add_flag(lbl_soc_icon, LV_OBJ_FLAG_HIDDEN);
     }

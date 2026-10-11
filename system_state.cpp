@@ -175,7 +175,8 @@ state.display_brightness = prefs.getInt("disp_bright", 100);
     state.solar_max_w = prefs.getFloat("solar_max_w", 200.0f);
 
     state.warn_frost_temp = prefs.getFloat("w_frost", 3.0f);
-    state.warn_bat_soc = prefs.getInt("w_bat", 20);
+    state.warn_bat_soc = constrain(prefs.getInt("w_bat", 20), 0, 99);
+    state.warn_bat_yellow_soc = constrain(prefs.getInt("w_bat_y", 40), state.warn_bat_soc + 1, 100);
     state.warn_fresh_min = prefs.getInt("w_fresh", 15);
     state.warn_waste_max = prefs.getInt("w_waste", 85);
 
@@ -190,7 +191,9 @@ state.display_brightness = prefs.getInt("disp_bright", 100);
     const int home_defaults[3] = {0, 1, 3};
     for (int i = 0; i < 3; ++i) {
         char key[16]; snprintf(key, sizeof(key), "home_temp%d", i);
-        state.home_temp_source[i] = constrain(prefs.getInt(key, home_defaults[i]), -1, TEMP_SOURCE_COUNT - 1);
+        bool was_visible = prefs.getInt(key, home_defaults[i]) >= 0;
+        snprintf(key, sizeof(key), "home_tshow%d", i);
+        state.home_show_temp[i] = prefs.getBool(key, was_visible);
     }
     for (int i = 0; i < 2; ++i) {
         char key[16]; snprintf(key, sizeof(key), "home_fav%d", i);
@@ -352,8 +355,8 @@ state.display_brightness = prefs.getInt("disp_bright", 100);
 void state_save() {
     StateLockGuard lock;
     for (int i = 0; i < 3; ++i) {
-        char key[16]; snprintf(key, sizeof(key), "home_temp%d", i);
-        prefs.putInt(key, state.home_temp_source[i]);
+        char key[16]; snprintf(key, sizeof(key), "home_tshow%d", i);
+        prefs.putBool(key, state.home_show_temp[i]);
     }
     for (int i = 0; i < 2; ++i) {
         char key[16]; snprintf(key, sizeof(key), "home_fav%d", i);
@@ -380,6 +383,7 @@ void state_save() {
 
     prefs.putFloat("w_frost", state.warn_frost_temp);
     prefs.putInt("w_bat", state.warn_bat_soc);
+    prefs.putInt("w_bat_y", state.warn_bat_yellow_soc);
     prefs.putInt("w_fresh", state.warn_fresh_min);
     prefs.putInt("w_waste", state.warn_waste_max);
 
