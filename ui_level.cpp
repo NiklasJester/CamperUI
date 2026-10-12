@@ -95,10 +95,28 @@ static void calibrate_click_cb(lv_event_t * e) {
     }
 }
 
-void ui_build_level(lv_obj_t *parent) {
+void ui_level_reset() {
+    lv_anim_del(NULL, level_anim_cb);
+    level_animating = false;
+    card_level_main = nullptr;
+    bubble_container = nullptr;
+    bubble_obj = nullptr;
+    lbl_level_status = nullptr;
+    lbl_pitch_val = nullptr;
+    lbl_roll_val = nullptr;
+    lbl_wheel_fl = nullptr;
+    lbl_wheel_fr = nullptr;
+    lbl_wheel_rl = nullptr;
+    lbl_wheel_rr = nullptr;
+    btn_calibrate = nullptr;
+    lbl_cal_msg = nullptr;
     last_is_level = -1;
     last_bubble_dx = 9999;
     last_bubble_dy = 9999;
+}
+
+void ui_build_level(lv_obj_t *parent) {
+    ui_level_reset();
 
     ui_setup_tab_page(parent);
     lv_obj_clear_flag(parent, LV_OBJ_FLAG_SCROLLABLE);

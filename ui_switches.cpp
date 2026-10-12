@@ -304,6 +304,20 @@ void ui_update_dimmers_tab() {
     }
 }
 
+void ui_switches_reset() {
+    for (int i = 0; i < 8; i++) {
+        switches[i] = nullptr;
+        lbl_switch_name[i] = nullptr;
+        w_switches[i] = nullptr;
+        lbl_wswitch_name[i] = nullptr;
+        dimmers[i] = nullptr;
+        lbl_dim_name[i] = nullptr;
+        lbl_dim_pct[i] = nullptr;
+        last_switch_state[i] = -1;
+        last_wswitch_state[i] = -1;
+    }
+}
+
 void ui_build_switches(lv_obj_t *parent) {
     for (int i = 0; i < 8; i++) {
         last_switch_state[i] = -1;

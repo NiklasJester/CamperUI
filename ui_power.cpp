@@ -155,11 +155,33 @@ void ui_update_power_tab() {
             ui_label_set_text_if_changed(lbl_flow_arr2, "-");
             ui_text_color_if_changed(lbl_flow_arr2, ui_theme_muted());
         }
-        ui_label_set_float(lbl_flow_load_val, "%.0f W", p_load);
     }
 }
 
+void ui_power_reset() {
+    if (arc_battery) lv_anim_del(arc_battery, set_arc_val_cb);
+    arc_battery = nullptr;
+    arc_solar = nullptr;
+    lbl_bat_pct = nullptr;
+    lbl_bat_volt = nullptr;
+    lbl_bat_curr = nullptr;
+    lbl_bat_ttg = nullptr;
+    lbl_bat_charge_icon = nullptr;
+    lbl_solar_watt = nullptr;
+    lbl_solar_curr = nullptr;
+    lbl_flow_solar_val = nullptr;
+    lbl_flow_arr1 = nullptr;
+    lbl_flow_bat_val = nullptr;
+    lbl_flow_arr2 = nullptr;
+    lbl_flow_load_val = nullptr;
+    last_soc = -1;
+    last_solar = -1;
+    last_charge_icon = -1;
+    last_solar_max = -1;
+}
+
 void ui_build_power(lv_obj_t *parent) {
+    ui_power_reset();
     ui_setup_tab_page(parent);
     lv_obj_clear_flag(parent, LV_OBJ_FLAG_SCROLLABLE);
 

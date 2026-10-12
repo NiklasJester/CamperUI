@@ -279,6 +279,13 @@ static void rebuild_ui(void *) {
     ui_home_settings_destroy();
     ui_nav_settings_destroy();
     ui_home_reset(); ui_maxxfan_reset();
+    ui_settings_reset();
+    ui_temps_reset();
+    ui_power_reset();
+    ui_climate_reset();
+    ui_level_reset();
+    ui_water_reset();
+    ui_switches_reset();
     if (old_main) lv_obj_del(old_main);
     if (old_settings) lv_obj_del(old_settings);
     scr_main = scr_settings = nullptr;

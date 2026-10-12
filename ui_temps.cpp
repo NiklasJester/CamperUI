@@ -122,7 +122,28 @@ static uint32_t last_rendered_hist_ver = 0xFFFFFFFF;
 static int last_rendered_win = -1;
 static int last_rendered_points_to_show = -1;
 
+void ui_temps_reset(void) {
+    if (chart) lv_anim_del(chart, temps_anim_cb);
+    temps_animating = false;
+    anim_revealed_points = CHART_POINTS;
+    root_page = nullptr;
+    chart_card = nullptr;
+    chart = nullptr;
+    lbl_scale_top = nullptr;
+    lbl_scale_bot = nullptr;
+    lbl_axis_start = nullptr;
+    lbl_axis_mid = nullptr;
+    ser_outdoor = ser_indoor = ser_custom1 = ser_custom2 = nullptr;
+    btn_win_1h = btn_win_6h = btn_win_12h = btn_win_24h = nullptr;
+    for (int i = 0; i < 4; ++i) {
+        cards[i] = nullptr;
+        lbl_names[i] = nullptr;
+        lbl_vals[i] = nullptr;
+    }
+}
+
 void ui_build_temps(lv_obj_t *parent) {
+    ui_temps_reset();
     last_layout_custom_count = -1;
     last_layout_c1 = -1;
     last_layout_c2 = -1;
@@ -182,7 +203,6 @@ void ui_build_temps(lv_obj_t *parent) {
     btn_win_6h  = create_pill("6h", 6);
     btn_win_12h = create_pill("12h", 12);
     btn_win_24h = create_pill("24h", 24);
-    update_win_buttons_style();
 
     // ==========================================
     // 2. Metric Cards (52px height, 26px prominent temperature readout)
@@ -306,6 +326,8 @@ void ui_build_temps(lv_obj_t *parent) {
     lv_obj_set_style_text_font(lbl_axis_now, &lv_font_montserrat_12, 0);
     lv_obj_set_style_text_color(lbl_axis_now, ui_theme_muted(), 0);
     lv_label_set_text(lbl_axis_now, "Jetzt");
+
+    update_win_buttons_style();
 
     // Initial render and launch reveal animation
     ui_update_temps_tab();

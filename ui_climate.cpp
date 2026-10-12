@@ -239,7 +239,20 @@ void ui_update_climate_tab() {
     }
 }
 
+void ui_climate_reset() {
+    lbl_indoor = nullptr;
+    lbl_outdoor = nullptr;
+    lbl_target = nullptr;
+    arc_target = nullptr;
+    btn_start_stop = nullptr;
+    lbl_btn_start_stop = nullptr;
+    dd_mode = nullptr;
+    lbl_heater_status = nullptr;
+    last_heating_state = -1;
+}
+
 void ui_build_climate(lv_obj_t *parent) {
+    ui_climate_reset();
     ui_setup_tab_page(parent);
     lv_obj_clear_flag(parent, LV_OBJ_FLAG_SCROLLABLE);
 

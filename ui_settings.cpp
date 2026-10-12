@@ -379,37 +379,30 @@ static void wifi_scan_cb(lv_event_t * e) {
     }
 }
 
-static void mbox_save_cb(lv_event_t * e) {
-    lv_event_code_t code = lv_event_get_code(e);
-    lv_obj_t * mbox = lv_event_get_current_target(e);
-    if (code == LV_EVENT_VALUE_CHANGED) {
-        lv_msgbox_close_async(mbox);
-    }
-}
-
 static void save_settings_cb(lv_event_t * e) {
-    char buf[64];
-    lv_dropdown_get_selected_str(dd_wifi_ssid, buf, sizeof(buf));
-    {
+    if (dd_wifi_ssid && lv_dropdown_get_option_cnt(dd_wifi_ssid) > 0) {
+        char buf[64] = {0};
+        lv_dropdown_get_selected_str(dd_wifi_ssid, buf, sizeof(buf));
         StateLockGuard lock;
         state.wifi_ssid = String(buf);
+    }
+    if (ta_wifi_pass) {
+        StateLockGuard lock;
         state.wifi_pass = String(lv_textarea_get_text(ta_wifi_pass));
+    }
+    if (ta_mqtt_ip) {
+        StateLockGuard lock;
         state.vanpi_ip = String(lv_textarea_get_text(ta_mqtt_ip));
     }
     
     state_save();
     
-    static const char * btns[] = {"OK", ""};
-    lv_obj_t * mbox = lv_msgbox_create(NULL, "Gespeichert", "Einstellungen erfolgreich gespeichert.", btns, true);
-    lv_obj_center(mbox);
-    lv_obj_add_event_cb(mbox, mbox_save_cb, LV_EVENT_ALL, NULL);
-    
     // Attempt reconnects
     WiFi.disconnect();
     wifi_connect_configured();
     
-    // Load main screen beneath the dialog
-    lv_scr_load(scr_main);
+    // Load main screen cleanly
+    if (scr_main) lv_scr_load(scr_main);
     // Visibility is applied when cards are built; rebuild after the event returns.
     ui_init();
 }
@@ -564,7 +557,63 @@ void ui_build_settings(lv_obj_t *parent) {
 // ==========================================
 // The Dedicated Settings Screen
 // ==========================================
+void ui_settings_reset() {
+    dd_pump = nullptr;
+    dd_drain = nullptr;
+    dd_fill_relay = nullptr;
+    dd_fill_dimmer = nullptr;
+    sw_fill_assist = nullptr;
+    dd_fill_target = nullptr;
+    dd_fill_action = nullptr;
+    l_fill_target = nullptr;
+    l_fill_action = nullptr;
+    l_fill_device = nullptr;
+    dd_tank_count = nullptr;
+    sw_tank_liters = nullptr;
+    for (int i = 0; i < 4; i++) {
+        ta_tank_max[i] = nullptr;
+        lbl_tank_max[i] = nullptr;
+    }
+    dd_pump_auto_off = nullptr;
+    dd_dry_run_pct = nullptr;
+    dd_wifi_ssid = nullptr;
+    btn_wifi_scan = nullptr;
+    lbl_wifi_scan = nullptr;
+    ta_wifi_pass = nullptr;
+    password_eye_label = nullptr;
+    wifi_status_label = nullptr;
+    ta_mqtt_ip = nullptr;
+    dd_out_temp = nullptr;
+    dd_in_temp = nullptr;
+    dd_cust_temp1 = nullptr;
+    dd_cust_temp2 = nullptr;
+    kb = nullptr;
+    dd_rename_item = nullptr;
+    ta_rename = nullptr;
+    ta_bat_cap = nullptr;
+    ta_solar_max = nullptr;
+    sw_debug = nullptr;
+    sw_demo = nullptr;
+    http_test_win = nullptr;
+    http_lbl_result = nullptr;
+    dd_time_h = nullptr;
+    dd_time_m = nullptr;
+    dd_tz = nullptr;
+    cont_man_time = nullptr;
+    lbl_time_status = nullptr;
+    lbl_web_ota_url = nullptr;
+    lbl_web_ota_status = nullptr;
+    update_qr = nullptr;
+    card_web_ota = nullptr;
+    ta_warn_frost = nullptr;
+    ta_warn_bat = nullptr;
+    ta_warn_bat_yellow = nullptr;
+    ta_warn_fresh = nullptr;
+    ta_warn_waste = nullptr;
+}
+
 void ui_settings_screen_init() {
+    ui_settings_reset();
     scr_settings = lv_obj_create(NULL);
     lv_obj_clear_flag(scr_settings, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_style_bg_color(scr_settings, ui_theme_bg(), 0);
@@ -1041,8 +1090,6 @@ void ui_settings_screen_init() {
             state.drain_relay = relay_opt_map[sel];
         }
     }, LV_EVENT_VALUE_CHANGED, NULL);
-
-    update_water_relay_dropdowns();
 
     // Section 2: Sensoren & Leistung
     lv_obj_t *l_sec_sens = lv_label_create(t_val);
@@ -1666,7 +1713,6 @@ void ui_settings_screen_init() {
         }
         time_apply_configuration();
         save_settings_cb(e);
-        ui_rebuild_water();
     }, LV_EVENT_CLICKED, NULL);
     lv_obj_t *l_save = lv_label_create(btn_save);
     lv_label_set_text(l_save, LV_SYMBOL_OK " Speichern & Beenden");

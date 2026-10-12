@@ -149,11 +149,7 @@ void ui_trigger_water_anim() {
     }
 }
 
-void ui_build_water(lv_obj_t *parent) {
-    ui_setup_tab_page(parent);
-    lv_obj_clear_flag(parent, LV_OBJ_FLAG_SCROLLABLE);
-
-    // Reset static handles
+void ui_water_reset() {
     for (int i = 0; i < 4; i++) {
         bar_tanks[i] = NULL;
         lbl_tanks_pct[i] = NULL;
@@ -168,6 +164,12 @@ void ui_build_water(lv_obj_t *parent) {
     lbl_drain = NULL;
     last_pump_state = -1;
     last_drain_state = -1;
+}
+
+void ui_build_water(lv_obj_t *parent) {
+    ui_water_reset();
+    ui_setup_tab_page(parent);
+    lv_obj_clear_flag(parent, LV_OBJ_FLAG_SCROLLABLE);
 
     bool has_pump = (state.pump_relay >= 0 && state.pump_relay < 16);
     bool has_drain = (state.drain_relay >= 0 && state.drain_relay < 16);
