@@ -1,5 +1,6 @@
 #include "http_handler.h"
 #include "maxxfan_client.h"
+#include "relay_click_filter.h"
 #include <math.h>
 #include <WiFi.h>
 #include <HTTPClient.h>
@@ -61,6 +62,20 @@ static float jsonFloat(JsonVariant v) {
     return atof(buf);
 }
 
+// Energy histories must not treat missing/null/text responses as fresh zeroes.
+static bool validEnergyNumber(JsonVariant v) {
+    if (v.isNull() || v.is<bool>()) return false;
+    if (v.is<float>() || v.is<int>()) return isfinite(v.as<float>());
+    const char *s=v.as<const char*>();
+    if (!s || !*s || strlen(s)>=24) return false;
+    char buf[24]; strcpy(buf,s);
+    for (char *p=buf;*p;++p) if (*p==',') *p='.';
+    char *end; float value=strtof(buf,&end);
+    if (end==buf) return false;
+    while (*end==' ' || *end=='\t' || *end=='\r' || *end=='\n') ++end;
+    return *end=='\0' && isfinite(value);
+}
+
 static int jsonInt(JsonVariant v) {
     if (v.isNull()) return 0;
     if (v.is<int>()) return v.as<int>();
@@ -94,9 +109,9 @@ static void parse_batt_json(const char *payload) {
     if (deserializeJson(doc, payload)) return;
 
     StateLockGuard lock;
-    if (doc.containsKey("VoltB")) { state.bat_voltage = jsonFloat(doc["VoltB"]); state.battery_fields |= 1; }
-    if (doc.containsKey("Ampere")) { state.bat_current = jsonFloat(doc["Ampere"]); state.battery_fields |= 2; }
-    if (doc.containsKey("battsoc")) { state.bat_soc = jsonInt(doc["battsoc"]); state.battery_fields |= 4; }
+    if (validEnergyNumber(doc["VoltB"])) { state.bat_voltage = jsonFloat(doc["VoltB"]); state.battery_fields |= 1; state.bat_voltage_updated_ms = millis(); }
+    if (validEnergyNumber(doc["Ampere"])) { state.bat_current = jsonFloat(doc["Ampere"]); state.battery_fields |= 2; state.bat_current_updated_ms = millis(); }
+    if (validEnergyNumber(doc["battsoc"])) { state.bat_soc = jsonInt(doc["battsoc"]); state.battery_fields |= 4; state.bat_soc_updated_ms = millis(); }
     // Optional extension, not assumed to exist in the standard VanPi /batt response.
     if (doc.containsKey("starter_voltage")) { state.starter_voltage = jsonFloat(doc["starter_voltage"]); state.battery_fields |= 8; }
 }
@@ -107,7 +122,7 @@ static void parse_mppt_json(const char *payload) {
     if (deserializeJson(doc, payload)) return;
 
     StateLockGuard lock;
-    if (doc.containsKey("mppt_pv_watts")) { state.solar_power = jsonFloat(doc["mppt_pv_watts"]); state.solar_fields |= 1; }
+    if (validEnergyNumber(doc["mppt_pv_watts"])) { state.solar_power = jsonFloat(doc["mppt_pv_watts"]); state.solar_fields |= 1; state.solar_power_updated_ms = millis(); }
     if (doc.containsKey("mppt_pv_amps")) { state.solar_current = jsonFloat(doc["mppt_pv_amps"]); state.solar_fields |= 2; }
     if (doc.containsKey("mppt_pv_volts")) { state.solar_voltage = jsonFloat(doc["mppt_pv_volts"]); state.solar_fields |= 4; }
 }
@@ -598,22 +613,26 @@ static void http_put(String endpoint) {
     http.end();
 }
 
-void http_publish_switch(int index, bool on) {
-    if (index < 0 || index >= 8) return;
+static RelayClickFilter relay_click_filter;
+
+bool http_publish_switch(int index, bool on) {
+    if (index < 0 || index >= 8 || !relay_click_filter.accept(index, millis())) return false;
     state.switch_state[index] = on;
     state.relay_hold_until[index] = millis() + 2000;
     char path[64];
     snprintf(path, sizeof(path), "/relay/%d/%s", index + 1, on ? "true" : "false");
     queue_cmd(path);
+    return true;
 }
 
-void http_publish_wrelay(int index, bool on) {
-    if (index < 0 || index >= 8) return;
+bool http_publish_wrelay(int index, bool on) {
+    if (index < 0 || index >= 8 || !relay_click_filter.accept(index + 8, millis())) return false;
     state.wrelay_state[index] = on;
     state.wrelay_hold_until[index] = millis() + 2000;
     char path[64];
     snprintf(path, sizeof(path), "/wrelay/%d/%s", index + 1, on ? "true" : "false");
     queue_cmd(path);
+    return true;
 }
 
 void http_publish_dimmer(int index, int val) {

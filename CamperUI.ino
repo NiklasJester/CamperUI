@@ -15,6 +15,8 @@
 #include "buzzer.h"
 #include "debug_log.h"
 #include "temp_history.h"
+#include "energy_history.h"
+#include "touch_release_filter.h"
 
 // Hardware and Touch Controller
 TouchDrvGT911 GT911;
@@ -82,82 +84,55 @@ static void my_touchpad_feedback(lv_indev_drv_t *indev_driver, uint8_t event_cod
     }
 }
 
-// Read touch coordinates from GT911
-void my_touchpad_read(lv_indev_drv_t *indev_driver, lv_indev_data_t *data) {
-    // Keep release samples in range too: LVGL checks coordinates even on release.
+// Read only fresh GT911 frames; retain a held touch between sensor updates.
+void my_touchpad_read(lv_indev_drv_t *, lv_indev_data_t *data) {
     static lv_point_t last_valid_point = {0, 0};
+    static TouchReleaseFilter release_filter;
     data->point = last_valid_point;
     if (!gt911_available || !touch_input_enabled) {
+        release_filter.reset();
         data->state = LV_INDEV_STATE_REL;
         touch_is_pressed = false;
         return;
     }
-    uint8_t touched = GT911.getPoint(x, y, GT911.getSupportTouchPoint());
-
-    if (touched > 0) {
-        if (touched > GT911.getSupportTouchPoint() || x[0] < 0 || y[0] < 0 ||
-            x[0] >= gfx->width() || y[0] >= gfx->height()) {
-            // Invalid input is a release, never a fabricated edge touch.
-            static uint32_t last_invalid_log = 0;
-            static bool invalid_logged = false;
-            if (!invalid_logged || millis() - last_invalid_log >= 1000) {
-                invalid_logged = true;
-                last_invalid_log = millis();
-                USBSerial.printf("[TOUCH v8.7] Rejected sample: count=%u raw=(%d,%d)\n",
-                                 (unsigned)touched, (int)x[0], (int)y[0]);
+    uint32_t now = millis();
+    // SensorLib getPoint clears 0x814E even when its data-ready bit is unset.
+    // Inspect that bit first so an empty poll cannot fabricate finger lift-off.
+    Wire.beginTransmission(gt911_i2c_addr);
+    Wire.write(0x81); Wire.write(0x4e);
+    bool status_ok = Wire.endTransmission(false) == 0;
+    int status = -1;
+    if (status_ok && Wire.requestFrom(gt911_i2c_addr, (uint8_t)1) == 1)
+        status = Wire.read();
+    bool fresh = status >= 0 && (status & 0x80);
+    bool pressed = false;
+    if (fresh) {
+        uint8_t touched = GT911.getPoint(x, y, GT911.getSupportTouchPoint());
+        uint8_t expected = status & 0x0f;
+        if (touched != expected || touched > GT911.getSupportTouchPoint() ||
+            (touched && (x[0] < 0 || y[0] < 0 || x[0] >= gfx->width() || y[0] >= gfx->height()))) {
+            fresh = false; // Bad frames cannot move the pointer or create a click.
+        } else if (touched) {
+            int16_t tx = x[0], ty = y[0];
+            switch (gfx->getRotation()) {
+                case 1: tx = y[0]; ty = gfx->height() - 1 - x[0]; break;
+                case 2: tx = gfx->width() - 1 - x[0]; ty = gfx->height() - 1 - y[0]; break;
+                case 3: tx = gfx->width() - 1 - y[0]; ty = x[0]; break;
             }
-            data->state = LV_INDEV_STATE_REL;
-            touch_is_pressed = false;
-            return;
+            last_valid_point = {tx, ty}; data->point = last_valid_point;
+            pressed = true;
+            if (!display_is_on) {
+                display_is_on = true;
+                ignore_touch_until_release = true;
+                WS_CH32_IO::setPwm(Wire, 255 - (state.display_brightness * 255 / 100));
+                lv_disp_trig_activity(nullptr);
+            }
         }
-        if (!display_is_on) {
-            // Wake up display, but don't pass the click to the UI!
-            display_is_on = true;
-            ignore_touch_until_release = true;
-            uint8_t pwm = 255 - (state.display_brightness * 255 / 100);
-            WS_CH32_IO::setPwm(Wire, pwm);
-            lv_disp_trig_activity(NULL); // Reset LVGL inactivity timer
-            data->state = LV_INDEV_STATE_REL;
-            touch_is_pressed = false;
-            return;
-        }
-
-        if (ignore_touch_until_release) {
-            data->state = LV_INDEV_STATE_REL;
-            touch_is_pressed = false;
-            return;
-        }
-
-        int16_t touchX = x[0];
-        int16_t touchY = y[0];
-
-        switch (gfx->getRotation()) {
-            case 0:
-                break;
-            case 1:
-                touchX = y[0];
-                touchY = gfx->height() - 1 - x[0];
-                break;
-            case 2:
-                touchX = gfx->width() - 1 - x[0];
-                touchY = gfx->height() - 1 - y[0];
-                break;
-            case 3:
-                touchX = gfx->width() - 1 - y[0];
-                touchY = x[0];
-                break;
-        }
-
-        data->point.x = touchX;
-        data->point.y = touchY;
-        last_valid_point = data->point;
-        data->state = LV_INDEV_STATE_PR;
-        touch_is_pressed = true;
-    } else {
-        ignore_touch_until_release = false;
-        data->state = LV_INDEV_STATE_REL;
-        touch_is_pressed = false;
     }
+    bool held = release_filter.update(fresh, pressed, now);
+    if (!held) ignore_touch_until_release = false;
+    touch_is_pressed = held && !ignore_touch_until_release;
+    data->state = touch_is_pressed ? LV_INDEV_STATE_PR : LV_INDEV_STATE_REL;
 }
 
 void i2c_scan() {
@@ -225,6 +200,7 @@ void setup() {
 
     state_init();
     temp_history_init();
+    energy_history_init();
     http_init();
 
     // Initialize CH32V003 IO expander (powers on LCD and resets GT911/ST7701S)
@@ -250,7 +226,7 @@ void setup() {
 
     // Initialize Display
     if (!gfx->begin()) {
-        USBSerial.println("[DISPLAY v8.7] FATAL: RGB display initialization failed");
+        USBSerial.println("[DISPLAY " CAMPERUI_VERSION "] FATAL: RGB display initialization failed");
         while (true) delay(1000);
     }
     screenWidth = gfx->width();
@@ -263,7 +239,7 @@ void setup() {
     wifi_diagnostics_init();
     wifi_connect_configured();
     const bool data_worker_started = http_start_task();
-    USBSerial.printf("[DATA v8.7] Source=%s worker=%s\n",
+    USBSerial.printf("[DATA " CAMPERUI_VERSION "] Source=%s worker=%s\n",
                      state.debug_mode ? "DEMO" : "LIVE HTTP",
                      data_worker_started ? "RUNNING" : "FAILED");
 
@@ -287,7 +263,7 @@ void setup() {
         buf2 = (lv_color_t *)heap_caps_malloc(buf_size * sizeof(lv_color_t), internal_caps);
     }
     if (!buf1) {
-        USBSerial.println("[DISPLAY v8.7] FATAL: internal LVGL draw buffer allocation failed");
+        USBSerial.println("[DISPLAY " CAMPERUI_VERSION "] FATAL: internal LVGL draw buffer allocation failed");
         while (true) delay(1000);
     }
 
@@ -296,11 +272,11 @@ void setup() {
 #endif
 
     if (buf2) {
-        USBSerial.printf("[DISPLAY v8.7] LVGL double draw buffer enabled: 2x %u bytes (%u lines each), internal RAM only\n",
+        USBSerial.printf("[DISPLAY " CAMPERUI_VERSION "] LVGL double draw buffer enabled: 2x %u bytes (%u lines each), internal RAM only\n",
                          (unsigned)(buf_size * sizeof(lv_color_t)), (unsigned)buf_lines);
         lv_disp_draw_buf_init(&draw_buf, buf1, buf2, buf_size);
     } else {
-        USBSerial.printf("[DISPLAY v8.7] LVGL single draw buffer enabled: 1x %u bytes (%u lines), internal RAM only\n",
+        USBSerial.printf("[DISPLAY " CAMPERUI_VERSION "] LVGL single draw buffer enabled: 1x %u bytes (%u lines), internal RAM only\n",
                          (unsigned)(buf_size * sizeof(lv_color_t)), (unsigned)buf_lines);
         lv_disp_draw_buf_init(&draw_buf, buf1, NULL, buf_size);
     }
@@ -341,14 +317,14 @@ void setup() {
 
     // Report memory after UI construction; the data worker started earlier.
 
-    USBSerial.printf("[DISPLAY v8.7] Internal heap after startup: free=%u largest=%u bytes\n",
+    USBSerial.printf("[DISPLAY " CAMPERUI_VERSION "] Internal heap after startup: free=%u largest=%u bytes\n",
                      (unsigned)heap_caps_get_free_size(internal_caps),
                      (unsigned)heap_caps_get_largest_free_block(internal_caps));
 
     USBSerial.println("CamperUI ready!");
-    USBSerial.println("[DISPLAY v8.7] Adaptive internal draw buffer active; f=framebuffer cache flush, s=RGB resync");
-    USBSerial.println("[DISPLAY v8.7] RGB pixel clock: 12 MHz (original panel timing)");
-    USBSerial.println("[TOUCH v8.7] n=geometry/memory, t=touch on/off, r=full screen redraw");
+    USBSerial.println("[DISPLAY " CAMPERUI_VERSION "] Adaptive internal draw buffer active; f=framebuffer cache flush, s=RGB resync");
+    USBSerial.println("[DISPLAY " CAMPERUI_VERSION "] RGB pixel clock: 12 MHz (original panel timing)");
+    USBSerial.println("[TOUCH " CAMPERUI_VERSION "] n=geometry/memory, t=touch on/off, r=full screen redraw");
 }
 
 static uint32_t last_ui_update = 0;
@@ -371,7 +347,7 @@ void loop() {
         // The IDF driver applies the restart at the next VSYNC, not mid-frame.
         gfx->flush(true);
         esp_err_t result = rgbpanel->restartTransmission();
-        USBSerial.printf("[DISPLAY v8.7] RGB resync scheduled after save/manual command: %s\n",
+        USBSerial.printf("[DISPLAY " CAMPERUI_VERSION "] RGB resync scheduled after save/manual command: %s\n",
                          esp_err_to_name(result));
     }
     uint32_t wait_ms = lv_timer_handler();
@@ -387,21 +363,21 @@ void loop() {
             touch_input_enabled = !touch_input_enabled;
             ignore_touch_until_release = true;
             lv_indev_reset(NULL, NULL);
-            USBSerial.printf("[TOUCH v8.7] Touch %s (temporary, until reboot)\n",
+            USBSerial.printf("[TOUCH " CAMPERUI_VERSION "] Touch %s (temporary, until reboot)\n",
                              touch_input_enabled ? "ON" : "OFF");
         }
         if (c == 's' || c == 'S') display_request_resync();
         if (c == 'f' || c == 'F') {
             gfx->flush(true);
-            USBSerial.println("[DISPLAY v8.7] Framebuffer cache flush requested (no redraw)");
+            USBSerial.println("[DISPLAY " CAMPERUI_VERSION "] Framebuffer cache flush requested (no redraw)");
         }
         if (c == 'r' || c == 'R') {
             lv_obj_invalidate(lv_scr_act());
-            USBSerial.println("[NAV v8.7] Full screen redraw requested");
+            USBSerial.println("[NAV " CAMPERUI_VERSION "] Full screen redraw requested");
         }
         if (c == 'n' || c == 'N') {
             ui_debug_navigation("serial", true);
-            USBSerial.printf("[NAV v8] LVGL pool integrity: %s\n", lv_mem_test() == LV_RES_OK ? "OK" : "FAILED");
+            USBSerial.printf("[NAV " CAMPERUI_VERSION "] LVGL pool integrity: %s\n", lv_mem_test() == LV_RES_OK ? "OK" : "FAILED");
         }
         if (c == 'd' || c == 'D') {
             bool dbg;
@@ -433,6 +409,7 @@ void loop() {
 
     buzzer_loop();
     temp_history_tick();
+    energy_history_tick();
 
     // Update UI dynamically
     static uint32_t last_ui_ms = 0;

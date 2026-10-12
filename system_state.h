@@ -44,6 +44,7 @@ struct SystemState {
     // Smart Header Alarm Thresholds (Persisted)
     float warn_frost_temp;
     int warn_bat_soc;
+    int warn_bat_yellow_soc;
     int warn_fresh_min;
     int warn_waste_max;
 
@@ -52,7 +53,7 @@ struct SystemState {
     int indoor_temp_sensor;  // 0..12 (index of temp sensor for indoor temp, default 0)
     int temps_custom_sensor[2]; // -1 hidden, otherwise /temp sensor 0..12
     int temps_history_window; // 1, 6, or 12 hours
-    int home_temp_source[3]; // -1 hidden, otherwise /temp sensor 0..12 (4..12 = Ruuvi 0..8)
+    bool home_show_temp[3]; // shared Indoor, Outdoor, Custom 1 assignment
     int home_favorite[2]; // 0 hidden, 1..8 relays, 9..16 dimmers
     bool home_show_battery;
     bool home_show_starter;
@@ -100,6 +101,7 @@ struct SystemState {
     float solar_current;
     float solar_voltage;
     float starter_voltage; // optional /batt extension: starter_voltage
+    uint32_t bat_soc_updated_ms, bat_voltage_updated_ms, bat_current_updated_ms, solar_power_updated_ms;
     uint8_t battery_fields; // VoltB=1, Ampere=2, battsoc=4, optional starter_voltage=8
     uint8_t solar_fields; // watts=1, amps=2, volts=4
     uint16_t temp_fields;

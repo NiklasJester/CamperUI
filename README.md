@@ -295,7 +295,7 @@ Die Leistenposition bleibt beim Farbmoduswechsel erhalten. Das frühere Haupt-Ta
 mit zusätzlich versteckter Icon-Leiste ist entfernt. Die separaten
 System-Einstellungen behalten ihre eigenen Einstellungsreiter.
 
-Die Testanleitung steht in `TEST-HOME.md`. Die serielle Startmeldung `[NAV v8]`
+Die Testanleitung steht in `TEST-HOME.md`. Die serielle Startmeldung `[NAV <Firmware-Version>]`
 kennzeichnet diesen Stand. Mit `n` im seriellen Monitor lassen sich die aktuelle
 Geometrie und der LVGL-Speicher prüfen. Vor und nach den regulären Datenupdates
 werden Geometrieabweichungen protokolliert, ohne die Leiste zurückzusetzen.
@@ -314,7 +314,7 @@ Richtungen scrollen, MaxxFan AUF/ZU/EIN/AUS prüfen, System-Einstellungen öffne
 und zurückkehren sowie Farbmodus mehrmals wechseln. Die korrekte Darstellung
 auf dem ESP32 ist zusätzlich zu den lokalen Logikprüfungen zu bestätigen.
 
-### Home und WLAN in V8.7
+### Historischer Entwicklungsstand: Home und WLAN (V8.7)
 
 Home nutzt die gemeinsamen Dummy-/Live-Daten statt eigener statischer Messwerte.
 Temperaturquellen, zwei Relais-/Dimmer-Favoriten, Tankquelle und sichtbare Karten

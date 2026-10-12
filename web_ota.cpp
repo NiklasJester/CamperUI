@@ -14,10 +14,6 @@
 
 extern TwoWire Wire;
 
-static void web_ota_set_backlight_off() {
-    WS_CH32_IO::setPwm(Wire, 255);
-}
-
 static void web_ota_restore_backlight() {
     uint8_t pwm = 255 - (state.display_brightness * 255 / 100);
     WS_CH32_IO::setPwm(Wire, pwm);
@@ -28,6 +24,8 @@ static bool server_started = false;
 static bool mdns_started = false;
 
 static bool is_updating = false;
+static bool upload_finished = false;
+static uint32_t restart_at = 0;
 static int update_progress = 0;
 static String update_status = "Bereit";
 
@@ -191,7 +189,7 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
     <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
       <svg viewBox="0 0 24 24"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/></svg>
       <span>Hier klicken oder .bin Datei hineinziehen</span>
-      <small>Erstellt von build.bat (z. B. CamperUI-V1.0.1.bin)</small>
+      <small id="firmwareFileHint">Erstellt von build.bat</small>
     </div>
 
     <input type="file" id="fileInput" accept=".bin" onchange="onFileSelected()">
@@ -307,7 +305,10 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
     }
 
     fetch('/api/status').then(r => r.json()).then(d => {
-      if (d.version) document.getElementById('versionBadge').textContent = 'Version ' + d.version;
+      if (d.version) {
+        document.getElementById('versionBadge').textContent = 'Version ' + d.version;
+        document.getElementById('firmwareFileHint').textContent = 'Erstellt von build.bat (z. B. CamperUI-' + d.version + '.bin)';
+      }
     }).catch(() => {});
   </script>
 </body>
@@ -399,20 +400,22 @@ void web_ota_init() {
 
     server.on("/update", HTTP_POST, []() {
         server.sendHeader("Connection", "close");
-        if (Update.hasError()) {
+        if (Update.hasError() || !upload_finished) {
+            is_updating = false; state.web_ota_active = false;
             web_ota_restore_backlight();
-            server.send(500, "text/plain", "Fehler: " + String(Update.errorString()));
+            server.send(500, "text/plain", upload_finished ? "Fehler: " + String(Update.errorString()) : "Upload nicht erfolgreich abgeschlossen");
         } else {
             server.send(200, "text/plain", "OK");
-            delay(1000);
-            ESP.restart();
+            // Finish the HTTP response before reboot; keep the old UI paused.
+            restart_at = millis() + 1000;
         }
     }, []() {
         HTTPUpload& upload = server.upload();
         if (upload.status == UPLOAD_FILE_START) {
             Serial.printf("[WEB-OTA] Update Start: %s\n", upload.filename.c_str());
             is_updating = true;
-            web_ota_set_backlight_off();
+            // Keep the panel lit. CH32 PWM survives an ESP-only reset.
+            upload_finished = false; restart_at = 0;
             update_progress = 0;
             update_status = "Empfange Firmware...";
             state.web_ota_active = true;
@@ -445,7 +448,7 @@ void web_ota_init() {
         } else if (upload.status == UPLOAD_FILE_END) {
             if (Update.end(true)) {
                 Serial.printf("[WEB-OTA] Update erfolgreich! %u Bytes geflasht. Neustart...\n", upload.totalSize);
-                is_updating = false;
+                upload_finished = true;
                 update_progress = 100;
                 update_status = "Erfolgreich! Neustart...";
                 state.web_ota_progress = 100;
@@ -471,6 +474,12 @@ void web_ota_init() {
 }
 
 void web_ota_loop() {
+    if (restart_at && (int32_t)(millis() - restart_at) >= 0) {
+        web_ota_restore_backlight();
+        delay(50);
+        ESP.restart();
+        return;
+    }
     if (WiFi.status() == WL_CONNECTED) {
         if (!server_started) {
             server.begin();

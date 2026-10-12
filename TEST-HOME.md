@@ -10,7 +10,7 @@ keine horizontale Wischnavigation.
 
 - Den vollstaendigen aktuellen Sketch kompilieren und auf das Display laden.
 - Seriellen Monitor mit 115200 Baud oeffnen. Die Startausgabe muss
-  `[NAV v8] init` enthalten; so ist die geflashte Version erkennbar.
+  `[NAV <Firmware-Version>] init` enthalten; so ist die geflashte Version erkennbar.
 - Erwartete Werte: `faults=0`, `nav=(0,420) 480x60`,
   `scroll=(...,0)`, `content=(0,40) 480x380`.
 - Fuer den unbeaufsichtigten Test den Display-Timeout ausreichend hoch setzen.
@@ -21,7 +21,7 @@ keine horizontale Wischnavigation.
 2. Die Leiste muss durchgehend unten bleiben und darf den Inhalt nicht ueberlagern.
 3. Falls sie springt, im seriellen Monitor `n` senden. Das gibt die gemessene
    Geometrie, freien LVGL-Speicher und einen LVGL-Pool-Integritaetstest aus.
-4. Automatische `[NAV v8] before-data`/`after-data`-Meldungen erscheinen nur
+4. Automatische `[NAV <Firmware-Version>] before-data`/`after-data`-Meldungen erscheinen nur
    bei einer erkannten Abweichung oder der Rueckkehr zum Normalzustand.
    Die Kontrolle liest Koordinaten und setzt die Leiste nicht zurueck.
 
@@ -51,7 +51,7 @@ Erst nach bestandenem Ruhe- und Bedienungstest ist die Hardwarestabilitaet
 bestaetigt. Ein erfolgreicher Build allein bestaetigt sie nicht.
 
 
-# CamperUI V8.7
+# Historischer Testbericht: CamperUI V8.7
 
 ## Aenderungen
 

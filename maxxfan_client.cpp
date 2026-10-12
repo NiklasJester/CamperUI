@@ -93,6 +93,7 @@ bool matches(const FanStatus &s, const Request &r) {
 // Wait for acknowledgements across worker iterations, keeping other data polls alive.
 Request active;
 bool in_flight = false, waiting_auto = false, waiting_power = false, waiting_vent = false;
+bool expected_power = false;
 uint32_t deadline = 0, next_check = 0;
 String active_host;
 void finish(FanStatus &s, const char *text) {
@@ -112,8 +113,13 @@ void issue(FanStatus &s) {
     waiting_auto = false; waiting_power = false; waiting_vent = false;
     if (active.action == FanAction::Mode) {
         bool automatic = active.value == 2;
-        if (s.automatic != automatic) { path = "auto"; waiting_auto = true; }
-        else if (!automatic && s.power != (active.value != 0)) { path = "power"; waiting_power = true; }
+        // VanPi auto is enable-only. Power leaves Auto and stops the fan.
+        if (automatic && !s.automatic) { path = "auto"; waiting_auto = true; }
+        else if (!automatic && s.automatic) {
+            path = "power"; waiting_power = true; expected_power = false;
+        } else if (!automatic && s.power != (active.value != 0)) {
+            path = "power"; waiting_power = true; expected_power = active.value != 0;
+        }
         else if (active.value == 0 && s.lid_open) { path = "vent"; waiting_vent = true; }
     } else {
         if (active.action == FanAction::Speed && s.power && !s.automatic) path = "speed/" + String(active.value);
@@ -195,12 +201,14 @@ void maxxfan_worker() {
         last_poll = millis();
     } else if (in_flight) {
         if (active.demo != debug || active_host != host) { finish(s, "Datenquelle gewechselt"); return; }
-        if ((int32_t)(millis() - deadline) >= 0) { finish(s, "Keine Bestaetigung - Zustand pruefen"); return; }
+        if ((int32_t)(millis() - deadline) >= 0) { finish(s, waiting_auto ? "Auto nicht bestaetigt - VanPi pruefen" :
+            waiting_power ? "Luefter aus/an nicht bestaetigt" :
+            waiting_vent ? "Haube zu nicht bestaetigt" : "Keine Bestaetigung - Zustand pruefen"); return; }
         if ((int32_t)(millis() - next_check) >= 0) {
             if (fetch(s)) {
                 s.pending = true; store(s);
                 bool acknowledged = waiting_auto ? s.automatic == (active.value == 2) :
-                    waiting_power ? s.power == (active.value != 0) :
+                    waiting_power ? s.power == expected_power && !s.automatic :
                     waiting_vent ? !s.lid_open : matches(s, active);
                 if (acknowledged) issue(s);
             }

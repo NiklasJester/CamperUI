@@ -1,4 +1,5 @@
 #include "ui_main.h"
+#include "ui_energy_history.h"
 
 static lv_obj_t *arc_battery;
 static lv_obj_t *arc_solar;
@@ -51,18 +52,11 @@ void ui_update_power_tab() {
         last_soc = state.bat_soc;
         lv_label_set_text_fmt(lbl_bat_pct, "%d%%", state.bat_soc);
         
-        // Dynamic arc color based on battery health
-        if (state.bat_soc <= state.warn_bat_soc) {
-            lv_obj_set_style_arc_color(arc_battery, lv_color_hex(UI_COLOR_DANGER), LV_PART_INDICATOR);
-            lv_obj_set_style_text_color(lbl_bat_pct, lv_color_hex(UI_COLOR_DANGER), 0);
-        } else if (state.bat_soc <= 40) {
-            lv_obj_set_style_arc_color(arc_battery, lv_color_hex(UI_COLOR_WARNING), LV_PART_INDICATOR);
-            lv_obj_set_style_text_color(lbl_bat_pct, lv_color_hex(UI_COLOR_WARNING), 0);
-        } else {
-            lv_obj_set_style_arc_color(arc_battery, lv_color_hex(UI_COLOR_SUCCESS), LV_PART_INDICATOR);
-            lv_obj_set_style_text_color(lbl_bat_pct, ui_theme_text(), 0);
-        }
     }
+    // Threshold changes also apply when the measured SOC is unchanged.
+    lv_color_t soc_color = ui_battery_soc_color(state.bat_soc);
+    lv_obj_set_style_arc_color(arc_battery, soc_color, LV_PART_INDICATOR);
+    ui_text_color_if_changed(lbl_bat_pct, soc_color);
     
     // Voltage / Current
     ui_label_set_float(lbl_bat_volt, "%.1f V", state.bat_voltage);
@@ -224,7 +218,8 @@ void ui_build_power(lv_obj_t *parent) {
     lv_label_set_text(lbl_bat_charge_icon, LV_SYMBOL_CHARGE);
     lv_obj_set_style_text_font(lbl_bat_charge_icon, &lv_font_montserrat_20, 0);
     lv_obj_set_style_text_color(lbl_bat_charge_icon, lv_color_hex(UI_COLOR_SUCCESS), 0);
-    lv_obj_align(lbl_bat_charge_icon, LV_ALIGN_TOP_RIGHT, 0, 4);
+    lv_obj_align(lbl_bat_charge_icon, LV_ALIGN_TOP_RIGHT, -58, 4);
+    ui_energy_history_button(card_bat, false);
     lv_obj_add_flag(lbl_bat_charge_icon, LV_OBJ_FLAG_HIDDEN);
 
     // ==========================================
@@ -278,6 +273,8 @@ void ui_build_power(lv_obj_t *parent) {
     // ==========================================
     lv_obj_t *card_solar = ui_create_card(parent, 440, 144);
     lv_obj_align(card_solar, LV_ALIGN_BOTTOM_MID, 0, 0);
+
+    ui_energy_history_button(card_solar, true);
 
     // Solar Arc Gauge (Left)
     arc_solar = lv_arc_create(card_solar);

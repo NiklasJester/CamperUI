@@ -6,7 +6,11 @@
 #include "ui_mdi_icons.h"
 #include "ui_fonts.h"
 #include <string.h>
-#define CAMPERUI_VERSION "V1.2.1"
+#define CAMPERUI_VERSION "V1.2.1-RV3D.89-dev"
+
+#if !LV_MEM_CUSTOM && LV_MEM_SIZE < (512U * 1024U)
+#error "CamperUI needs config/lv_conf.h: copy it to Arduino/libraries/lv_conf.h (LV_MEM_SIZE >= 512 KiB)."
+#endif
 
 // ==========================================
 // Modern Automotive / Camper Color Palette
@@ -23,11 +27,21 @@
 #define UI_COLOR_MUTED_LIGHT   0x64748b
 
 #define UI_COLOR_PRIMARY       0x0ea5e9 // Sky Blue
+
 #define UI_COLOR_SUCCESS       0x10b981 // Emerald Green
 #define UI_COLOR_WARNING       0xf59e0b // Warm Amber
 #define UI_COLOR_DANGER        0xef4444 // Coral Red
 #define UI_COLOR_TRACK_DARK    0x12151c // Recessed slider / tank track dark
 #define UI_COLOR_TRACK_LIGHT   0xdbe2ec // Recessed slider / tank track light
+
+inline lv_color_t ui_battery_soc_color(int soc) {
+    return lv_color_hex(soc <= state.warn_bat_soc ? UI_COLOR_DANGER :
+        soc <= state.warn_bat_yellow_soc ? 0xffdf00 : UI_COLOR_PRIMARY);
+}
+inline int ui_home_temperature_source(int slot) {
+    return slot == 0 ? state.indoor_temp_sensor :
+        slot == 1 ? state.outdoor_temp_sensor : state.temps_custom_sensor[0];
+}
 
 // Inline helpers for theme-aware colors
 static inline lv_color_t ui_theme_bg() { return state.dark_mode ? lv_color_hex(UI_COLOR_BG_DARK) : lv_color_hex(UI_COLOR_BG_LIGHT); }

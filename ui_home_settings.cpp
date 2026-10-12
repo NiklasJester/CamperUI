@@ -1,8 +1,7 @@
 #include "ui_main.h"
 namespace {
-lv_obj_t *temp_select[3], *favorite_select[2], *tank_select;
+lv_obj_t *favorite_select[2], *tank_select;
 bool updating = false;
-int temp_option_ids[TEMP_SOURCE_COUNT + 1], temp_option_count;
 lv_obj_t *home_settings_screen = nullptr;
 void set_options(lv_obj_t *dropdown, const String &options, int selected) {
     if (!dropdown) return;
@@ -14,8 +13,7 @@ void choice_changed(lv_event_t *event) {
     if (updating) return;
     int field = (int)(uintptr_t)lv_event_get_user_data(event);
     int selected = lv_dropdown_get_selected(lv_event_get_target(event));
-    if (field < 3) state.home_temp_source[field] = temp_option_ids[constrain(selected, 0, temp_option_count - 1)];
-    else if (field < 5) state.home_favorite[field - 3] = selected;
+    if (field < 5) state.home_favorite[field - 3] = selected;
     else state.home_water_source = selected;
     state_save(); ui_home_layout_changed();
 }
@@ -71,26 +69,10 @@ lv_obj_t *choice(lv_obj_t *parent, const char *title, int y, int field) {
 }
 void ui_home_settings_refresh() {
     // Keep the option-to-source mapping stable while the user is choosing.
-    for (auto obj : temp_select) if (obj && lv_dropdown_is_open(obj)) return;
     for (auto obj : favorite_select) if (obj && lv_dropdown_is_open(obj)) return;
     if (tank_select && lv_dropdown_is_open(tank_select)) return;
     updating = true;
     String options = "Nicht anzeigen";
-    temp_option_count = 1; temp_option_ids[0] = -1;
-    for (int i = 0; i < TEMP_SOURCE_COUNT; ++i) {
-        bool selected = false;
-        for (int slot = 0; slot < 3; ++slot) selected |= state.home_temp_source[slot] == i;
-        if (i >= 4 && !(state.temp_fields & (1 << i)) && !selected) continue;
-        temp_option_ids[temp_option_count++] = i;
-        options += "\n" + String(i < 4 ? "Temp " : "Ruuvi ") + String(i < 4 ? i + 1 : i - 4) + ": " + state.temp_sensor_names[i];
-        if (!(state.temp_fields & (1 << i))) options += " (keine Daten)";
-    }
-    for (int slot = 0; slot < 3; ++slot) {
-        int selected = 0;
-        for (int i = 1; i < temp_option_count; ++i) if (temp_option_ids[i] == state.home_temp_source[slot]) selected = i;
-        set_options(temp_select[slot], options, selected);
-    }
-    options = "Nicht anzeigen";
     for (int i = 0; i < 8; ++i) options += "\nRelais " + String(i + 1) + ": " + state.switch_names[i];
     for (int i = 0; i < 8; ++i) options += "\nDimmer " + String(i + 1) + ": " + state.dimmer_names[i];
     for (int i = 0; i < 2; ++i) set_options(favorite_select[i], options, state.home_favorite[i]);
@@ -118,11 +100,12 @@ void ui_build_home_settings(lv_obj_t *parent) {
     lv_obj_t *note = lv_label_create(parent);
     lv_obj_set_pos(note, 0, 138);
     lv_obj_set_width(note, 426);
-    lv_label_set_text(note, "Sofort gespeichert. Dummy/Live gilt für alle Seiten.\nRuuvi-Tags erscheinen nach Empfang vom VanPi.");
+    lv_label_set_text(note, "Sofort gespeichert. Dummy/Live gilt für alle Seiten.\nTemperaturzuordnung: System-Einstellungen → Temperaturen.");
     lv_obj_set_style_text_font(note, &lv_font_montserrat_12, 0);
     lv_obj_set_style_text_color(note, ui_theme_muted(), 0);
-    const char *names[3] = {"Temperaturfeld 1", "Temperaturfeld 2", "Temperaturfeld 3"};
-    for (int i = 0; i < 3; ++i) temp_select[i] = choice(parent, names[i], 194 + i * 50, i);
+    toggle_card(parent, "Innen", 0, 194, &state.home_show_temp[0]);
+    toggle_card(parent, "Außen", 220, 194, &state.home_show_temp[1]);
+    toggle_card(parent, "Zusatz 1", 0, 246, &state.home_show_temp[2]);
     for (int i = 0; i < 2; ++i) favorite_select[i] = choice(parent, i ? "Favorit 2" : "Favorit 1", 354 + i * 50, 3 + i);
     tank_select = choice(parent, "Tankquelle", 464, 5);
     ui_home_settings_refresh();
@@ -133,7 +116,6 @@ bool ui_home_settings_is_active() {
 void ui_home_settings_destroy() {
     if (home_settings_screen) lv_obj_del(home_settings_screen);
     home_settings_screen = nullptr;
-    for (auto &obj : temp_select) obj = nullptr;
     for (auto &obj : favorite_select) obj = nullptr;
     tank_select = nullptr;
 }
