@@ -11,6 +11,7 @@
 
 #include "debug_log.h"
 #include "web_terminal_html.h"
+#include "web_settings.h"
 
 extern TwoWire Wire;
 
@@ -181,8 +182,9 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
       <div class="badge" id="versionBadge">CamperUI</div>
       <h1>CamperUI Update</h1>
       <p class="sub">Neue Firmware (.bin) direkt auf den ESP32 laden</p>
-      <div style="margin-top: 10px;">
-        <a href="/status" style="color: #0ea5e9; text-decoration: none; font-size: 13px; font-weight: 500;">&larr; Zum Web-Terminal & Status</a>
+      <div style="margin-top: 10px; display:flex; justify-content:center; gap:16px;">
+        <a href="/settings" style="color: #0ea5e9; text-decoration: none; font-size: 13px; font-weight: 500;">&larr; Einstellungen</a>
+        <a href="/status" style="color: #0ea5e9; text-decoration: none; font-size: 13px; font-weight: 500;">Terminal & Status</a>
       </div>
     </div>
 
@@ -323,9 +325,11 @@ void web_ota_init() {
     update_progress = 0;
     update_status = "Bereit";
 
+    web_settings_register_routes(server);
+
     // Setup HTTP Endpoints
     server.on("/", HTTP_GET, []() {
-        server.sendHeader("Location", "/status");
+        server.sendHeader("Location", "/settings");
         server.send(303);
     });
 
@@ -487,13 +491,15 @@ void web_ota_loop() {
             if (!mdns_started && MDNS.begin("camperui")) {
                 MDNS.addService("http", "tcp", 80);
                 mdns_started = true;
-                Serial.printf("[WEB-OTA] Web-Terminal: http://%s/status (oder http://camperui.local/status)\n",
+                Serial.printf("[WEB-OTA] Einstellungen:  http://%s/settings (oder http://camperui.local/settings)\n",
+                              WiFi.localIP().toString().c_str());
+                Serial.printf("[WEB-OTA] Web-Terminal:   http://%s/status (oder http://camperui.local/status)\n",
                               WiFi.localIP().toString().c_str());
                 Serial.printf("[WEB-OTA] Firmware-Update: http://%s/update (oder http://camperui.local/update)\n",
                               WiFi.localIP().toString().c_str());
             } else {
-                Serial.printf("[WEB-OTA] Web-Terminal: http://%s/status | Update: http://%s/update\n",
-                              WiFi.localIP().toString().c_str(), WiFi.localIP().toString().c_str());
+                Serial.printf("[WEB-OTA] Settings: http://%s/settings | Status: http://%s/status | Update: http://%s/update\n",
+                              WiFi.localIP().toString().c_str(), WiFi.localIP().toString().c_str(), WiFi.localIP().toString().c_str());
             }
         }
         server.handleClient();

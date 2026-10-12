@@ -326,8 +326,9 @@ static const char TERMINAL_HTML[] PROGMEM = R"rawliteral(
         <span class="badge" id="statBadgeVersion">Version wird geladen...</span>
         <span class="badge green" id="statBadgeStatus">Bereit</span>
       </div>
-      <div>
-        <a href="/update" class="nav-btn">⚡ Firmware-Update &rarr;</a>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <a href="/settings" class="nav-btn">⚙️ Einstellungen</a>
+        <a href="/update" class="nav-btn">⚡ Update &rarr;</a>
       </div>
     </header>
 

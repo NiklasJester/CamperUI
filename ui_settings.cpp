@@ -292,10 +292,10 @@ void ui_update_settings_tab() {
     if (lv_scr_act() == scr_settings && lbl_web_ota_url) {
         String ip = (WiFi.status() == WL_CONNECTED) ? WiFi.localIP().toString() : "...";
         char buf[128];
-        snprintf(buf, sizeof(buf), "Adresse: http://%s/update", ip.c_str());
+        snprintf(buf, sizeof(buf), "Adresse: http://%s/settings", ip.c_str());
         ui_label_set_text_if_changed(lbl_web_ota_url, buf);
 
-        String url = WiFi.status() == WL_CONNECTED ? "http://" + ip + "/update" : "";
+        String url = WiFi.status() == WL_CONNECTED ? "http://" + ip + "/settings" : "";
         if (update_qr && update_qr_url != url) {
             update_qr_url = url;
             if (url.length() && upload_qr_update(update_qr, url.c_str()))
@@ -309,7 +309,7 @@ void ui_update_settings_tab() {
         } else {
             if (lbl_web_ota_status) {
                 char st_buf[128];
-                snprintf(st_buf, sizeof(st_buf), "%s\n%s", CAMPERUI_VERSION, WiFi.status() == WL_CONNECTED ? "Handy im selben WLAN: QR scannen, BIN waehlen." : "WLAN verbinden, um den QR-Code anzuzeigen.");
+                snprintf(st_buf, sizeof(st_buf), "%s\n%s", CAMPERUI_VERSION, WiFi.status() == WL_CONNECTED ? "Handy im selben WLAN: QR scannen fuer Einstellungen." : "WLAN verbinden, um den QR-Code anzuzeigen.");
                 ui_label_set_text_if_changed(lbl_web_ota_status, st_buf);
             }
         }
@@ -736,7 +736,7 @@ void ui_settings_screen_init() {
     }
 
     lv_obj_t *l_web_head = lv_label_create(card_web_ota);
-    lv_label_set_text(l_web_head, LV_SYMBOL_DOWNLOAD " Firmware-Update (Browser)");
+    lv_label_set_text(l_web_head, LV_SYMBOL_SETTINGS " Web-Interface & Einstellungen");
     lv_obj_set_style_text_font(l_web_head, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(l_web_head, lv_color_hex(UI_COLOR_PRIMARY), 0);
     lv_obj_align(l_web_head, LV_ALIGN_TOP_LEFT, 0, 0);
@@ -746,7 +746,7 @@ void ui_settings_screen_init() {
     lv_obj_set_style_text_font(lbl_web_ota_url, &lv_font_montserrat_14, 0);
     lv_obj_set_style_text_color(lbl_web_ota_url, lv_color_hex(UI_COLOR_SUCCESS), 0);
     lv_obj_align(lbl_web_ota_url, LV_ALIGN_TOP_LEFT, 0, 26);
-    lv_label_set_text(lbl_web_ota_url, "Browser-Adresse: http://.../update");
+    lv_label_set_text(lbl_web_ota_url, "Browser-Adresse: http://.../settings");
 
     lbl_web_ota_status = lv_label_create(card_web_ota);
     lv_obj_set_width(lbl_web_ota_status, 416);
@@ -754,7 +754,7 @@ void ui_settings_screen_init() {
     lv_obj_set_style_text_font(lbl_web_ota_status, &lv_font_montserrat_12, 0);
     lv_obj_set_style_text_color(lbl_web_ota_status, ui_theme_muted(), 0);
     lv_obj_align(lbl_web_ota_status, LV_ALIGN_TOP_LEFT, 0, 52);
-    lv_label_set_text_fmt(lbl_web_ota_status, "%s\n%s", CAMPERUI_VERSION, WiFi.status() == WL_CONNECTED ? "Handy im selben WLAN: QR scannen, BIN waehlen." : "WLAN verbinden, um den QR-Code anzuzeigen.");
+    lv_label_set_text_fmt(lbl_web_ota_status, "%s\n%s", CAMPERUI_VERSION, WiFi.status() == WL_CONNECTED ? "Handy im selben WLAN: QR scannen fuer Einstellungen." : "WLAN verbinden, um den QR-Code anzuzeigen.");
 
     // ==========================================
     // TAB 2: ALLGEMEIN
