@@ -231,19 +231,23 @@ state.display_brightness = prefs.getInt("disp_bright", 100);
     // Settings is always enabled so the user can never get locked out
     state.tab_enabled[TAB_SETTINGS] = true;
 
+    state.tank_count = prefs.getInt("tank_cnt", 2);
+    if (state.tank_count < 1 || state.tank_count > 4) state.tank_count = 2;
+    state.tank_show_liters = prefs.getBool("tank_liters", true);
+
     for (int i = 0; i < 4; i++) {
         char key_max[16], key_en[16], key_nm[16];
         sprintf(key_max, "tank%d_max", i);
         sprintf(key_en, "tank%d_en", i);
         sprintf(key_nm, "tank%d_nm", i);
         state.tank_max[i] = prefs.getInt(key_max, 100);
-        state.tank_enabled[i] = prefs.getBool(key_en, (i < 2)); // Default first 2 tanks on
+        state.tank_enabled[i] = (i < state.tank_count);
         
         String def_name = "";
-        if (i==0) def_name = "Frisch";
-        else if (i==1) def_name = "Abwasser 1";
-        else if (i==2) def_name = "Abwasser 2";
-        else def_name = "Schwarz";
+        if (i == 0) def_name = "Frischwasser";
+        else if (i == 1) def_name = "Grauwasser";
+        else if (i == 2) def_name = "Tank 3";
+        else def_name = "Tank 4";
         state.tank_names[i] = prefs.getString(key_nm, def_name);
     }
 
@@ -395,6 +399,8 @@ void state_save() {
     prefs.putBytes("tab_order", state.tab_order, sizeof(state.tab_order));
     prefs.putBytes("tab_en", state.tab_enabled, sizeof(state.tab_enabled));
 
+    prefs.putInt("tank_cnt", state.tank_count);
+    prefs.putBool("tank_liters", state.tank_show_liters);
     for (int i = 0; i < 4; i++) {
         char key_max[16], key_en[16], key_nm[16];
         sprintf(key_max, "tank%d_max", i);

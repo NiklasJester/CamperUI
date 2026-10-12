@@ -109,6 +109,7 @@ void ui_trigger_temps_anim();
 // Sub-Tab Builders
 void ui_build_power(lv_obj_t *parent);
 void ui_build_water(lv_obj_t *parent);
+void ui_rebuild_water(void);
 void ui_build_climate(lv_obj_t *parent);
 void ui_build_switches(lv_obj_t *parent);
 void ui_build_dimmers(lv_obj_t *parent);

@@ -117,6 +117,83 @@ static lv_obj_t *ta_rename;
 static lv_obj_t *ta_bat_cap;
 static lv_obj_t *ta_solar_max;
 static lv_obj_t *ta_tank_max[4];
+static lv_obj_t *lbl_tank_max[4];
+static lv_obj_t *dd_tank_count = NULL;
+static lv_obj_t *sw_tank_liters = NULL;
+static lv_obj_t *dd_pump = NULL;
+static lv_obj_t *dd_drain = NULL;
+
+static int relay_opt_map[18];
+static int relay_opt_count = 0;
+
+static void update_water_relay_dropdowns() {
+    relay_opt_count = 0;
+    String opts = "Nicht verfügbar\n";
+    relay_opt_map[relay_opt_count++] = -1;
+
+    for (int i = 0; i < 8; i++) {
+        String nm = state.switch_names[i];
+        if (nm.length() == 0 || nm == "CH " + String(i + 1)) {
+            opts += "Relais " + String(i + 1);
+        } else {
+            opts += nm;
+        }
+        opts += "\n";
+        relay_opt_map[relay_opt_count++] = i;
+    }
+
+    if (state.show_wrelay) {
+        for (int i = 0; i < 8; i++) {
+            String nm = state.wrelay_names[i];
+            if (nm.length() == 0 || nm == "wrelay" + String(i + 1)) {
+                opts += "WLAN " + String(i + 1);
+            } else {
+                opts += nm + " (WLAN)";
+            }
+            if (i != 7) opts += "\n";
+            relay_opt_map[relay_opt_count++] = 8 + i;
+        }
+    } else {
+        if (opts.endsWith("\n")) opts.remove(opts.length() - 1);
+    }
+
+    if (dd_pump) {
+        lv_dropdown_set_options(dd_pump, opts.c_str());
+        int sel = 0;
+        for (int k = 0; k < relay_opt_count; k++) {
+            if (relay_opt_map[k] == state.pump_relay) { sel = k; break; }
+        }
+        lv_dropdown_set_selected(dd_pump, sel);
+    }
+
+    if (dd_drain) {
+        lv_dropdown_set_options(dd_drain, opts.c_str());
+        int sel = 0;
+        for (int k = 0; k < relay_opt_count; k++) {
+            if (relay_opt_map[k] == state.drain_relay) { sel = k; break; }
+        }
+        lv_dropdown_set_selected(dd_drain, sel);
+    }
+}
+
+static void update_tank_max_visibility() {
+    int cnt = constrain(state.tank_count, 1, 4);
+    for (int i = 0; i < 4; i++) {
+        if (lbl_tank_max[i] && ta_tank_max[i]) {
+            if (i < cnt) {
+                lv_obj_clear_flag(lbl_tank_max[i], LV_OBJ_FLAG_HIDDEN);
+                lv_obj_clear_flag(ta_tank_max[i], LV_OBJ_FLAG_HIDDEN);
+                String name = state.tank_names[i];
+                if (name.length() == 0) name = "Tank " + String(i + 1);
+                if (name.length() > 9) name = name.substring(0, 8) + ".";
+                lv_label_set_text_fmt(lbl_tank_max[i], "T%d (%s):", i + 1, name.c_str());
+            } else {
+                lv_obj_add_flag(lbl_tank_max[i], LV_OBJ_FLAG_HIDDEN);
+                lv_obj_add_flag(ta_tank_max[i], LV_OBJ_FLAG_HIDDEN);
+            }
+        }
+    }
+}
 
 static lv_obj_t *ta_warn_frost;
 static lv_obj_t *ta_warn_bat;
@@ -834,6 +911,7 @@ void ui_settings_screen_init() {
         } else {
             lv_obj_add_flag(cont, LV_OBJ_FLAG_HIDDEN);
         }
+        update_water_relay_dropdowns();
     }, LV_EVENT_VALUE_CHANGED, cont_wr);
 
     lv_obj_t *l_sw_wr = lv_label_create(card_master_wr);
@@ -880,17 +958,16 @@ void ui_settings_screen_init() {
     lv_obj_set_style_text_font(l_pump, &lv_font_montserrat_14, 0);
     lv_obj_align(l_pump, LV_ALIGN_TOP_LEFT, 0, 36);
     
-    lv_obj_t *dd_pump = lv_dropdown_create(t_val);
-    String opts_p = "Keins\n";
-    for(int i=0; i<8; i++) { opts_p += "Relais " + String(i+1); if (i!=7) opts_p+="\n"; }
-    lv_dropdown_set_options(dd_pump, opts_p.c_str());
-    lv_dropdown_set_selected(dd_pump, state.pump_relay + 1);
+    dd_pump = lv_dropdown_create(t_val);
     lv_obj_set_size(dd_pump, 250, 44);
     lv_obj_set_style_text_font(dd_pump, &lv_font_montserrat_14, 0);
     lv_obj_align(dd_pump, LV_ALIGN_TOP_LEFT, 150, 26);
     lv_obj_add_event_cb(dd_pump, [](lv_event_t * e) {
         lv_obj_t *dd = lv_event_get_target(e);
-        state.pump_relay = lv_dropdown_get_selected(dd) - 1;
+        int sel = lv_dropdown_get_selected(dd);
+        if (sel >= 0 && sel < relay_opt_count) {
+            state.pump_relay = relay_opt_map[sel];
+        }
     }, LV_EVENT_VALUE_CHANGED, NULL);
     
     lv_obj_t *l_drain = lv_label_create(t_val);
@@ -898,16 +975,19 @@ void ui_settings_screen_init() {
     lv_obj_set_style_text_font(l_drain, &lv_font_montserrat_14, 0);
     lv_obj_align(l_drain, LV_ALIGN_TOP_LEFT, 0, 90);
     
-    lv_obj_t *dd_drain = lv_dropdown_create(t_val);
-    lv_dropdown_set_options(dd_drain, opts_p.c_str());
-    lv_dropdown_set_selected(dd_drain, state.drain_relay + 1);
+    dd_drain = lv_dropdown_create(t_val);
     lv_obj_set_size(dd_drain, 250, 44);
     lv_obj_set_style_text_font(dd_drain, &lv_font_montserrat_14, 0);
     lv_obj_align(dd_drain, LV_ALIGN_TOP_LEFT, 150, 80);
     lv_obj_add_event_cb(dd_drain, [](lv_event_t * e) {
         lv_obj_t *dd = lv_event_get_target(e);
-        state.drain_relay = lv_dropdown_get_selected(dd) - 1;
+        int sel = lv_dropdown_get_selected(dd);
+        if (sel >= 0 && sel < relay_opt_count) {
+            state.drain_relay = relay_opt_map[sel];
+        }
     }, LV_EVENT_VALUE_CHANGED, NULL);
+
+    update_water_relay_dropdowns();
 
     // Section 2: Sensoren & Leistung
     lv_obj_t *l_sec_sens = lv_label_create(t_val);
@@ -1011,35 +1091,81 @@ void ui_settings_screen_init() {
     lv_obj_align(ta_solar_max, LV_ALIGN_TOP_LEFT, 150, 386);
     lv_obj_add_event_cb(ta_solar_max, ta_event_cb, LV_EVENT_ALL, NULL);
 
-    // Section 3: Tank Limits
+    // Section 3: Wassertanks Konfiguration
     lv_obj_t *l_tanks = lv_label_create(t_val);
-    lv_label_set_text(l_tanks, "Tank Maxima (Liter)");
+    lv_label_set_text(l_tanks, "Wassertanks Konfiguration");
     lv_obj_set_style_text_font(l_tanks, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(l_tanks, lv_color_hex(UI_COLOR_PRIMARY), 0);
     lv_obj_align(l_tanks, LV_ALIGN_TOP_LEFT, 0, 446);
-    
+
+    // Anzahl Tanks
+    lv_obj_t *l_tank_cnt = lv_label_create(t_val);
+    lv_label_set_text(l_tank_cnt, "Anzahl Tanks:");
+    lv_obj_set_style_text_font(l_tank_cnt, &lv_font_montserrat_14, 0);
+    lv_obj_align(l_tank_cnt, LV_ALIGN_TOP_LEFT, 0, 486);
+
+    dd_tank_count = lv_dropdown_create(t_val);
+    lv_dropdown_set_options(dd_tank_count, "1 Tank\n2 Tanks\n3 Tanks\n4 Tanks");
+    lv_dropdown_set_selected(dd_tank_count, constrain(state.tank_count, 1, 4) - 1);
+    lv_obj_set_size(dd_tank_count, 250, 44);
+    lv_obj_set_style_text_font(dd_tank_count, &lv_font_montserrat_14, 0);
+    lv_obj_align(dd_tank_count, LV_ALIGN_TOP_LEFT, 150, 476);
+    lv_obj_add_event_cb(dd_tank_count, [](lv_event_t * e) {
+        lv_obj_t *dd = lv_event_get_target(e);
+        state.tank_count = lv_dropdown_get_selected(dd) + 1;
+        for (int i = 0; i < 4; i++) {
+            state.tank_enabled[i] = (i < state.tank_count);
+        }
+        update_tank_max_visibility();
+    }, LV_EVENT_VALUE_CHANGED, NULL);
+
+    // Liter anzeigen Toggle
+    lv_obj_t *l_tank_liters = lv_label_create(t_val);
+    lv_label_set_text(l_tank_liters, "Liter anzeigen:");
+    lv_obj_set_style_text_font(l_tank_liters, &lv_font_montserrat_14, 0);
+    lv_obj_align(l_tank_liters, LV_ALIGN_TOP_LEFT, 0, 540);
+
+    sw_tank_liters = lv_switch_create(t_val);
+    lv_obj_set_size(sw_tank_liters, 52, 28);
+    lv_obj_align(sw_tank_liters, LV_ALIGN_TOP_LEFT, 150, 534);
+    if (state.tank_show_liters) lv_obj_add_state(sw_tank_liters, LV_STATE_CHECKED);
+    lv_obj_add_event_cb(sw_tank_liters, [](lv_event_t * e) {
+        lv_obj_t *sw = lv_event_get_target(e);
+        state.tank_show_liters = lv_obj_has_state(sw, LV_STATE_CHECKED);
+    }, LV_EVENT_VALUE_CHANGED, NULL);
+
+    // Tank Maxima (Liter)
+    lv_obj_t *l_tank_caps = lv_label_create(t_val);
+    lv_label_set_text(l_tank_caps, "Kapazitäten (Liter):");
+    lv_obj_set_style_text_font(l_tank_caps, &lv_font_montserrat_14, 0);
+    lv_obj_align(l_tank_caps, LV_ALIGN_TOP_LEFT, 0, 582);
+
     for (int i = 0; i < 4; i++) {
-        lv_coord_t col_x = i * 110;
-        lv_obj_t *l_t = lv_label_create(t_val);
-        lv_label_set_text_fmt(l_t, "T%d:", i+1);
-        lv_obj_set_style_text_font(l_t, &lv_font_montserrat_14, 0);
-        lv_obj_align(l_t, LV_ALIGN_TOP_LEFT, col_x, 486);
-        
+        int row = i / 2;
+        int col = i % 2;
+        lv_coord_t col_x = col * 215;
+        lv_coord_t row_y = 614 + (row * 54);
+
+        lbl_tank_max[i] = lv_label_create(t_val);
+        lv_obj_set_style_text_font(lbl_tank_max[i], &lv_font_montserrat_14, 0);
+        lv_obj_align(lbl_tank_max[i], LV_ALIGN_TOP_LEFT, col_x, row_y + 10);
+
         ta_tank_max[i] = lv_textarea_create(t_val);
         lv_textarea_set_one_line(ta_tank_max[i], true);
         lv_textarea_set_text(ta_tank_max[i], String(state.tank_max[i]).c_str());
-        lv_obj_set_size(ta_tank_max[i], 75, 44);
+        lv_obj_set_size(ta_tank_max[i], 80, 44);
         lv_obj_set_style_text_font(ta_tank_max[i], &lv_font_montserrat_14, 0);
-        lv_obj_align(ta_tank_max[i], LV_ALIGN_TOP_LEFT, col_x + 28, 476);
+        lv_obj_align(ta_tank_max[i], LV_ALIGN_TOP_LEFT, col_x + 120, row_y);
         lv_obj_add_event_cb(ta_tank_max[i], ta_event_cb, LV_EVENT_ALL, NULL);
     }
+    update_tank_max_visibility();
 
     // Hint Note
     lv_obj_t *l_out_desc = lv_label_create(t_val);
     lv_label_set_text(l_out_desc, "Hinweis: Der gewählte Außensensor steuert die Frostwarnung & das Außenklima.");
     lv_obj_set_style_text_color(l_out_desc, ui_theme_muted(), 0);
     lv_obj_set_style_text_font(l_out_desc, &lv_font_montserrat_12, 0);
-    lv_obj_align(l_out_desc, LV_ALIGN_TOP_LEFT, 0, 536);
+    lv_obj_align(l_out_desc, LV_ALIGN_TOP_LEFT, 0, 735);
     
     // ==========================================
     // TAB 5: ALARME (KOMFORTABLE 44PX EINGABEN)
@@ -1281,7 +1407,11 @@ void ui_settings_screen_init() {
         state.warn_bat_yellow_soc = yellow;
         state.solar_max_w = String(lv_textarea_get_text(ta_solar_max)).toFloat();
         for (int i=0; i<4; i++) {
-            state.tank_max[i] = String(lv_textarea_get_text(ta_tank_max[i])).toInt();
+            if (ta_tank_max[i]) {
+                int val = String(lv_textarea_get_text(ta_tank_max[i])).toInt();
+                if (val <= 0) val = 100;
+                state.tank_max[i] = val;
+            }
         }
         if (ta_warn_frost) state.warn_frost_temp = String(lv_textarea_get_text(ta_warn_frost)).toFloat();
         if (ta_warn_bat)   state.warn_bat_soc    = String(lv_textarea_get_text(ta_warn_bat)).toInt();
@@ -1323,6 +1453,7 @@ void ui_settings_screen_init() {
         }
         time_apply_configuration();
         save_settings_cb(e);
+        ui_rebuild_water();
     }, LV_EVENT_CLICKED, NULL);
     lv_obj_t *l_save = lv_label_create(btn_save);
     lv_label_set_text(l_save, LV_SYMBOL_OK " Speichern & Beenden");

@@ -61,8 +61,10 @@ struct SystemState {
     bool home_show_water;
     int home_water_source; // /level index 0..3
 
-    // Tank Capacities (Liters)
-    int tank_max[4]; 
+    // Tank Capacities & Display Settings
+    int tank_count;        // 1..4 tanks shown
+    bool tank_show_liters; // true: show liters below %
+    int tank_max[4];       // Capacities in Liters
     bool tank_enabled[4];
     String tank_names[4];
     
@@ -149,8 +151,8 @@ struct SystemState {
     // Visibility and roles
     bool switch_visible[8];
     bool dimmer_visible[8];
-    int pump_relay; // 0-7, or -1 for none
-    int drain_relay; // 0-7, or -1 for none
+    int pump_relay; // -1 for none, 0-7 for relays, 8-15 for wrelays
+    int drain_relay; // -1 for none, 0-7 for relays, 8-15 for wrelays
 
     // WiFi Relays (Volatile State)
     bool wrelay_state[8];

@@ -407,7 +407,7 @@ void ui_init() {
     lv_obj_add_flag(lbl_maxxfan_status, LV_OBJ_FLAG_HIDDEN);
 
     lbl_pump_status = lv_label_create(status_bar);
-    lv_label_set_text(lbl_pump_status, MDI_PUMP);
+    lv_label_set_text(lbl_pump_status, MDI_WATER);
     lv_obj_set_style_text_font(lbl_pump_status, &ui_font_mdi_18, 0);
     lv_obj_align(lbl_pump_status, LV_ALIGN_RIGHT_MID, -238, 0);
     lv_obj_set_style_text_color(lbl_pump_status, lv_color_hex(UI_COLOR_PRIMARY), 0);
@@ -539,6 +539,16 @@ void ui_init() {
     ui_debug_navigation("init", true);
 }
 
+void ui_rebuild_water(void) {
+    if (pages[TAB_WATER]) {
+        lv_obj_clean(pages[TAB_WATER]);
+        ui_build_water(pages[TAB_WATER]);
+        if (active_page == TAB_WATER) {
+            ui_update_water_tab();
+        }
+    }
+}
+
 void ui_update_visible_page() {
     if (ui_energy_history_active()) { ui_energy_history_update(); return; }
     if (lv_scr_act() != scr_main) return;
@@ -600,7 +610,13 @@ void ui_update_data() {
     ui_label_set_float(lbl_temp, "IN: %.1f C", state.indoor_temp);
     
     if (lbl_pump_status) {
-        if (state.pump_relay >= 0 && state.pump_relay < 8 && state.switch_state[state.pump_relay]) {
+        bool pump_on = false;
+        if (state.pump_relay >= 0 && state.pump_relay < 8) {
+            pump_on = state.switch_state[state.pump_relay];
+        } else if (state.pump_relay >= 8 && state.pump_relay < 16) {
+            pump_on = state.wrelay_state[state.pump_relay - 8];
+        }
+        if (pump_on) {
             lv_obj_clear_flag(lbl_pump_status, LV_OBJ_FLAG_HIDDEN);
         } else {
             lv_obj_add_flag(lbl_pump_status, LV_OBJ_FLAG_HIDDEN);
