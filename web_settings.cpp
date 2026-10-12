@@ -1,0 +1,307 @@
+#include "web_settings.h"
+#include "web_settings_html.h"
+#include "system_state.h"
+#include "ui_main.h"
+#include "wifi_diagnostics.h"
+#include "WS_CH32_IO.h"
+#include <WiFi.h>
+#include <ArduinoJson.h>
+#include <Wire.h>
+
+extern TwoWire Wire;
+
+void web_settings_register_routes(WebServer &server) {
+    // 1. Settings Web UI
+    server.on("/settings", HTTP_GET, [&server]() {
+        server.send_P(200, "text/html", SETTINGS_HTML);
+    });
+
+    // 2. GET /api/settings
+    server.on("/api/settings", HTTP_GET, [&server]() {
+        JsonDocument doc;
+        {
+            StateLockGuard lock;
+            doc["version"] = CAMPERUI_VERSION;
+            doc["wifi_ssid"] = state.wifi_ssid;
+            doc["wifi_pass"] = state.wifi_pass;
+            doc["vanpi_ip"] = state.vanpi_ip;
+
+            doc["dark_mode"] = state.dark_mode;
+            doc["buzzer_enabled"] = state.buzzer_enabled;
+            doc["debug_mode"] = state.debug_mode;
+            doc["display_brightness"] = state.display_brightness;
+            doc["display_timeout"] = state.display_timeout;
+
+            doc["tank_count"] = state.tank_count;
+            doc["tank_show_liters"] = state.tank_show_liters;
+            JsonArray t_max = doc["tank_max"].to<JsonArray>();
+            for (int i = 0; i < 4; i++) t_max.add(state.tank_max[i]);
+
+            doc["pump_relay"] = state.pump_relay;
+            doc["drain_relay"] = state.drain_relay;
+            doc["pump_auto_off_sec"] = state.pump_auto_off_sec;
+            doc["dry_run_protect_pct"] = state.dry_run_protect_pct;
+            doc["fill_assist_enabled"] = state.fill_assist_enabled;
+            doc["fill_assist_target_pct"] = state.fill_assist_target_pct;
+            doc["fill_assist_action_type"] = state.fill_assist_action_type;
+            doc["fill_assist_relay"] = state.fill_assist_relay;
+            doc["fill_assist_dimmer"] = state.fill_assist_dimmer;
+
+            doc["show_wrelay"] = state.show_wrelay;
+            JsonArray sw_nm = doc["switch_names"].to<JsonArray>();
+            JsonArray sw_vis = doc["switch_visible"].to<JsonArray>();
+            for (int i = 0; i < 8; i++) {
+                sw_nm.add(state.switch_names[i]);
+                sw_vis.add(state.switch_visible[i]);
+            }
+            JsonArray dim_nm = doc["dimmer_names"].to<JsonArray>();
+            JsonArray dim_vis = doc["dimmer_visible"].to<JsonArray>();
+            for (int i = 0; i < 8; i++) {
+                dim_nm.add(state.dimmer_names[i]);
+                dim_vis.add(state.dimmer_visible[i]);
+            }
+            JsonArray wr_nm = doc["wrelay_names"].to<JsonArray>();
+            JsonArray wr_vis = doc["wrelay_visible"].to<JsonArray>();
+            for (int i = 0; i < 8; i++) {
+                wr_nm.add(state.wrelay_names[i]);
+                wr_vis.add(state.wrelay_visible[i]);
+            }
+
+            doc["outdoor_temp_sensor"] = state.outdoor_temp_sensor;
+            doc["indoor_temp_sensor"] = state.indoor_temp_sensor;
+            JsonArray t_cust = doc["temps_custom_sensor"].to<JsonArray>();
+            t_cust.add(state.temps_custom_sensor[0]);
+            t_cust.add(state.temps_custom_sensor[1]);
+
+            doc["warn_frost_temp"] = state.warn_frost_temp;
+            doc["warn_bat_soc"] = state.warn_bat_soc;
+            doc["warn_bat_yellow_soc"] = state.warn_bat_yellow_soc;
+            doc["warn_fresh_min"] = state.warn_fresh_min;
+            doc["warn_waste_max"] = state.warn_waste_max;
+            doc["solar_max_w"] = state.solar_max_w;
+            doc["bat_capacity_ah"] = state.bat_capacity_ah;
+
+            doc["time_auto_ntp"] = state.time_auto_ntp;
+            doc["time_zone_idx"] = state.time_zone_idx;
+            doc["manual_hour"] = state.manual_hour;
+            doc["manual_min"] = state.manual_min;
+
+            doc["home_show_battery"] = state.home_show_battery;
+            doc["home_show_starter"] = state.home_show_starter;
+            doc["home_show_solar"] = state.home_show_solar;
+            doc["home_show_water"] = state.home_show_water;
+            doc["home_water_source"] = state.home_water_source;
+            JsonArray h_fav = doc["home_favorite"].to<JsonArray>();
+            h_fav.add(state.home_favorite[0]);
+            h_fav.add(state.home_favorite[1]);
+
+            JsonArray t_ord = doc["tab_order"].to<JsonArray>();
+            for (int i = 0; i < TAB_COUNT; i++) t_ord.add(state.tab_order[i]);
+            JsonArray t_en = doc["tab_enabled"].to<JsonArray>();
+            for (int i = 0; i < TAB_COUNT; i++) t_en.add(state.tab_enabled[i]);
+
+            // Metadata: Relais Options
+            JsonArray rel_arr = doc["relays"].to<JsonArray>();
+            for (int i = 0; i < 8; i++) {
+                JsonObject r = rel_arr.add<JsonObject>();
+                r["id"] = i;
+                r["name"] = state.switch_names[i].length() ? state.switch_names[i] : "Relais " + String(i + 1);
+                r["is_wrelay"] = false;
+            }
+            if (state.show_wrelay) {
+                for (int i = 0; i < 8; i++) {
+                    JsonObject r = rel_arr.add<JsonObject>();
+                    r["id"] = 8 + i;
+                    r["name"] = state.wrelay_names[i].length() ? state.wrelay_names[i] : "WLAN " + String(i + 1);
+                    r["is_wrelay"] = true;
+                }
+            }
+
+            // Metadata: Dimmer Options (fill assist)
+            JsonArray dim_arr = doc["dimmers"].to<JsonArray>();
+            for (int i = 0; i < 4; i++) {
+                JsonObject d = dim_arr.add<JsonObject>();
+                d["id"] = i;
+                d["name"] = state.dimmer_names[i].length() ? state.dimmer_names[i] : "Dimmer " + String(i + 1);
+            }
+
+            // Metadata: Temp Sensors
+            JsonArray sens_arr = doc["temp_sensors"].to<JsonArray>();
+            for (int i = 0; i < TEMP_SOURCE_COUNT; i++) {
+                JsonObject s = sens_arr.add<JsonObject>();
+                s["idx"] = i;
+                String label = (i < 4 ? "Temp " + String(i + 1) : "Ruuvi " + String(i - 4));
+                if (state.temp_sensor_names[i].length() > 0 && state.temp_sensor_names[i] != label) {
+                    label += " (" + state.temp_sensor_names[i] + ")";
+                }
+                s["name"] = label;
+                s["val"] = state.temp_sensors[i];
+            }
+
+            // Metadata: Timezones
+            JsonArray tz_arr = doc["timezones"].to<JsonArray>();
+            for (int i = 0; i < TIMEZONE_COUNT; i++) {
+                JsonObject z = tz_arr.add<JsonObject>();
+                z["idx"] = i;
+                z["name"] = TIMEZONES[i].name;
+            }
+        }
+        String out;
+        serializeJson(doc, out);
+        server.send(200, "application/json", out);
+    });
+
+    // 3. POST /api/settings
+    server.on("/api/settings", HTTP_POST, [&server]() {
+        if (!server.hasArg("plain")) {
+            server.send(400, "application/json", "{\"error\":\"Keine Daten empfangen\"}");
+            return;
+        }
+        JsonDocument doc;
+        DeserializationError err = deserializeJson(doc, server.arg("plain"));
+        if (err) {
+            server.send(400, "application/json", "{\"error\":\"Ungueltiges JSON\"}");
+            return;
+        }
+
+        bool wifi_changed = false;
+        bool bright_changed = false;
+        {
+            StateLockGuard lock;
+            if (doc["wifi_ssid"].is<const char*>()) {
+                String s = doc["wifi_ssid"].as<String>();
+                if (s != state.wifi_ssid) { state.wifi_ssid = s; wifi_changed = true; }
+            }
+            if (doc["wifi_pass"].is<const char*>()) {
+                String p = doc["wifi_pass"].as<String>();
+                if (p != state.wifi_pass) { state.wifi_pass = p; wifi_changed = true; }
+            }
+            if (doc["vanpi_ip"].is<const char*>()) state.vanpi_ip = doc["vanpi_ip"].as<String>();
+
+            if (doc["dark_mode"].is<bool>()) state.dark_mode = doc["dark_mode"].as<bool>();
+            if (doc["buzzer_enabled"].is<bool>()) state.buzzer_enabled = doc["buzzer_enabled"].as<bool>();
+            if (doc["debug_mode"].is<bool>()) state.debug_mode = doc["debug_mode"].as<bool>();
+            if (doc["display_brightness"].is<int>()) {
+                int b = constrain(doc["display_brightness"].as<int>(), 10, 100);
+                if (b != state.display_brightness) { state.display_brightness = b; bright_changed = true; }
+            }
+            if (doc["display_timeout"].is<int>()) state.display_timeout = doc["display_timeout"].as<int>();
+
+            if (doc["tank_count"].is<int>()) state.tank_count = constrain(doc["tank_count"].as<int>(), 1, 4);
+            if (doc["tank_show_liters"].is<bool>()) state.tank_show_liters = doc["tank_show_liters"].as<bool>();
+            if (doc["tank_max"].is<JsonArray>()) {
+                JsonArray arr = doc["tank_max"].as<JsonArray>();
+                for (int i = 0; i < 4 && i < (int)arr.size(); i++) {
+                    int val = arr[i].as<int>();
+                    state.tank_max[i] = val > 0 ? val : 100;
+                }
+            }
+
+            if (doc["pump_relay"].is<int>()) state.pump_relay = doc["pump_relay"].as<int>();
+            if (doc["drain_relay"].is<int>()) state.drain_relay = doc["drain_relay"].as<int>();
+            if (doc["pump_auto_off_sec"].is<int>()) state.pump_auto_off_sec = doc["pump_auto_off_sec"].as<int>();
+            if (doc["dry_run_protect_pct"].is<int>()) state.dry_run_protect_pct = doc["dry_run_protect_pct"].as<int>();
+            if (doc["fill_assist_enabled"].is<bool>()) state.fill_assist_enabled = doc["fill_assist_enabled"].as<bool>();
+            if (doc["fill_assist_target_pct"].is<int>()) state.fill_assist_target_pct = doc["fill_assist_target_pct"].as<int>();
+            if (doc["fill_assist_action_type"].is<int>()) state.fill_assist_action_type = doc["fill_assist_action_type"].as<int>();
+            if (doc["fill_assist_relay"].is<int>()) state.fill_assist_relay = doc["fill_assist_relay"].as<int>();
+            if (doc["fill_assist_dimmer"].is<int>()) state.fill_assist_dimmer = doc["fill_assist_dimmer"].as<int>();
+
+            if (doc["show_wrelay"].is<bool>()) state.show_wrelay = doc["show_wrelay"].as<bool>();
+            if (doc["switch_visible"].is<JsonArray>()) {
+                JsonArray arr = doc["switch_visible"].as<JsonArray>();
+                for (int i = 0; i < 8 && i < (int)arr.size(); i++) state.switch_visible[i] = arr[i].as<bool>();
+            }
+            if (doc["dimmer_visible"].is<JsonArray>()) {
+                JsonArray arr = doc["dimmer_visible"].as<JsonArray>();
+                for (int i = 0; i < 8 && i < (int)arr.size(); i++) state.dimmer_visible[i] = arr[i].as<bool>();
+            }
+            if (doc["wrelay_visible"].is<JsonArray>()) {
+                JsonArray arr = doc["wrelay_visible"].as<JsonArray>();
+                for (int i = 0; i < 8 && i < (int)arr.size(); i++) state.wrelay_visible[i] = arr[i].as<bool>();
+            }
+
+            if (doc["outdoor_temp_sensor"].is<int>()) state.outdoor_temp_sensor = doc["outdoor_temp_sensor"].as<int>();
+            if (doc["indoor_temp_sensor"].is<int>()) state.indoor_temp_sensor = doc["indoor_temp_sensor"].as<int>();
+            if (doc["temps_custom_sensor"].is<JsonArray>()) {
+                JsonArray arr = doc["temps_custom_sensor"].as<JsonArray>();
+                if (arr.size() > 0) state.temps_custom_sensor[0] = arr[0].as<int>();
+                if (arr.size() > 1) state.temps_custom_sensor[1] = arr[1].as<int>();
+            }
+
+            if (doc["warn_frost_temp"].is<float>()) state.warn_frost_temp = doc["warn_frost_temp"].as<float>();
+            if (doc["warn_bat_soc"].is<int>()) state.warn_bat_soc = doc["warn_bat_soc"].as<int>();
+            if (doc["warn_bat_yellow_soc"].is<int>()) state.warn_bat_yellow_soc = doc["warn_bat_yellow_soc"].as<int>();
+            if (doc["warn_fresh_min"].is<int>()) state.warn_fresh_min = doc["warn_fresh_min"].as<int>();
+            if (doc["warn_waste_max"].is<int>()) state.warn_waste_max = doc["warn_waste_max"].as<int>();
+            if (doc["solar_max_w"].is<float>()) state.solar_max_w = doc["solar_max_w"].as<float>();
+            if (doc["bat_capacity_ah"].is<float>()) state.bat_capacity_ah = doc["bat_capacity_ah"].as<float>();
+
+            if (doc["time_auto_ntp"].is<bool>()) state.time_auto_ntp = doc["time_auto_ntp"].as<bool>();
+            if (doc["time_zone_idx"].is<int>()) state.time_zone_idx = constrain(doc["time_zone_idx"].as<int>(), 0, TIMEZONE_COUNT - 1);
+            if (doc["manual_hour"].is<int>()) state.manual_hour = constrain(doc["manual_hour"].as<int>(), 0, 23);
+            if (doc["manual_min"].is<int>()) state.manual_min = constrain(doc["manual_min"].as<int>(), 0, 59);
+
+            if (doc["home_show_battery"].is<bool>()) state.home_show_battery = doc["home_show_battery"].as<bool>();
+            if (doc["home_show_starter"].is<bool>()) state.home_show_starter = doc["home_show_starter"].as<bool>();
+            if (doc["home_show_solar"].is<bool>()) state.home_show_solar = doc["home_show_solar"].as<bool>();
+            if (doc["home_show_water"].is<bool>()) state.home_show_water = doc["home_show_water"].as<bool>();
+            if (doc["home_water_source"].is<int>()) state.home_water_source = doc["home_water_source"].as<int>();
+            if (doc["home_favorite"].is<JsonArray>()) {
+                JsonArray arr = doc["home_favorite"].as<JsonArray>();
+                if (arr.size() > 0) state.home_favorite[0] = arr[0].as<int>();
+                if (arr.size() > 1) state.home_favorite[1] = arr[1].as<int>();
+            }
+
+            if (doc["tab_order"].is<JsonArray>()) {
+                JsonArray arr = doc["tab_order"].as<JsonArray>();
+                for (int i = 0; i < TAB_COUNT && i < (int)arr.size(); i++) state.tab_order[i] = arr[i].as<uint8_t>();
+            }
+            if (doc["tab_enabled"].is<JsonArray>()) {
+                JsonArray arr = doc["tab_enabled"].as<JsonArray>();
+                for (int i = 0; i < TAB_COUNT && i < (int)arr.size(); i++) state.tab_enabled[i] = arr[i].as<bool>();
+                state.tab_enabled[TAB_SETTINGS] = true;
+            }
+        }
+
+        if (bright_changed) {
+            uint8_t pwm = 255 - (state.display_brightness * 255 / 100);
+            WS_CH32_IO::setPwm(Wire, pwm);
+        }
+        time_apply_configuration();
+        state_save();
+
+        if (wifi_changed) {
+            WiFi.disconnect();
+            wifi_connect_configured();
+        }
+
+        ui_init(); // Trigger live async rebuild on display!
+
+        server.send(200, "application/json", "{\"status\":\"ok\",\"message\":\"Gespeichert\"}");
+    });
+
+    // 4. GET /api/wifi/scan
+    server.on("/api/wifi/scan", HTTP_GET, [&server]() {
+        int n = WiFi.scanNetworks(false, false);
+        JsonDocument doc;
+        JsonArray arr = doc.to<JsonArray>();
+        for (int i = 0; i < n; i++) {
+            JsonObject obj = arr.add<JsonObject>();
+            obj["ssid"] = WiFi.SSID(i);
+            obj["rssi"] = WiFi.RSSI(i);
+            obj["secure"] = (WiFi.encryptionType(i) != WIFI_AUTH_OPEN);
+        }
+        WiFi.scanDelete();
+        String out;
+        serializeJson(doc, out);
+        server.send(200, "application/json", out);
+    });
+
+    // 5. POST /api/restart
+    server.on("/api/restart", HTTP_POST, [&server]() {
+        server.send(200, "application/json", "{\"status\":\"ok\",\"message\":\"Neustart...\"}");
+        delay(300);
+        ESP.restart();
+    });
+}
