@@ -265,6 +265,13 @@ state.display_brightness = prefs.getInt("disp_bright", 100);
     }
     state.pump_relay = prefs.getInt("pump_relay", -1);
     state.drain_relay = prefs.getInt("drain_relay", -1);
+    state.pump_auto_off_sec = prefs.getInt("pump_auto_off", 0);
+    state.dry_run_protect_pct = prefs.getInt("dry_run_pct", 5);
+    state.fill_assist_enabled = prefs.getBool("fill_assist_en", false);
+    state.fill_assist_target_pct = prefs.getInt("fill_assist_pct", 90);
+    state.fill_assist_action_type = prefs.getInt("fill_assist_act", 0);
+    state.fill_assist_relay = prefs.getInt("fill_assist_rel", -1);
+    state.fill_assist_dimmer = prefs.getInt("fill_assist_dim", 0);
 
     // Initialize defaults for volatile data
     state.wifi_connected = false;
@@ -425,6 +432,13 @@ void state_save() {
     }
     prefs.putInt("pump_relay", state.pump_relay);
     prefs.putInt("drain_relay", state.drain_relay);
+    prefs.putInt("pump_auto_off", state.pump_auto_off_sec);
+    prefs.putInt("dry_run_pct", state.dry_run_protect_pct);
+    prefs.putBool("fill_assist_en", state.fill_assist_enabled);
+    prefs.putInt("fill_assist_pct", state.fill_assist_target_pct);
+    prefs.putInt("fill_assist_act", state.fill_assist_action_type);
+    prefs.putInt("fill_assist_rel", state.fill_assist_relay);
+    prefs.putInt("fill_assist_dim", state.fill_assist_dimmer);
 
     prefs.putBool("time_auto", state.time_auto_ntp);
     prefs.putInt("time_tz_v2", state.time_zone_idx);

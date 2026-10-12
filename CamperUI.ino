@@ -13,6 +13,7 @@
 #include "system_state.h"
 #include "web_ota.h"
 #include "buzzer.h"
+#include "water_control.h"
 #include "debug_log.h"
 #include "temp_history.h"
 #include "energy_history.h"
@@ -312,6 +313,7 @@ void setup() {
 
 
     ui_init();
+    water_control_init();
     web_ota_init();
     display_request_resync();
 
@@ -408,6 +410,7 @@ void loop() {
     }
 
     buzzer_loop();
+    water_control_loop();
     temp_history_tick();
     energy_history_tick();
 
