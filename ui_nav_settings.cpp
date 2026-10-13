@@ -191,7 +191,6 @@ static void open_nav_settings_deferred(void *) {
     // Copy current state to working buffers and validate bounds
     memcpy(cur_order, state.tab_order, sizeof(cur_order));
     memcpy(cur_enabled, state.tab_enabled, sizeof(cur_enabled));
-    cur_enabled[TAB_SETTINGS] = true;
 
     bool seen[TAB_COUNT] = {false};
     bool valid = true;
