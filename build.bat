@@ -41,6 +41,9 @@ copy /Y ".\build\CamperUI.ino.partitions.bin" ".\build\partitions-%VERSION%.bin"
 if exist ".\build\CamperUI.ino.merged.bin" (
     copy /Y ".\build\CamperUI.ino.merged.bin" ".\build\CamperUI-%VERSION%-merged.bin" >nul
     copy /Y ".\build\CamperUI.ino.merged.bin" ".\build\CamperUI-merged.bin" >nul
+    if not exist ".\docs\firmware" mkdir ".\docs\firmware"
+    copy /Y ".\build\CamperUI.ino.merged.bin" ".\docs\firmware\CamperUI-%VERSION%-merged.bin" >nul
+    copy /Y ".\build\CamperUI.ino.merged.bin" ".\docs\firmware\CamperUI-merged.bin" >nul
 )
 
 echo.

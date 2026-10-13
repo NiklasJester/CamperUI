@@ -1,0 +1,56 @@
+name: Deploy Web Flasher to GitHub Pages
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+  push:
+    branches:
+      - master
+    paths:
+      - 'docs/**'
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Sync Release Asset if triggered by release
+        if: github.event_name == 'release'
+        run: |
+          mkdir -p docs/firmware
+          TAG_NAME="${{ github.event.release.tag_name }}"
+          # Find asset download URL for merged.bin
+          ASSET_URL=$(echo '${{ toJson(github.event.release.assets) }}' | jq -r '.[] | select(.name | test("merged\\.bin$")) | .browser_download_url' | head -n 1)
+          if [ -n "$ASSET_URL" ]; then
+            echo "Downloading $ASSET_URL..."
+            curl -L -s -o docs/firmware/CamperUI-merged.bin "$ASSET_URL"
+            curl -L -s -o "docs/firmware/CamperUI-${TAG_NAME}-merged.bin" "$ASSET_URL"
+            sed -i "s/\"version\": \".*\"/\"version\": \"${TAG_NAME}\"/" docs/manifest.json
+          fi
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: './docs'
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

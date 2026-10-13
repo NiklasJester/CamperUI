@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CamperUI - Web Flasher & Erstinbetriebnahme</title>
+  
+  <!-- ESP Web Tools Library via CDN -->
+  <script type="module" src="https://unpkg.com/esp-web-tools@10/dist/web/install-button.js?module"></script>
+
+  <style>
+    :root {
+      --bg-dark: #101318;
+      --card-bg: #1a1f27;
+      --card-border: #2b3341;
+      --accent: #3b82f6;
+      --accent-hover: #2563eb;
+      --accent-green: #10b981;
+      --text-main: #f8fafc;
+      --text-dim: #94a3b8;
+      --text-sub: #64748b;
+      --danger: #ef4444;
+      --warning: #f59e0b;
+      --radius: 14px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 32px 16px;
+      line-height: 1.5;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 680px;
+    }
+
+    /* Header */
+    header {
+      text-align: center;
+      margin-bottom: 28px;
+    }
+
+    .logo-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      background: rgba(59, 130, 246, 0.12);
+      border: 1px solid rgba(59, 130, 246, 0.3);
+      padding: 6px 14px;
+      border-radius: 999px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #60a5fa;
+      margin-bottom: 14px;
+    }
+
+    h1 {
+      font-size: 2.1rem;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      color: #ffffff;
+      margin-bottom: 8px;
+    }
+
+    .subtitle {
+      color: var(--text-dim);
+      font-size: 1.05rem;
+      max-width: 540px;
+      margin: 0 auto;
+    }
+
+    /* Main Card */
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius);
+      padding: 28px;
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
+      margin-bottom: 24px;
+    }
+
+    /* Steps */
+    .step {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 24px;
+      position: relative;
+    }
+
+    .step-number {
+      flex-shrink: 0;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: rgba(59, 130, 246, 0.2);
+      border: 1px solid var(--accent);
+      color: #93c5fd;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 0.95rem;
+    }
+
+    .step-content {
+      flex: 1;
+    }
+
+    .step-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      margin-bottom: 4px;
+      color: #ffffff;
+    }
+
+    .step-desc {
+      color: var(--text-dim);
+      font-size: 0.9rem;
+      margin-bottom: 12px;
+    }
+
+    /* Selection Switcher */
+    .tabs {
+      display: flex;
+      background: #12161f;
+      border-radius: 8px;
+      padding: 3px;
+      gap: 3px;
+      margin-bottom: 14px;
+      border: 1px solid var(--card-border);
+    }
+
+    .tab-btn {
+      flex: 1;
+      padding: 8px 12px;
+      border: none;
+      background: transparent;
+      color: var(--text-dim);
+      font-size: 0.85rem;
+      font-weight: 600;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .tab-btn.active {
+      background: var(--card-bg);
+      color: #ffffff;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+      border: 1px solid var(--card-border);
+    }
+
+    /* Version Select */
+    .select-box {
+      width: 100%;
+      background: #12161f;
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 10px 14px;
+      color: var(--text-main);
+      font-size: 0.95rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .select-box:focus {
+      border-color: var(--accent);
+    }
+
+    /* File Drop Zone */
+    .drop-zone {
+      border: 2px dashed var(--card-border);
+      border-radius: 10px;
+      padding: 22px;
+      text-align: center;
+      background: #12161f;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+    }
+
+    .drop-zone:hover, .drop-zone.dragover {
+      border-color: var(--accent);
+      background: rgba(59, 130, 246, 0.05);
+    }
+
+    .drop-zone-text {
+      color: var(--text-dim);
+      font-size: 0.9rem;
+      margin-top: 6px;
+    }
+
+    .file-loaded-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid var(--accent-green);
+      color: #6ee7b7;
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      margin-top: 10px;
+      font-weight: 600;
+    }
+
+    /* Install Action Box */
+    .action-box {
+      background: linear-gradient(180deg, rgba(30, 38, 50, 0.6) 0%, rgba(20, 25, 33, 0.8) 100%);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 22px;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+    }
+
+    /* Custom Install Button (slot="activate") */
+    .btn-install {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+      color: #ffffff;
+      border: none;
+      padding: 14px 28px;
+      font-size: 1.05rem;
+      font-weight: 700;
+      border-radius: 10px;
+      cursor: pointer;
+      box-shadow: 0 4px 14px rgba(37, 99, 235, 0.4);
+      transition: transform 0.15s, box-shadow 0.15s;
+    }
+
+    .btn-install:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(37, 99, 235, 0.6);
+      background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+    }
+
+    .btn-install:active {
+      transform: translateY(0);
+    }
+
+    .action-subtext {
+      color: var(--text-sub);
+      font-size: 0.82rem;
+    }
+
+    /* Unsupported & Warning Alerts */
+    .alert-box {
+      border-radius: 8px;
+      padding: 14px 16px;
+      font-size: 0.9rem;
+      text-align: left;
+      line-height: 1.4;
+      margin-top: 8px;
+      width: 100%;
+    }
+
+    .alert-error {
+      background: rgba(239, 68, 68, 0.12);
+      border: 1px solid rgba(239, 68, 68, 0.4);
+      color: #fca5a5;
+    }
+
+    .alert-info {
+      background: rgba(59, 130, 246, 0.1);
+      border: 1px solid rgba(59, 130, 246, 0.3);
+      color: #93c5fd;
+    }
+
+    /* Help & FAQ Section */
+    .faq-title {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--text-dim);
+      margin-bottom: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .faq-item {
+      background: #151921;
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 14px;
+      margin-bottom: 10px;
+      font-size: 0.88rem;
+    }
+
+    .faq-question {
+      font-weight: 600;
+      color: #e2e8f0;
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .faq-answer {
+      color: var(--text-dim);
+    }
+
+    /* Footer */
+    footer {
+      text-align: center;
+      color: var(--text-sub);
+      font-size: 0.82rem;
+      margin-top: 10px;
+    }
+
+    footer a {
+      color: #60a5fa;
+      text-decoration: none;
+    }
+
+    footer a:hover {
+      text-decoration: underline;
+    }
+
+    /* Local File Input */
+    #file-input {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    
+    <header>
+      <div class="logo-badge">
+        <span>🚐</span> CamperUI Flasher • ESP32-S3
+      </div>
+      <h1>Display Erstinbetriebnahme</h1>
+      <p class="subtitle">
+        Flashe dein Waveshare 4.0" ESP32-S3 Touch Display direkt aus dem Webbrowser. Ohne Entwicklungsumgebung oder lokale Treiber.
+      </p>
+    </header>
+
+    <!-- Main Card -->
+    <div class="card">
+
+      <!-- Step 1 -->
+      <div class="step">
+        <div class="step-number">1</div>
+        <div class="step-content">
+          <div class="step-title">Display per USB-C verbinden</div>
+          <div class="step-desc">
+            Schließe das Display über den USB-Port an deinen PC oder Laptop an. Achte darauf, ein <strong>vollwertiges Datenkabel</strong> zu nutzen (kein reines Ladekabel).
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 2 -->
+      <div class="step">
+        <div class="step-number">2</div>
+        <div class="step-content">
+          <div class="step-title">Firmware-Version wählen</div>
+          <div class="step-desc">
+            Wähle eine offizielle Version oder lade eine eigene <code>CamperUI-*-merged.bin</code> Datei hoch.
+          </div>
+
+          <div class="tabs">
+            <button class="tab-btn active" id="tab-release" onclick="switchMode('release')">📦 Offizielle Version</button>
+            <button class="tab-btn" id="tab-custom" onclick="switchMode('custom')">📁 Eigene Datei (.bin)</button>
+          </div>
+
+          <!-- Mode A: Predefined / Release versions -->
+          <div id="mode-release">
+            <select id="version-select" class="select-box" onchange="onVersionChange()">
+              <option value="firmware/CamperUI-v1.4.0-merged.bin" data-version="1.4.0" selected>CamperUI V1.4.0 (Aktuell & Empfohlen)</option>
+              <option value="firmware/CamperUI-merged.bin" data-version="Latest">CamperUI Latest (merged.bin)</option>
+            </select>
+          </div>
+
+          <!-- Mode B: Custom local file -->
+          <div id="mode-custom" style="display: none;">
+            <input type="file" id="file-input" accept=".bin" onchange="onCustomFileSelected(event)">
+            <div class="drop-zone" id="drop-zone" onclick="document.getElementById('file-input').click()">
+              <div style="font-size: 1.8rem;">📥</div>
+              <div style="font-weight: 600; color: #e2e8f0;">Hier klicken oder .bin-Datei hineinziehen</div>
+              <div class="drop-zone-text">Erfordert ein vollständiges <code>*-merged.bin</code> (inkl. Bootloader & Partitionen)</div>
+            </div>
+            <div id="custom-file-info" style="display: none;">
+              <div class="file-loaded-badge">
+                ✓ <span id="custom-file-name">datei.bin</span> (<span id="custom-file-size">0 MB</span>)
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Step 3 -->
+      <div class="step" style="margin-bottom: 0;">
+        <div class="step-number">3</div>
+        <div class="step-content">
+          <div class="step-title">Installation starten</div>
+          <div class="step-desc">
+            Klicke auf den Button, wähle im Browser-Dialog den COM-Port deines Displays aus und bestätige die Installation.
+          </div>
+
+          <div class="action-box">
+            <!-- ESP Web Tools Web Component -->
+            <esp-web-install-button id="install-btn" manifest="manifest.json">
+              <button slot="activate" class="btn-install">
+                ⚡ CamperUI installieren
+              </button>
+              
+              <div slot="unsupported" class="alert-box alert-error">
+                <strong>⚠️ Dein Browser unterstützt kein Web Serial!</strong><br>
+                Bitte öffne diese Seite mit einem modernen Chromium-Browser wie <strong>Google Chrome</strong>, <strong>Microsoft Edge</strong>, <strong>Brave</strong> oder <strong>Opera</strong>.
+              </div>
+
+              <div slot="not-allowed" class="alert-box alert-error">
+                <strong>⚠️ Sichere Verbindung (HTTPS) erforderlich!</strong><br>
+                Web Serial steht aus Sicherheitsgründen nur über HTTPS (z. B. auf GitHub Pages) oder localhost zur Verfügung.
+              </div>
+            </esp-web-install-button>
+
+            <div class="action-subtext">
+              Dauer: ca. 30–60 Sekunden. Nach Abschluss startet das Display automatisch neu.
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Help & Troubleshooting -->
+    <div class="faq-title">💡 Tipps & Problemlösung</div>
+    
+    <div class="faq-item">
+      <div class="faq-question">❓ Das Display wird bei der Portauswahl nicht angezeigt?</div>
+      <div class="faq-answer">
+        1. Halte die kleine <strong>BOOT</strong>-Taste am Display gedrückt.<br>
+        2. Stecke das USB-Kabel bei gedrückter BOOT-Taste ein (oder drücke kurz RESET, während BOOT gehalten wird).<br>
+        3. Lass die BOOT-Taste los. Das Display befindet sich nun im sicheren ROM-Bootloader-Modus und wird garantiert erkannt.
+      </div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-question">❓ Welcher COM-Port ist der richtige?</div>
+      <div class="faq-answer">
+        Im Auswahldialog taucht meist ein Port mit dem Namen <strong>"ESP32-S3"</strong>, <strong>"USB JTAG/serial debug unit"</strong> oder <strong>"CP210x / CH343 USB to UART"</strong> auf. Diesen auswählen und auf <em>Verbinden</em> klicken.
+      </div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-question">❓ Was ist der Unterschied zwischen .bin und -merged.bin?</div>
+      <div class="faq-answer">
+        Für die Erstinbetriebnahme eines neuen Displays wird immer die <strong>merged.bin</strong> benötigt. Sie enthält Bootloader, Partitionstabelle und Programm ab Speicheradresse <code>0x0</code>. Die normale <code>.bin</code> ist ausschließlich für Over-the-Air (OTA) Updates im laufenden WLAN-Betrieb gedacht.
+      </div>
+    </div>
+
+    <footer>
+      CamperUI Open-Source Projekt • 
+      <a href="https://github.com/NiklasJester/CamperUI" target="_blank" rel="noopener">GitHub Repository</a> • 
+      Entwickelt mit ESP Web Tools
+    </footer>
+
+  </div>
+
+  <script>
+    // Manifest-Referenz
+    const installBtn = document.getElementById('install-btn');
+    let currentBlobUrl = null;
+
+    // Modus wechseln (Release vs. Lokale Datei)
+    function switchMode(mode) {
+      const tabRelease = document.getElementById('tab-release');
+      const tabCustom = document.getElementById('tab-custom');
+      const modeRelease = document.getElementById('mode-release');
+      const modeCustom = document.getElementById('mode-custom');
+
+      if (mode === 'release') {
+        tabRelease.classList.add('active');
+        tabCustom.classList.remove('active');
+        modeRelease.style.display = 'block';
+        modeCustom.style.display = 'none';
+        onVersionChange();
+      } else {
+        tabCustom.classList.add('active');
+        tabRelease.classList.remove('active');
+        modeCustom.style.display = 'block';
+        modeRelease.style.display = 'none';
+      }
+    }
+
+    // Wenn der Nutzer eine offizielle Version wählt
+    function onVersionChange() {
+      const select = document.getElementById('version-select');
+      const selectedOption = select.options[select.selectedIndex];
+      const relPath = selectedOption.value;
+      const verName = selectedOption.getAttribute('data-version') || '1.4.0';
+
+      // Erstelle absolute URL relativ zum aktuellen Pfad
+      const absoluteBinUrl = new URL(relPath, window.location.href).href;
+
+      const manifestObj = {
+        name: "CamperUI",
+        version: verName,
+        new_install_prompt_erase: true,
+        builds: [
+          {
+            chipFamily: "ESP32-S3",
+            parts: [
+              { path: absoluteBinUrl, offset: 0 }
+            ]
+          }
+        ]
+      };
+
+      updateManifestBlob(manifestObj);
+    }
+
+    // Wenn der Nutzer eine eigene lokale Datei wählt
+    function onCustomFileSelected(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const fileBlobUrl = URL.createObjectURL(file);
+      const manifestObj = {
+        name: "CamperUI (Lokal)",
+        version: file.name,
+        new_install_prompt_erase: true,
+        builds: [
+          {
+            chipFamily: "ESP32-S3",
+            parts: [
+              { path: fileBlobUrl, offset: 0 }
+            ]
+          }
+        ]
+      };
+
+      updateManifestBlob(manifestObj);
+
+      // Info Badge anzeigen
+      document.getElementById('custom-file-name').textContent = file.name;
+      document.getElementById('custom-file-size').textContent = (file.size / (1024 * 1024)).toFixed(1) + ' MB';
+      document.getElementById('custom-file-info').style.display = 'block';
+    }
+
+    // Erzeugt einen Manifest-Blob und setzt die URL im ESP Web Tools Button
+    function updateManifestBlob(manifestObj) {
+      if (currentBlobUrl) {
+        URL.revokeObjectURL(currentBlobUrl);
+      }
+      const manifestBlob = new Blob([JSON.stringify(manifestObj)], { type: 'application/json' });
+      currentBlobUrl = URL.createObjectURL(manifestBlob);
+      installBtn.manifest = currentBlobUrl;
+    }
+
+    // Drag and Drop Handler
+    const dropZone = document.getElementById('drop-zone');
+    ['dragenter', 'dragover'].forEach(eventName => {
+      dropZone.addEventListener(eventName, (e) => {
+        e.preventDefault();
+        dropZone.classList.add('dragover');
+      });
+    });
+
+    ['dragleave', 'drop'].forEach(eventName => {
+      dropZone.addEventListener(eventName, (e) => {
+        e.preventDefault();
+        dropZone.classList.remove('dragover');
+      });
+    });
+
+    dropZone.addEventListener('drop', (e) => {
+      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+        const file = e.dataTransfer.files[0];
+        const dummyEvent = { target: { files: [file] } };
+        onCustomFileSelected(dummyEvent);
+      }
+    });
+
+    // Initialisierung bei Seitenaufruf
+    window.addEventListener('DOMContentLoaded', () => {
+      // Prüfe auf file:// Protokoll
+      if (window.location.protocol === 'file:') {
+        console.warn('Web Serial erfordert HTTP/HTTPS. Bitte starte einen lokalen Webserver (z. B. "npx serve docs" oder "python -m http.server").');
+      }
+      onVersionChange();
+    });
+  </script>
+</body>
+</html>

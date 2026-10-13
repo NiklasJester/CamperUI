@@ -1,6 +1,7 @@
 # Arduino / ESP-IDF build output
 build/
 *.bin
+!docs/firmware/*.bin
 *.elf
 *.hex
 *.map

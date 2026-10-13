@@ -118,6 +118,19 @@ Die getestete Konfiguration für LVGL 8.4 liegt unter `config/lv_conf.h`.
 
 Die Konfiguration verwendet 128 KiB LVGL-Speicher statt der 48 KiB aus dem getesteten Waveshare-Paket. Auf einem Waveshare Rev04 behob diese Änderung einen Startabsturz beim Aufbau der CamperUI-Oberfläche.
 
+### 🌐 Erstinbetriebnahme & Web-Flasher (Direkt im Browser!)
+
+Die einfachste Möglichkeit, ein fabrikneues Display in Betrieb zu nehmen – **ohne Arduino IDE, ohne Tool-Installation und ohne Vorkenntnisse**:
+
+👉 **[CamperUI Web Flasher öffnen](https://niklasjester.github.io/CamperUI/)**
+
+1. Display mit einem USB-C Datenkabel am Computer anschließen.
+2. Den Web Flasher in einem Chromium-Browser (**Google Chrome** oder **Microsoft Edge**) öffnen.
+3. Auf **„⚡ CamperUI installieren“** klicken, den erkannten ESP32-S3 Port auswählen und bestätigen.
+4. Nach ca. 45 Sekunden startet das Display vollautomatisch in CamperUI.
+
+---
+
 ### Flashen via USB (Arduino CLI)
 
 ```powershell
