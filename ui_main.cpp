@@ -158,6 +158,41 @@ void ui_navigate_to(TabId page) { if (ui_page_available(page)) select_page(page)
 static lv_point_t nav_press_point = {0, 0};
 static lv_coord_t nav_press_scroll_x = 0;
 static bool nav_touch_active = false;
+static lv_timer_t *nav_hold_timer = nullptr;
+static uint32_t nav_hold_start = 0;
+static bool nav_hold_triggered = false;
+
+static void nav_hold_check_cb(lv_timer_t *timer) {
+    (void)timer;
+    // Only active when on the main screen
+    if (!scr_main || lv_scr_act() != scr_main) {
+        nav_hold_start = 0;
+        nav_hold_triggered = false;
+        return;
+    }
+
+    // Touch anywhere in the bottom navigation bar (height 60, y: 415..480)
+    if (touch_is_pressed && touch_last_point.y >= (SCREEN_HEIGHT - NAV_HEIGHT - 5)) {
+        if (!nav_hold_triggered) {
+            if (nav_hold_start == 0) {
+                nav_hold_start = millis();
+            } else if (millis() - nav_hold_start >= 5000) {
+                nav_hold_start = 0;
+                nav_hold_triggered = true;
+                nav_touch_active = false;
+                ignore_touch_until_release = true;
+                buzzer_beep_force(120);
+                ui_open_settings();
+                lv_indev_reset(nullptr, nullptr);
+            }
+        }
+    } else {
+        nav_hold_start = 0;
+        if (!touch_is_pressed) {
+            nav_hold_triggered = false;
+        }
+    }
+}
 
 static void home_nav_button_cb(lv_event_t *event) {
     lv_event_code_t code = lv_event_get_code(event);
@@ -170,6 +205,10 @@ static void home_nav_button_cb(lv_event_t *event) {
             lv_indev_get_point(indev, &nav_press_point);
         }
     } else if (code == LV_EVENT_CLICKED) {
+        if (nav_hold_triggered) {
+            nav_touch_active = false;
+            return;
+        }
         if (!nav_touch_active) return;
         nav_touch_active = false;
 
@@ -337,7 +376,7 @@ void ui_init() {
     lv_obj_set_style_border_side(status_bar, LV_BORDER_SIDE_BOTTOM, 0);
     lv_obj_clear_flag(status_bar, LV_OBJ_FLAG_SCROLLABLE);
     
-    // Left: Time (Clickable touch target: 5s hold emergency backup to settings)
+    // Left: Time
     lv_obj_t *box_time = lv_obj_create(status_bar);
     lv_obj_set_size(box_time, 65, 36);
     lv_obj_align(box_time, LV_ALIGN_LEFT_MID, 6, 0);
@@ -345,28 +384,11 @@ void ui_init() {
     lv_obj_set_style_border_width(box_time, 0, 0);
     lv_obj_set_style_pad_all(box_time, 0, 0);
     lv_obj_clear_flag(box_time, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_add_flag(box_time, LV_OBJ_FLAG_CLICKABLE);
 
     lbl_time = lv_label_create(box_time);
     lv_label_set_text(lbl_time, "--:--");
     lv_obj_set_style_text_font(lbl_time, &lv_font_montserrat_16, 0);
     lv_obj_center(lbl_time);
-
-    static uint32_t time_hold_start = 0;
-    lv_obj_add_event_cb(box_time, [](lv_event_t *e) {
-        lv_event_code_t code = lv_event_get_code(e);
-        if (code == LV_EVENT_PRESSED) {
-            time_hold_start = millis();
-        } else if (code == LV_EVENT_PRESSING) {
-            if (time_hold_start > 0 && (millis() - time_hold_start >= 5000)) {
-                time_hold_start = 0;
-                buzzer_beep_force(120);
-                ui_open_settings();
-            }
-        } else if (code == LV_EVENT_RELEASED || code == LV_EVENT_PRESS_LOST || code == LV_EVENT_DEFOCUSED) {
-            time_hold_start = 0;
-        }
-    }, LV_EVENT_ALL, NULL);
 
     lbl_version = lv_label_create(status_bar);
     lv_obj_set_pos(lbl_version, 72, 2); lv_obj_set_size(lbl_version, 150, 13);
@@ -568,6 +590,9 @@ void ui_init() {
     lv_scr_load(scr_main);
     ui_update_data();
     ui_update_visible_page();
+    if (!nav_hold_timer) {
+        nav_hold_timer = lv_timer_create(nav_hold_check_cb, 50, nullptr);
+    }
     ui_debug_navigation("init", true);
 }
 

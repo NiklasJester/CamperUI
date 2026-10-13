@@ -14,7 +14,7 @@ if "%VERSION%"=="" (
 echo Aktuelle Version: %VERSION%
 echo.
 
-set ARDUINO_CLI="C:\Users\njest\AppData\Local\Programs\Arduino IDE\resources\app\lib\backend\resources\arduino-cli.exe"
+set "ARDUINO_CLI=C:\Users\njest\AppData\Local\Programs\Arduino IDE\resources\app\lib\backend\resources\arduino-cli.exe"
 
 if not exist "%ARDUINO_CLI%" (
     echo Arduino CLI nicht gefunden unter: %ARDUINO_CLI%

@@ -74,6 +74,11 @@ static inline void ui_label_set_float(lv_obj_t *lbl, const char *fmt, float val)
 void ui_init();
 void ui_debug_navigation(const char *stage, bool force = false);
 
+// Hardware Touch State (defined in CamperUI.ino)
+extern bool touch_is_pressed;
+extern bool ignore_touch_until_release;
+extern lv_point_t touch_last_point;
+
 // Tab Updates
 void ui_update_data();
 void ui_update_home();

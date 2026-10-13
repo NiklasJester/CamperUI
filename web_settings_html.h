@@ -680,7 +680,7 @@ static const char SETTINGS_HTML[] PROGMEM = R"rawliteral(
       <div id="tab-tabs" class="tab-section">
         <div class="card">
           <div class="card-title">📑 Menüleiste anpassen</div>
-          <div class="subtext" style="margin-bottom:12px;">Aktiviere oder deaktiviere Tabs und ändere die Reihenfolge in der unteren Navigationsleiste:<br><small style="color:#94a3b8; display:inline-block; margin-top:5px;">💡 Notfall-Zugriff: Wenn Settings ausgeblendet ist, tippe auf dem Display 5 Sekunden lang auf die Uhrzeit in der oberen Statusleiste.</small></div>
+          <div class="subtext" style="margin-bottom:12px;">Aktiviere oder deaktiviere Tabs und ändere die Reihenfolge in der unteren Navigationsleiste:<br><small style="color:#94a3b8; display:inline-block; margin-top:5px;">💡 Notfall-Zugriff: Wenn Settings ausgeblendet ist, halte 5 Sekunden lang irgendwo die untere Tableiste gedrückt.</small></div>
           <div class="reorder-list" id="tabReorderList">
             <!-- Dynamisch befüllt -->
           </div>

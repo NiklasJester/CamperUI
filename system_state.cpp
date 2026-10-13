@@ -18,6 +18,20 @@ SystemState state;
 Preferences prefs;
 SemaphoreHandle_t state_mutex = NULL;
 
+// Pre-configuration block in ROM: patchable in browser before flashing
+__attribute__((used, section(".rodata.camperui_cfg")))
+const volatile PreFlashingConfig PRE_FLASH_CONFIG = {
+    "CAMPERUI_CFG_V1",
+    0, // is_configured
+    "__CAMPERUI_SSID_PLACEHOLDER___________________________________",
+    "__CAMPERUI_PASS_PLACEHOLDER___________________________________",
+    "__CAMPERUI_VANPI_PLACEHOLDER__________________________________",
+    -1, // display_brightness
+    -1, // display_rotation
+    -1, // dark_mode
+    {0}
+};
+
 const TimezoneInfo TIMEZONES[TIMEZONE_COUNT] = {
     // UTC-11
     {"UTC-11: Midway, Pago Pago (Samoa)", "SST11"},
@@ -151,6 +165,33 @@ void state_init() {
     // Load persisted settings
     state.wifi_ssid = prefs.getString("wifi_ssid", "");
     state.wifi_pass = prefs.getString("wifi_pass", "");
+
+    // Check if binary was pre-configured via Web Flasher before flashing
+    if (state.wifi_ssid.length() == 0 && PRE_FLASH_CONFIG.is_configured == 1 &&
+        strncmp((const char *)PRE_FLASH_CONFIG.magic, "CAMPERUI_CFG_V1", 15) == 0) {
+        if (PRE_FLASH_CONFIG.wifi_ssid[0] != '\0' && strncmp((const char *)PRE_FLASH_CONFIG.wifi_ssid, "__CAMPERUI_", 11) != 0) {
+            state.wifi_ssid = String((const char *)PRE_FLASH_CONFIG.wifi_ssid);
+            prefs.putString("wifi_ssid", state.wifi_ssid);
+        }
+        if (PRE_FLASH_CONFIG.wifi_pass[0] != '\0' && strncmp((const char *)PRE_FLASH_CONFIG.wifi_pass, "__CAMPERUI_", 11) != 0) {
+            state.wifi_pass = String((const char *)PRE_FLASH_CONFIG.wifi_pass);
+            prefs.putString("wifi_pass", state.wifi_pass);
+        }
+        if (PRE_FLASH_CONFIG.vanpi_ip[0] != '\0' && strncmp((const char *)PRE_FLASH_CONFIG.vanpi_ip, "__CAMPERUI_", 11) != 0) {
+            state.vanpi_ip = String((const char *)PRE_FLASH_CONFIG.vanpi_ip);
+            prefs.putString("vanpi_ip", state.vanpi_ip);
+        }
+        if (PRE_FLASH_CONFIG.display_brightness >= 10 && PRE_FLASH_CONFIG.display_brightness <= 100) {
+            prefs.putInt("disp_bright", PRE_FLASH_CONFIG.display_brightness);
+        }
+        if (PRE_FLASH_CONFIG.display_rotation >= 0 && PRE_FLASH_CONFIG.display_rotation <= 3) {
+            prefs.putInt("disp_rot", PRE_FLASH_CONFIG.display_rotation);
+        }
+        if (PRE_FLASH_CONFIG.dark_mode >= 0) {
+            prefs.putBool("dark_mode", PRE_FLASH_CONFIG.dark_mode == 1);
+        }
+    }
+
     // Seed only an unconfigured device. Saved settings always take priority.
     if (state.wifi_ssid.length() == 0 && CAMPERUI_DEFAULT_WIFI_SSID[0] != '\0') {
         state.wifi_ssid = CAMPERUI_DEFAULT_WIFI_SSID;

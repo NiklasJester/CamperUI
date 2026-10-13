@@ -24,6 +24,21 @@ enum HeaterType : uint8_t {
     HEATER_TYPE_NONE = 2
 };
 
+// Pre-configuration block that can be patched directly in the binary before flashing
+struct __attribute__((packed)) PreFlashingConfig {
+    char magic[16];             // "CAMPERUI_CFG_V1" (null-terminated)
+    uint8_t is_configured;      // 0 = unconfigured, 1 = pre-configured in browser
+    char wifi_ssid[64];
+    char wifi_pass[64];
+    char vanpi_ip[64];
+    int16_t display_brightness; // 10..100 (-1 = default)
+    int8_t display_rotation;    // 0..3 (-1 = default)
+    int8_t dark_mode;           // 0 = light, 1 = dark, -1 = default
+    uint8_t reserved[48];       // reserved for future expansion
+};
+
+extern const volatile PreFlashingConfig PRE_FLASH_CONFIG;
+
 // Global State Structure to hold all sensor data and system settings
 static constexpr int TEMP_SOURCE_COUNT = 13; // temp1..4, ruuvitag0..8 (stable persisted indices)
 struct SystemState {

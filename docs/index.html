@@ -96,7 +96,7 @@
     .step {
       display: flex;
       gap: 16px;
-      margin-bottom: 24px;
+      margin-bottom: 28px;
       position: relative;
     }
 
@@ -163,8 +163,8 @@
       border: 1px solid var(--card-border);
     }
 
-    /* Version Select */
-    .select-box {
+    /* Form Inputs */
+    .select-box, .input-text {
       width: 100%;
       background: #12161f;
       border: 1px solid var(--card-border);
@@ -176,8 +176,128 @@
       transition: border-color 0.2s;
     }
 
-    .select-box:focus {
+    .select-box:focus, .input-text:focus {
       border-color: var(--accent);
+    }
+
+    /* Pre-Configuration Box */
+    .config-card {
+      background: #141820;
+      border: 1px solid var(--card-border);
+      border-radius: 10px;
+      padding: 18px;
+      margin-top: 10px;
+    }
+
+    .config-toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .config-toggle-title {
+      font-weight: 700;
+      font-size: 0.98rem;
+      color: #ffffff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .badge-opt {
+      font-size: 0.72rem;
+      background: rgba(59, 130, 246, 0.2);
+      color: #93c5fd;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-weight: 600;
+    }
+
+    .config-body {
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid var(--card-border);
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      margin-bottom: 14px;
+    }
+
+    @media (max-width: 580px) {
+      .form-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .form-label {
+      font-size: 0.83rem;
+      font-weight: 600;
+      color: var(--text-dim);
+    }
+
+    .password-wrap {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+
+    .password-wrap .input-text {
+      padding-right: 42px;
+    }
+
+    .btn-toggle-pw {
+      position: absolute;
+      right: 8px;
+      background: transparent;
+      border: none;
+      color: var(--text-sub);
+      cursor: pointer;
+      font-size: 1.1rem;
+      padding: 4px;
+    }
+
+    .quick-tags {
+      display: flex;
+      gap: 6px;
+      margin-top: 4px;
+      flex-wrap: wrap;
+    }
+
+    .quick-tag-btn {
+      background: #1e2430;
+      border: 1px solid var(--card-border);
+      color: #94a3b8;
+      font-size: 0.75rem;
+      padding: 3px 8px;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+
+    .quick-tag-btn:hover {
+      background: rgba(59, 130, 246, 0.2);
+      color: #93c5fd;
+      border-color: var(--accent);
+    }
+
+    .privacy-notice {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.78rem;
+      color: var(--text-sub);
+      margin-top: 12px;
     }
 
     /* File Drop Zone */
@@ -214,6 +334,30 @@
       font-size: 0.85rem;
       margin-top: 10px;
       font-weight: 600;
+    }
+
+    /* Status Pill */
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.85rem;
+      padding: 6px 12px;
+      border-radius: 6px;
+      margin-bottom: 12px;
+      font-weight: 600;
+    }
+
+    .status-configured {
+      background: rgba(16, 185, 129, 0.12);
+      border: 1px solid var(--accent-green);
+      color: #6ee7b7;
+    }
+
+    .status-default {
+      background: rgba(59, 130, 246, 0.1);
+      border: 1px solid rgba(59, 130, 246, 0.3);
+      color: #93c5fd;
     }
 
     /* Install Action Box */
@@ -334,7 +478,6 @@
       text-decoration: underline;
     }
 
-    /* Local File Input */
     #file-input {
       display: none;
     }
@@ -350,7 +493,7 @@
       </div>
       <h1>Display Erstinbetriebnahme</h1>
       <p class="subtitle">
-        Flashe dein Waveshare 4.0" ESP32-S3 Touch Display direkt aus dem Webbrowser. Ohne Entwicklungsumgebung oder lokale Treiber.
+        Flashe dein Waveshare 4.0" ESP32-S3 Touch Display direkt aus dem Webbrowser. Inklusive Vorkonfiguration von WLAN & VanPi vor dem Flash!
       </p>
     </header>
 
@@ -363,7 +506,7 @@
         <div class="step-content">
           <div class="step-title">Display per USB-C verbinden</div>
           <div class="step-desc">
-            Schließe das Display über den USB-Port an deinen PC oder Laptop an. Achte darauf, ein <strong>vollwertiges Datenkabel</strong> zu nutzen (kein reines Ladekabel).
+            Schließe das Display über den USB-Port an deinen PC oder Laptop an. Achte auf ein <strong>vollwertiges Datenkabel</strong> (kein reines Ladekabel).
           </div>
         </div>
       </div>
@@ -384,7 +527,7 @@
 
           <!-- Mode A: Predefined / Release versions -->
           <div id="mode-release">
-            <select id="version-select" class="select-box" onchange="onVersionChange()">
+            <select id="version-select" class="select-box" onchange="onSourceChanged()">
               <option value="firmware/CamperUI-v1.4.0-merged.bin" data-version="1.4.0" selected>CamperUI V1.4.0 (Aktuell & Empfohlen)</option>
               <option value="firmware/CamperUI-merged.bin" data-version="Latest">CamperUI Latest (merged.bin)</option>
             </select>
@@ -408,19 +551,104 @@
         </div>
       </div>
 
-      <!-- Step 3 -->
-      <div class="step" style="margin-bottom: 0;">
+      <!-- Step 3: Pre-Configuration (NEW) -->
+      <div class="step">
         <div class="step-number">3</div>
+        <div class="step-content">
+          <div class="step-title">Vorkonfiguration vorab einstellen <span class="badge-opt">Optional</span></div>
+          <div class="step-desc">
+            Hinterlege deine WLAN- und VanPi-Daten schon jetzt. Das Display verbindet sich nach dem ersten Einschalten sofort vollautomatisch!
+          </div>
+
+          <div class="config-card">
+            <div class="config-toggle-row" onclick="toggleConfigExpansion()">
+              <div class="config-toggle-title">
+                <span>⚙️ Express-Setup (WLAN, VanPi & Display)</span>
+              </div>
+              <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;" onclick="event.stopPropagation()">
+                <input type="checkbox" id="cfg-enable" onchange="onConfigInputsChanged()">
+                <span style="font-size: 0.85rem; color: #94a3b8; font-weight: 600;">Aktivieren</span>
+              </label>
+            </div>
+
+            <div id="config-body" class="config-body" style="display: none;">
+              
+              <!-- WLAN Settings -->
+              <div class="form-grid">
+                <div class="form-group">
+                  <label class="form-label" for="cfg-ssid">📶 WLAN-Name (SSID)</label>
+                  <input type="text" id="cfg-ssid" class="input-text" placeholder="z. B. CamperWLAN oder VanPi" oninput="onConfigInputsChanged()">
+                </div>
+                
+                <div class="form-group">
+                  <label class="form-label" for="cfg-pass">🔑 WLAN-Passwort</label>
+                  <div class="password-wrap">
+                    <input type="password" id="cfg-pass" class="input-text" placeholder="Passwort eingeben" oninput="onConfigInputsChanged()">
+                    <button type="button" class="btn-toggle-pw" onclick="togglePasswordVisibility()" title="Passwort anzeigen">👁️</button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- VanPi Connection -->
+              <div class="form-group" style="margin-bottom: 14px;">
+                <label class="form-label" for="cfg-vanpi">🚐 VanPi IP-Adresse oder Hostname</label>
+                <input type="text" id="cfg-vanpi" class="input-text" value="100.80.161.23" placeholder="z. B. 192.168.4.1 oder vanpi.local" oninput="onConfigInputsChanged()">
+                <div class="quick-tags">
+                  <button type="button" class="quick-tag-btn" onclick="setVanPiIp('192.168.4.1')">VanPi Hotspot (192.168.4.1)</button>
+                  <button type="button" class="quick-tag-btn" onclick="setVanPiIp('vanpi.local')">mDNS (vanpi.local)</button>
+                  <button type="button" class="quick-tag-btn" onclick="setVanPiIp('100.80.161.23')">Standard (100.80.161.23)</button>
+                </div>
+              </div>
+
+              <!-- Display Settings -->
+              <div class="form-grid">
+                <div class="form-group">
+                  <label class="form-label" for="cfg-rot">🔄 Display-Ausrichtung</label>
+                  <select id="cfg-rot" class="select-box" onchange="onConfigInputsChanged()">
+                    <option value="2" selected>Standard (Kabel / Buchse UNTEN)</option>
+                    <option value="0">180° gedreht (Kabel / Buchse OBEN)</option>
+                  </select>
+                </div>
+
+                <div class="form-group">
+                  <label class="form-label" for="cfg-bright">☀️ Display-Helligkeit</label>
+                  <select id="cfg-bright" class="select-box" onchange="onConfigInputsChanged()">
+                    <option value="100" selected>100 % (Standard)</option>
+                    <option value="80">80 %</option>
+                    <option value="60">60 %</option>
+                    <option value="40">40 %</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="privacy-notice">
+                🔒 <strong>Datenschutz:</strong> Deine Eingaben werden ausschließlich lokal in deinem Browser verarbeitet. Es erfolgt keine Datenübertragung an Server.
+              </div>
+
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Step 4: Installation -->
+      <div class="step" style="margin-bottom: 0;">
+        <div class="step-number">4</div>
         <div class="step-content">
           <div class="step-title">Installation starten</div>
           <div class="step-desc">
-            Klicke auf den Button, wähle im Browser-Dialog den COM-Port deines Displays aus und bestätige die Installation.
+            Klicke auf den Button, wähle im Browser-Dialog den COM-Port deines Displays aus und bestätige das Flashen.
           </div>
 
           <div class="action-box">
+            
+            <div id="cfg-status-pill" class="status-pill status-default">
+              ℹ️ Standard-Installation (unkonfiguriert)
+            </div>
+
             <!-- ESP Web Tools Web Component -->
             <esp-web-install-button id="install-btn" manifest="manifest.json">
-              <button slot="activate" class="btn-install">
+              <button slot="activate" class="btn-install" id="activate-btn">
                 ⚡ CamperUI installieren
               </button>
               
@@ -435,7 +663,7 @@
               </div>
             </esp-web-install-button>
 
-            <div class="action-subtext">
+            <div class="action-subtext" id="action-subtext">
               Dauer: ca. 30–60 Sekunden. Nach Abschluss startet das Display automatisch neu.
             </div>
           </div>
@@ -448,6 +676,13 @@
     <!-- Help & Troubleshooting -->
     <div class="faq-title">💡 Tipps & Problemlösung</div>
     
+    <div class="faq-item">
+      <div class="faq-question">❓ Wie funktioniert die Vorkonfiguration?</div>
+      <div class="faq-answer">
+        Die eingegebenen WLAN- und VanPi-Daten werden unmittelbar vor dem Flashen im Browser direkt an eine reservierte Stelle der Binärdatei geschrieben. Beim allerersten Start liest das Display diese Daten aus und speichert sie automatisch dauerhaft ab. Du musst danach nichts mehr auf dem Touchscreen einstellen!
+      </div>
+    </div>
+
     <div class="faq-item">
       <div class="faq-question">❓ Das Display wird bei der Portauswahl nicht angezeigt?</div>
       <div class="faq-answer">
@@ -480,11 +715,45 @@
   </div>
 
   <script>
-    // Manifest-Referenz
+    const MAGIC_HEADER = "CAMPERUI_CFG_V1";
     const installBtn = document.getElementById('install-btn');
-    let currentBlobUrl = null;
+    
+    let currentManifestBlobUrl = null;
+    let currentFirmwareBlobUrl = null;
 
-    // Modus wechseln (Release vs. Lokale Datei)
+    // Cache für das geladene ArrayBuffer (verhindert ständiges Neuladen von 16MB)
+    let cachedSourceKey = null;
+    let cachedBuffer = null;
+    let selectedFileObject = null;
+
+    // UI-Elemente
+    const cfgEnable = document.getElementById('cfg-enable');
+    const cfgBody = document.getElementById('config-body');
+    const cfgSsid = document.getElementById('cfg-ssid');
+    const cfgPass = document.getElementById('cfg-pass');
+    const cfgVanPi = document.getElementById('cfg-vanpi');
+    const cfgRot = document.getElementById('cfg-rot');
+    const cfgBright = document.getElementById('cfg-bright');
+    const cfgStatusPill = document.getElementById('cfg-status-pill');
+
+    function toggleConfigExpansion() {
+      const isExpanded = cfgBody.style.display !== 'none';
+      cfgBody.style.display = isExpanded ? 'none' : 'block';
+      if (!isExpanded && !cfgEnable.checked) {
+        cfgEnable.checked = true;
+        onConfigInputsChanged();
+      }
+    }
+
+    function togglePasswordVisibility() {
+      cfgPass.type = cfgPass.type === 'password' ? 'text' : 'password';
+    }
+
+    function setVanPiIp(ip) {
+      cfgVanPi.value = ip;
+      onConfigInputsChanged();
+    }
+
     function switchMode(mode) {
       const tabRelease = document.getElementById('tab-release');
       const tabCustom = document.getElementById('tab-custom');
@@ -496,81 +765,265 @@
         tabCustom.classList.remove('active');
         modeRelease.style.display = 'block';
         modeCustom.style.display = 'none';
-        onVersionChange();
+        selectedFileObject = null;
+        onSourceChanged();
       } else {
         tabCustom.classList.add('active');
         tabRelease.classList.remove('active');
         modeCustom.style.display = 'block';
         modeRelease.style.display = 'none';
+        if (selectedFileObject) {
+          onSourceChanged();
+        }
       }
     }
 
-    // Wenn der Nutzer eine offizielle Version wählt
-    function onVersionChange() {
-      const select = document.getElementById('version-select');
-      const selectedOption = select.options[select.selectedIndex];
-      const relPath = selectedOption.value;
-      const verName = selectedOption.getAttribute('data-version') || '1.4.0';
+    function onCustomFileSelected(event) {
+      const file = event.target.files[0];
+      if (!file) return;
 
-      // Erstelle absolute URL relativ zum aktuellen Pfad
-      const absoluteBinUrl = new URL(relPath, window.location.href).href;
+      selectedFileObject = file;
+      document.getElementById('custom-file-name').textContent = file.name;
+      document.getElementById('custom-file-size').textContent = (file.size / (1024 * 1024)).toFixed(1) + ' MB';
+      document.getElementById('custom-file-info').style.display = 'block';
+
+      cachedSourceKey = null;
+      cachedBuffer = null;
+      updateFirmwarePipeline();
+    }
+
+    function onSourceChanged() {
+      cachedSourceKey = null;
+      cachedBuffer = null;
+      updateFirmwarePipeline();
+    }
+
+    let inputDebounceTimer = null;
+    function onConfigInputsChanged() {
+      clearTimeout(inputDebounceTimer);
+      inputDebounceTimer = setTimeout(() => {
+        updateFirmwarePipeline();
+      }, 250);
+    }
+
+    // Liest den aktuellen Binärpuffer (entweder aus Datei oder per Fetch)
+    async function getSourceBuffer() {
+      if (selectedFileObject) {
+        const key = "file_" + selectedFileObject.name + "_" + selectedFileObject.size;
+        if (cachedSourceKey === key && cachedBuffer) return cachedBuffer;
+        
+        cfgStatusPill.textContent = "⏳ Lese lokale Datei...";
+        cachedBuffer = await selectedFileObject.arrayBuffer();
+        cachedSourceKey = key;
+        return cachedBuffer;
+      } else {
+        const select = document.getElementById('version-select');
+        const relPath = select.options[select.selectedIndex].value;
+        const absUrl = new URL(relPath, window.location.href).href;
+
+        if (cachedSourceKey === absUrl && cachedBuffer) return cachedBuffer;
+
+        cfgStatusPill.textContent = "⏳ Lade Firmware herunter...";
+        const resp = await fetch(absUrl);
+        if (!resp.ok) throw new Error("Fehler beim Laden von " + absUrl);
+        cachedBuffer = await resp.arrayBuffer();
+        cachedSourceKey = absUrl;
+        return cachedBuffer;
+      }
+    }
+
+    // Findet den exakten Config-Struct-Offset (sucht nach Magic + Placeholder-Signatur)
+    function findConfigStructOffset(bytes) {
+      const encoder = new TextEncoder();
+      const magicBytes = encoder.encode(MAGIC_HEADER);
+      const placeholderBytes = encoder.encode("__CAMPERUI_SSID_PLACEHOLDER");
+      
+      let pos = 0;
+      while (pos < bytes.length - 200) {
+        const idx = findSubarrayFrom(bytes, magicBytes, pos);
+        if (idx === -1) return -1;
+        
+        // Prüfe ob an idx + 17 der Placeholder liegt
+        let matchPlaceholder = true;
+        for (let p = 0; p < placeholderBytes.length; p++) {
+          if (bytes[idx + 17 + p] !== placeholderBytes[p]) {
+            matchPlaceholder = false;
+            break;
+          }
+        }
+        if (matchPlaceholder) {
+          return idx;
+        }
+        pos = idx + 1;
+      }
+      return -1;
+    }
+
+    function findSubarrayFrom(haystack, needle, startIndex) {
+      const hLen = haystack.length;
+      const nLen = needle.length;
+      const limit = hLen - nLen;
+      const first = needle[0];
+
+      for (let i = startIndex; i < limit; i++) {
+        if (haystack[i] === first) {
+          let match = true;
+          for (let j = 1; j < nLen; j++) {
+            if (haystack[i + j] !== needle[j]) {
+              match = false;
+              break;
+            }
+          }
+          if (match) return i;
+        }
+      }
+      return -1;
+    }
+
+    // Patched den Puffer mit den Nutzereingaben
+    function patchBuffer(buffer, config) {
+      const bytes = new Uint8Array(buffer);
+      const encoder = new TextEncoder();
+
+      const offset = findConfigStructOffset(bytes);
+      if (offset === -1) {
+        console.warn("CAMPERUI_CFG_V1 Struct nicht in dieser Firmware gefunden.");
+        return { success: false, reason: "Header nicht gefunden" };
+      }
+
+      console.log("CAMPERUI_CFG_V1 gefunden bei Offset:", offset);
+      const view = new DataView(buffer);
+
+      // is_configured = 1
+      bytes[offset + 16] = 1;
+
+      function writeString(targetOffset, str, maxLen) {
+        bytes.fill(0, targetOffset, targetOffset + maxLen);
+        if (!str) return;
+        const encoded = encoder.encode(str);
+        const len = Math.min(encoded.length, maxLen - 1);
+        for (let k = 0; k < len; k++) {
+          bytes[targetOffset + k] = encoded[k];
+        }
+        bytes[targetOffset + len] = 0;
+      }
+
+      writeString(offset + 17, config.ssid, 64);
+      writeString(offset + 81, config.pass, 64);
+      writeString(offset + 145, config.vanpiIp, 64);
+
+      // display_brightness (int16 little-endian)
+      view.setInt16(offset + 209, config.brightness, true);
+
+      // display_rotation (int8)
+      view.setInt8(offset + 211, config.rotation);
+
+      // dark_mode (int8)
+      view.setInt8(offset + 212, 1); // 1 = dark mode
+
+      return { success: true, offset: offset };
+    }
+
+    // Haupt-Pipeline: Aktualisiert das Manifest für ESP Web Tools
+    async function updateFirmwarePipeline() {
+      try {
+        const isPreConfigActive = cfgEnable.checked && (cfgSsid.value.trim().length > 0 || cfgVanPi.value.trim().length > 0);
+
+        if (!isPreConfigActive) {
+          // Standard-Modus ohne Vorkonfiguration
+          cfgStatusPill.className = "status-pill status-default";
+          cfgStatusPill.innerHTML = "ℹ️ Standard-Installation (unkonfiguriert)";
+
+          let firmwareUrl;
+          if (selectedFileObject) {
+            if (currentFirmwareBlobUrl) URL.revokeObjectURL(currentFirmwareBlobUrl);
+            currentFirmwareBlobUrl = URL.createObjectURL(selectedFileObject);
+            firmwareUrl = currentFirmwareBlobUrl;
+          } else {
+            const select = document.getElementById('version-select');
+            firmwareUrl = new URL(select.options[select.selectedIndex].value, window.location.href).href;
+          }
+
+          setManifest(firmwareUrl, "Standard");
+          return;
+        }
+
+        // Vorkonfiguration ist aktiv!
+        cfgStatusPill.className = "status-pill status-default";
+        cfgStatusPill.innerHTML = "⏳ Bereite Firmware mit Einstellungen vor...";
+
+        const rawBuffer = await getSourceBuffer();
+        
+        // Puffer klonen, um Original unberührt zu lassen
+        const workingBuffer = rawBuffer.slice(0);
+
+        const config = {
+          ssid: cfgSsid.value.trim(),
+          pass: cfgPass.value,
+          vanpiIp: cfgVanPi.value.trim(),
+          brightness: parseInt(cfgBright.value) || 100,
+          rotation: parseInt(cfgRot.value) || 2
+        };
+
+        const result = patchBuffer(workingBuffer, config);
+
+        if (result.success) {
+          if (currentFirmwareBlobUrl) URL.revokeObjectURL(currentFirmwareBlobUrl);
+          const patchedBlob = new Blob([workingBuffer], { type: 'application/octet-stream' });
+          currentFirmwareBlobUrl = URL.createObjectURL(patchedBlob);
+
+          cfgStatusPill.className = "status-pill status-configured";
+          let label = "✓ Vorkonfiguriert: ";
+          if (config.ssid) label += `WLAN "${config.ssid}" `;
+          if (config.vanpiIp) label += `• VanPi: ${config.vanpiIp}`;
+          cfgStatusPill.textContent = label;
+
+          setManifest(currentFirmwareBlobUrl, "Vorkonfiguriert");
+        } else {
+          cfgStatusPill.className = "status-pill status-default";
+          cfgStatusPill.textContent = "⚠️ Diese Version unterstützt keine Vorkonfiguration (wird unkonfiguriert geflasht)";
+
+          if (currentFirmwareBlobUrl) URL.revokeObjectURL(currentFirmwareBlobUrl);
+          const rawBlob = new Blob([rawBuffer], { type: 'application/octet-stream' });
+          currentFirmwareBlobUrl = URL.createObjectURL(rawBlob);
+          setManifest(currentFirmwareBlobUrl, "Standard");
+        }
+
+      } catch (err) {
+        console.error("Fehler in Firmware-Pipeline:", err);
+        cfgStatusPill.className = "status-pill alert-error";
+        cfgStatusPill.textContent = "⚠️ Fehler: " + err.message;
+      }
+    }
+
+    function setManifest(firmwarePath, label) {
+      if (currentManifestBlobUrl) {
+        URL.revokeObjectURL(currentManifestBlobUrl);
+      }
+
+      const select = document.getElementById('version-select');
+      const verName = selectedFileObject ? selectedFileObject.name : (select.options[select.selectedIndex].getAttribute('data-version') || '1.4.0');
 
       const manifestObj = {
-        name: "CamperUI",
+        name: `CamperUI (${label})`,
         version: verName,
         new_install_prompt_erase: true,
         builds: [
           {
             chipFamily: "ESP32-S3",
             parts: [
-              { path: absoluteBinUrl, offset: 0 }
+              { path: firmwarePath, offset: 0 }
             ]
           }
         ]
       };
 
-      updateManifestBlob(manifestObj);
-    }
-
-    // Wenn der Nutzer eine eigene lokale Datei wählt
-    function onCustomFileSelected(event) {
-      const file = event.target.files[0];
-      if (!file) return;
-
-      const fileBlobUrl = URL.createObjectURL(file);
-      const manifestObj = {
-        name: "CamperUI (Lokal)",
-        version: file.name,
-        new_install_prompt_erase: true,
-        builds: [
-          {
-            chipFamily: "ESP32-S3",
-            parts: [
-              { path: fileBlobUrl, offset: 0 }
-            ]
-          }
-        ]
-      };
-
-      updateManifestBlob(manifestObj);
-
-      // Info Badge anzeigen
-      document.getElementById('custom-file-name').textContent = file.name;
-      document.getElementById('custom-file-size').textContent = (file.size / (1024 * 1024)).toFixed(1) + ' MB';
-      document.getElementById('custom-file-info').style.display = 'block';
-    }
-
-    // Erzeugt einen Manifest-Blob und setzt die URL im ESP Web Tools Button
-    function updateManifestBlob(manifestObj) {
-      if (currentBlobUrl) {
-        URL.revokeObjectURL(currentBlobUrl);
-      }
       const manifestBlob = new Blob([JSON.stringify(manifestObj)], { type: 'application/json' });
-      currentBlobUrl = URL.createObjectURL(manifestBlob);
-      installBtn.manifest = currentBlobUrl;
+      currentManifestBlobUrl = URL.createObjectURL(manifestBlob);
+      installBtn.manifest = currentManifestBlobUrl;
     }
 
-    // Drag and Drop Handler
+    // Drag & Drop
     const dropZone = document.getElementById('drop-zone');
     ['dragenter', 'dragover'].forEach(eventName => {
       dropZone.addEventListener(eventName, (e) => {
@@ -594,13 +1047,12 @@
       }
     });
 
-    // Initialisierung bei Seitenaufruf
+    // Start-Initialisierung
     window.addEventListener('DOMContentLoaded', () => {
-      // Prüfe auf file:// Protokoll
       if (window.location.protocol === 'file:') {
-        console.warn('Web Serial erfordert HTTP/HTTPS. Bitte starte einen lokalen Webserver (z. B. "npx serve docs" oder "python -m http.server").');
+        console.warn('Web Serial erfordert HTTP/HTTPS. Bitte über einen lokalen Webserver oder GitHub Pages aufrufen.');
       }
-      onVersionChange();
+      updateFirmwarePipeline();
     });
   </script>
 </body>

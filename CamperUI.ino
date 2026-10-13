@@ -76,6 +76,7 @@ void example_increase_lvgl_tick(void *arg) {
 bool ignore_touch_until_release = false;
 bool touch_input_enabled = true;
 bool touch_is_pressed = false;
+lv_point_t touch_last_point = {0, 0};
 
 // Feedback on valid touch interactions (buttons, switches, tabs)
 static void my_touchpad_feedback(lv_indev_drv_t *indev_driver, uint8_t event_code) {
@@ -120,6 +121,7 @@ void my_touchpad_read(lv_indev_drv_t *, lv_indev_data_t *data) {
                 case 3: tx = gfx->width() - 1 - y[0]; ty = x[0]; break;
             }
             last_valid_point = {tx, ty}; data->point = last_valid_point;
+            touch_last_point = last_valid_point;
             pressed = true;
             if (!display_is_on) {
                 display_is_on = true;
