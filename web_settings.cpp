@@ -317,6 +317,8 @@ void web_settings_register_routes(WebServer &server) {
     server.on("/api/restart", HTTP_POST, [&server]() {
         server.send(200, "application/json", "{\"status\":\"ok\",\"message\":\"Neustart...\"}");
         delay(300);
+        WS_CH32_IO::setPwm(Wire, 255);
+        delay(20);
         ESP.restart();
     });
 }
