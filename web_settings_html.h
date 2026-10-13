@@ -1014,7 +1014,7 @@ static const char SETTINGS_HTML[] PROGMEM = R"rawliteral(
         .then(r => r.json())
         .then(data => {
           currentSettings = data;
-          document.getElementById('badgeVer').innerText = data.version || 'V1.6.0';
+          document.getElementById('badgeVer').innerText = data.version || 'V1.6.1';
           
           // Network
           document.getElementById('wifi_ssid').value = data.wifi_ssid || '';

@@ -436,7 +436,7 @@ void ui_build_truma(lv_obj_t *parent) {
     // ========================================================================
     // 4. Energiequelle Card
     // ========================================================================
-    lv_obj_t *card_energy = ui_create_card(parent, 440, 185);
+    card_energy = ui_create_card(parent, 440, truma_has_electric(state.heater_type) ? 185 : 88);
     lv_obj_set_style_pad_all(card_energy, 12, 0);
 
     lv_obj_t *lbl_e_title = lv_label_create(card_energy);
@@ -472,7 +472,7 @@ void ui_build_truma(lv_obj_t *parent) {
     lv_obj_center(lbl_btn_energy_fuel);
 
     // Row 2: Mix 1 & Mix 2
-    lv_obj_t *mix_row = lv_obj_create(card_energy);
+    mix_row = lv_obj_create(card_energy);
     lv_obj_set_size(mix_row, 416, 42);
     lv_obj_align(mix_row, LV_ALIGN_TOP_MID, 0, 84);
     lv_obj_set_style_bg_opa(mix_row, 0, 0);
@@ -504,7 +504,7 @@ void ui_build_truma(lv_obj_t *parent) {
     lv_obj_center(lbl_btn_energy_mix2);
 
     // Row 3: Elektro 1 & Elektro 2
-    lv_obj_t *el_row = lv_obj_create(card_energy);
+    el_row = lv_obj_create(card_energy);
     lv_obj_set_size(el_row, 416, 42);
     lv_obj_align(el_row, LV_ALIGN_TOP_MID, 0, 132);
     lv_obj_set_style_bg_opa(el_row, 0, 0);
@@ -567,16 +567,21 @@ void ui_update_truma_tab() {
     }
 
     // 230V Badge
-    if (state.truma_230v) {
-        ui_label_set_text_if_changed(lbl_230v, "230V");
-        lv_obj_set_style_bg_color(badge_230v, lv_color_hex(UI_COLOR_PRIMARY), 0);
-        lv_obj_set_style_border_color(badge_230v, lv_color_hex(0x38bdf8), 0);
-        lv_obj_set_style_text_color(lbl_230v, lv_color_hex(0xffffff), 0);
-    } else {
-        ui_label_set_text_if_changed(lbl_230v, "Kein 230V");
-        lv_obj_set_style_bg_color(badge_230v, ui_theme_card(), 0);
-        lv_obj_set_style_border_color(badge_230v, ui_theme_border(), 0);
-        lv_obj_set_style_text_color(lbl_230v, ui_theme_muted(), 0);
+    if (!truma_has_electric(state.heater_type)) {
+        if (badge_230v) lv_obj_add_flag(badge_230v, LV_OBJ_FLAG_HIDDEN);
+    } else if (badge_230v) {
+        lv_obj_clear_flag(badge_230v, LV_OBJ_FLAG_HIDDEN);
+        if (state.truma_230v) {
+            ui_label_set_text_if_changed(lbl_230v, "230V");
+            lv_obj_set_style_bg_color(badge_230v, lv_color_hex(UI_COLOR_PRIMARY), 0);
+            lv_obj_set_style_border_color(badge_230v, lv_color_hex(0x38bdf8), 0);
+            lv_obj_set_style_text_color(lbl_230v, lv_color_hex(0xffffff), 0);
+        } else {
+            ui_label_set_text_if_changed(lbl_230v, "Kein 230V");
+            lv_obj_set_style_bg_color(badge_230v, ui_theme_card(), 0);
+            lv_obj_set_style_border_color(badge_230v, ui_theme_border(), 0);
+            lv_obj_set_style_text_color(lbl_230v, ui_theme_muted(), 0);
+        }
     }
 
     // Error Badge
@@ -645,6 +650,18 @@ void ui_update_truma_tab() {
     style_segmented_button(btn_water_hot, lbl_btn_water_hot, w_hot, UI_COLOR_WARNING);
 
     // 4. Energy Mix Updates
+    bool has_el = truma_has_electric(state.heater_type);
+    if (!has_el) {
+        if (mix_row) lv_obj_add_flag(mix_row, LV_OBJ_FLAG_HIDDEN);
+        if (el_row)  lv_obj_add_flag(el_row, LV_OBJ_FLAG_HIDDEN);
+        if (lbl_230v_hint) lv_obj_add_flag(lbl_230v_hint, LV_OBJ_FLAG_HIDDEN);
+        if (card_energy) lv_obj_set_height(card_energy, 88);
+    } else {
+        if (mix_row) lv_obj_clear_flag(mix_row, LV_OBJ_FLAG_HIDDEN);
+        if (el_row)  lv_obj_clear_flag(el_row, LV_OBJ_FLAG_HIDDEN);
+        if (card_energy) lv_obj_set_height(card_energy, 185);
+    }
+
     String em = state.truma_energy_mode; em.toLowerCase();
     bool e_fuel = (em == "fuel" || em == "gas");
     bool e_mix1 = (em == "mix1");
@@ -653,7 +670,7 @@ void ui_update_truma_tab() {
     bool e_el2  = (em == "el2");
 
     if (lbl_energy_status) {
-        if (e_fuel) ui_label_set_text_if_changed(lbl_energy_status, "Brennstoff");
+        if (!has_el || e_fuel) ui_label_set_text_if_changed(lbl_energy_status, "Brennstoff");
         else if (e_mix1) ui_label_set_text_if_changed(lbl_energy_status, "Mix 1 (900W)");
         else if (e_mix2) ui_label_set_text_if_changed(lbl_energy_status, "Mix 2 (1800W)");
         else if (e_el1)  ui_label_set_text_if_changed(lbl_energy_status, "Elektro 1 (900W)");
@@ -662,16 +679,18 @@ void ui_update_truma_tab() {
     }
 
     if (lbl_230v_hint) {
-        if (!state.truma_230v && (e_mix1 || e_mix2 || e_el1 || e_el2)) {
+        if (has_el && !state.truma_230v && (e_mix1 || e_mix2 || e_el1 || e_el2)) {
             lv_obj_clear_flag(lbl_230v_hint, LV_OBJ_FLAG_HIDDEN);
         } else {
             lv_obj_add_flag(lbl_230v_hint, LV_OBJ_FLAG_HIDDEN);
         }
     }
 
-    style_segmented_button(btn_energy_fuel, lbl_btn_energy_fuel, e_fuel, UI_COLOR_PRIMARY);
-    style_segmented_button(btn_energy_mix1, lbl_btn_energy_mix1, e_mix1, UI_COLOR_WARNING);
-    style_segmented_button(btn_energy_mix2, lbl_btn_energy_mix2, e_mix2, UI_COLOR_WARNING);
-    style_segmented_button(btn_energy_el1,  lbl_btn_energy_el1,  e_el1,  UI_COLOR_PRIMARY);
-    style_segmented_button(btn_energy_el2,  lbl_btn_energy_el2,  e_el2,  UI_COLOR_PRIMARY);
+    style_segmented_button(btn_energy_fuel, lbl_btn_energy_fuel, (!has_el || e_fuel), UI_COLOR_PRIMARY);
+    if (has_el) {
+        style_segmented_button(btn_energy_mix1, lbl_btn_energy_mix1, e_mix1, UI_COLOR_WARNING);
+        style_segmented_button(btn_energy_mix2, lbl_btn_energy_mix2, e_mix2, UI_COLOR_WARNING);
+        style_segmented_button(btn_energy_el1,  lbl_btn_energy_el1,  e_el1,  UI_COLOR_PRIMARY);
+        style_segmented_button(btn_energy_el2,  lbl_btn_energy_el2,  e_el2,  UI_COLOR_PRIMARY);
+    }
 }
