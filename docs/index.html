@@ -515,22 +515,25 @@
       <div class="step">
         <div class="step-number">2</div>
         <div class="step-content">
-          <div class="step-title">Firmware-Version wählen</div>
+          <div class="step-title">Komplett-Image wählen (*-merged.bin)</div>
           <div class="step-desc">
-            Wähle eine offizielle Version oder lade eine eigene <code>CamperUI-*-merged.bin</code> Datei hoch.
+            Für die Erstinbetriebnahme wird immer das vollständige Image (inkl. Bootloader & Partitionen) geflasht. Drahtlose Updates (OTA) für bestehende Displays erfolgen separat.
           </div>
 
           <div class="tabs">
-            <button class="tab-btn active" id="tab-release" onclick="switchMode('release')">📦 Offizielle Version</button>
-            <button class="tab-btn" id="tab-custom" onclick="switchMode('custom')">📁 Eigene Datei (.bin)</button>
+            <button class="tab-btn active" id="tab-release" onclick="switchMode('release')">📦 Offizielle Version (merged.bin)</button>
+            <button class="tab-btn" id="tab-custom" onclick="switchMode('custom')">📁 Eigene merged.bin</button>
           </div>
 
           <!-- Mode A: Predefined / Release versions -->
           <div id="mode-release">
             <select id="version-select" class="select-box" onchange="onSourceChanged()">
-              <option value="firmware/CamperUI-v1.4.0-merged.bin" data-version="1.4.0" selected>CamperUI V1.4.0 (Aktuell & Empfohlen)</option>
-              <option value="firmware/CamperUI-merged.bin" data-version="Latest">CamperUI Latest (merged.bin)</option>
+              <option value="firmware/CamperUI-v1.4.0-merged.bin" data-version="1.4.0" selected>CamperUI V1.4.0 (Komplett-Image: merged.bin)</option>
+              <option value="firmware/CamperUI-merged.bin" data-version="Latest">CamperUI Latest (Komplett-Image: merged.bin)</option>
             </select>
+            <div style="font-size: 0.8rem; color: #94a3b8; margin-top: 6px;">
+              ℹ️ <strong>Nur Erstinbetriebnahme:</strong> Enthält Bootloader (0x0), Partitionstabelle (0x8000) und Applikation ab Adresse 0x0.
+            </div>
           </div>
 
           <!-- Mode B: Custom local file -->
@@ -791,9 +794,25 @@
       if (!file) return;
 
       selectedFileObject = file;
-      document.getElementById('custom-file-name').textContent = file.name;
-      document.getElementById('custom-file-size').textContent = (file.size / (1024 * 1024)).toFixed(1) + ' MB';
-      document.getElementById('custom-file-info').style.display = 'block';
+      const infoBox = document.getElementById('custom-file-info');
+      const isOtaFile = file.size < 4 * 1024 * 1024 && !file.name.toLowerCase().includes('merged');
+
+      if (isOtaFile) {
+        infoBox.innerHTML = `
+          <div class="alert-box alert-error" style="margin-top: 10px;">
+            ⚠️ <strong>Reine OTA-Update-Datei erkannt!</strong><br>
+            "${file.name}" (${(file.size / (1024 * 1024)).toFixed(1)} MB) ist eine reine App-Datei für drahtlose Updates.<br>
+            Für die Erstinbetriebnahme eines neuen Displays wird zwingend das vollständige <strong>*-merged.bin</strong> Image (ca. 16 MB inkl. Bootloader & Partitionen) benötigt!
+          </div>
+        `;
+      } else {
+        infoBox.innerHTML = `
+          <div class="file-loaded-badge">
+            ✓ <span>${file.name}</span> (${(file.size / (1024 * 1024)).toFixed(1)} MB - Komplett-Image)
+          </div>
+        `;
+      }
+      infoBox.style.display = 'block';
 
       cachedSourceKey = null;
       cachedBuffer = null;
