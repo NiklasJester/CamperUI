@@ -36,6 +36,8 @@ void web_settings_register_routes(WebServer &server) {
             doc["tank_show_liters"] = state.tank_show_liters;
             JsonArray t_max = doc["tank_max"].to<JsonArray>();
             for (int i = 0; i < 4; i++) t_max.add(state.tank_max[i]);
+            JsonArray t_un = doc["tank_unit"].to<JsonArray>();
+            for (int i = 0; i < 4; i++) t_un.add(state.tank_unit[i]);
 
             doc["pump_relay"] = state.pump_relay;
             doc["drain_relay"] = state.drain_relay;
@@ -46,6 +48,7 @@ void web_settings_register_routes(WebServer &server) {
             doc["fill_assist_action_type"] = state.fill_assist_action_type;
             doc["fill_assist_relay"] = state.fill_assist_relay;
             doc["fill_assist_dimmer"] = state.fill_assist_dimmer;
+            doc["heater_type"] = state.heater_type;
 
             doc["show_wrelay"] = state.show_wrelay;
             JsonArray sw_nm = doc["switch_names"].to<JsonArray>();
@@ -145,6 +148,12 @@ void web_settings_register_routes(WebServer &server) {
                 z["idx"] = i;
                 z["name"] = TIMEZONES[i].name;
             }
+
+            // Metadata: Heater Types
+            JsonArray ht_arr = doc["heater_types"].to<JsonArray>();
+            JsonObject ht0 = ht_arr.add<JsonObject>(); ht0["id"] = 0; ht0["name"] = "Autoterm (Air 2D/4D)";
+            JsonObject ht1 = ht_arr.add<JsonObject>(); ht1["id"] = 1; ht1["name"] = "Truma (Combi/VarioHeat)";
+            JsonObject ht2 = ht_arr.add<JsonObject>(); ht2["id"] = 2; ht2["name"] = "Keine / Deaktiviert";
         }
         String out;
         serializeJson(doc, out);
@@ -196,6 +205,12 @@ void web_settings_register_routes(WebServer &server) {
                     state.tank_max[i] = val > 0 ? val : 100;
                 }
             }
+            if (doc["tank_unit"].is<JsonArray>()) {
+                JsonArray arr = doc["tank_unit"].as<JsonArray>();
+                for (int i = 0; i < 4 && i < (int)arr.size(); i++) {
+                    state.tank_unit[i] = constrain(arr[i].as<int>(), 0, 1);
+                }
+            }
 
             if (doc["pump_relay"].is<int>()) state.pump_relay = doc["pump_relay"].as<int>();
             if (doc["drain_relay"].is<int>()) state.drain_relay = doc["drain_relay"].as<int>();
@@ -206,6 +221,7 @@ void web_settings_register_routes(WebServer &server) {
             if (doc["fill_assist_action_type"].is<int>()) state.fill_assist_action_type = doc["fill_assist_action_type"].as<int>();
             if (doc["fill_assist_relay"].is<int>()) state.fill_assist_relay = doc["fill_assist_relay"].as<int>();
             if (doc["fill_assist_dimmer"].is<int>()) state.fill_assist_dimmer = doc["fill_assist_dimmer"].as<int>();
+            if (doc["heater_type"].is<int>()) state.heater_type = constrain(doc["heater_type"].as<int>(), 0, 2);
 
             if (doc["show_wrelay"].is<bool>()) state.show_wrelay = doc["show_wrelay"].as<bool>();
             if (doc["switch_visible"].is<JsonArray>()) {
@@ -260,7 +276,6 @@ void web_settings_register_routes(WebServer &server) {
             if (doc["tab_enabled"].is<JsonArray>()) {
                 JsonArray arr = doc["tab_enabled"].as<JsonArray>();
                 for (int i = 0; i < TAB_COUNT && i < (int)arr.size(); i++) state.tab_enabled[i] = arr[i].as<bool>();
-                state.tab_enabled[TAB_SETTINGS] = true;
             }
         }
 
@@ -283,7 +298,9 @@ void web_settings_register_routes(WebServer &server) {
 
     // 4. GET /api/wifi/scan
     server.on("/api/wifi/scan", HTTP_GET, [&server]() {
+        wifi_set_scanning(true);
         int n = WiFi.scanNetworks(false, false);
+        wifi_set_scanning(false);
         JsonDocument doc;
         JsonArray arr = doc.to<JsonArray>();
         for (int i = 0; i < n; i++) {

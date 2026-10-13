@@ -118,10 +118,12 @@ static lv_obj_t *ta_bat_cap;
 static lv_obj_t *ta_solar_max;
 static lv_obj_t *ta_tank_max[4];
 static lv_obj_t *lbl_tank_max[4];
+static lv_obj_t *dd_tank_unit[4];
 static lv_obj_t *dd_tank_count = NULL;
 static lv_obj_t *sw_tank_liters = NULL;
 static lv_obj_t *dd_pump = NULL;
 static lv_obj_t *dd_drain = NULL;
+static lv_obj_t *dd_heater_type = NULL;
 
 static lv_obj_t *dd_pump_auto_off = NULL;
 static lv_obj_t *dd_dry_run_pct = NULL;
@@ -238,6 +240,7 @@ static void update_tank_max_visibility() {
             if (i < cnt) {
                 lv_obj_clear_flag(lbl_tank_max[i], LV_OBJ_FLAG_HIDDEN);
                 lv_obj_clear_flag(ta_tank_max[i], LV_OBJ_FLAG_HIDDEN);
+                if (dd_tank_unit[i]) lv_obj_clear_flag(dd_tank_unit[i], LV_OBJ_FLAG_HIDDEN);
                 String name = state.tank_names[i];
                 if (name.length() == 0) name = "Tank " + String(i + 1);
                 if (name.length() > 9) name = name.substring(0, 8) + ".";
@@ -245,6 +248,7 @@ static void update_tank_max_visibility() {
             } else {
                 lv_obj_add_flag(lbl_tank_max[i], LV_OBJ_FLAG_HIDDEN);
                 lv_obj_add_flag(ta_tank_max[i], LV_OBJ_FLAG_HIDDEN);
+                if (dd_tank_unit[i]) lv_obj_add_flag(dd_tank_unit[i], LV_OBJ_FLAG_HIDDEN);
             }
         }
     }
@@ -319,6 +323,7 @@ void ui_update_settings_tab() {
         int n = WiFi.scanComplete();
         if (n >= 0) {
             scan_in_progress = false;
+            wifi_set_scanning(false);
             // Keep the saved WLAN selectable even when it is out of range.
             String options = state.wifi_ssid;
             for (int i = 0; i < n; ++i) {
@@ -336,6 +341,7 @@ void ui_update_settings_tab() {
             }
         } else if (n == WIFI_SCAN_FAILED) {
             scan_in_progress = false;
+            wifi_set_scanning(false);
             if (lbl_wifi_scan) lv_label_set_text(lbl_wifi_scan, "Scan");
             if (WiFi.status() != WL_CONNECTED && !state.wifi_ssid.isEmpty()) {
                 wifi_connect_configured();
@@ -372,6 +378,7 @@ static void kb_event_cb(lv_event_t * e) {
 
 static void wifi_scan_cb(lv_event_t * e) {
     if(!scan_in_progress) {
+        wifi_set_scanning(true);
         WiFi.mode(WIFI_STA);
         if (lbl_wifi_scan) lv_label_set_text(lbl_wifi_scan, "Scanne...");
         WiFi.scanNetworks(true); // async
@@ -477,6 +484,10 @@ static void open_settings_cb(lv_event_t * e) {
     lv_scr_load(scr_settings);
 }
 
+void ui_open_settings() {
+    open_settings_cb(nullptr);
+}
+
 // ==========================================
 // 5th Tab on Main Screen
 // ==========================================
@@ -573,7 +584,9 @@ void ui_settings_reset() {
     for (int i = 0; i < 4; i++) {
         ta_tank_max[i] = nullptr;
         lbl_tank_max[i] = nullptr;
+        dd_tank_unit[i] = nullptr;
     }
+    dd_heater_type = nullptr;
     dd_pump_auto_off = nullptr;
     dd_dry_run_pct = nullptr;
     dd_wifi_ssid = nullptr;
@@ -1048,7 +1061,7 @@ void ui_settings_screen_init() {
     // ==========================================
     lv_obj_add_flag(t_val, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_scroll_dir(t_val, LV_DIR_VER);
-    lv_obj_set_style_pad_bottom(t_val, 80, 0);
+    lv_obj_set_style_pad_bottom(t_val, 120, 0);
     
     // Section 1: Relais Zuordnung
     lv_obj_t *l_sec_rel = lv_label_create(t_val);
@@ -1236,16 +1249,16 @@ void ui_settings_screen_init() {
         state.tank_show_liters = lv_obj_has_state(sw, LV_STATE_CHECKED);
     }, LV_EVENT_VALUE_CHANGED, NULL);
 
-    // Tank Maxima (Liter)
+    // Tank Maxima & Einheiten
     lv_obj_t *l_tank_caps = lv_label_create(t_val);
-    lv_label_set_text(l_tank_caps, "Kapazitäten (Liter):");
+    lv_label_set_text(l_tank_caps, "Kapazitäten & Einheit (L / kg):");
     lv_obj_set_style_text_font(l_tank_caps, &lv_font_montserrat_14, 0);
     lv_obj_align(l_tank_caps, LV_ALIGN_TOP_LEFT, 0, 582);
 
     for (int i = 0; i < 4; i++) {
         int row = i / 2;
         int col = i % 2;
-        lv_coord_t col_x = col * 215;
+        lv_coord_t col_x = col * 220;
         lv_coord_t row_y = 614 + (row * 54);
 
         lbl_tank_max[i] = lv_label_create(t_val);
@@ -1255,10 +1268,22 @@ void ui_settings_screen_init() {
         ta_tank_max[i] = lv_textarea_create(t_val);
         lv_textarea_set_one_line(ta_tank_max[i], true);
         lv_textarea_set_text(ta_tank_max[i], String(state.tank_max[i]).c_str());
-        lv_obj_set_size(ta_tank_max[i], 80, 44);
+        lv_obj_set_size(ta_tank_max[i], 66, 44);
         lv_obj_set_style_text_font(ta_tank_max[i], &lv_font_montserrat_14, 0);
-        lv_obj_align(ta_tank_max[i], LV_ALIGN_TOP_LEFT, col_x + 120, row_y);
+        lv_obj_align(ta_tank_max[i], LV_ALIGN_TOP_LEFT, col_x + 76, row_y);
         lv_obj_add_event_cb(ta_tank_max[i], ta_event_cb, LV_EVENT_ALL, NULL);
+
+        dd_tank_unit[i] = lv_dropdown_create(t_val);
+        lv_dropdown_set_options(dd_tank_unit[i], "L\nkg");
+        lv_dropdown_set_selected(dd_tank_unit[i], state.tank_unit[i] == 1 ? 1 : 0);
+        lv_obj_set_size(dd_tank_unit[i], 66, 44);
+        lv_obj_set_style_text_font(dd_tank_unit[i], &lv_font_montserrat_14, 0);
+        lv_obj_align(dd_tank_unit[i], LV_ALIGN_TOP_LEFT, col_x + 146, row_y);
+        lv_obj_add_event_cb(dd_tank_unit[i], [](lv_event_t * e) {
+            lv_obj_t *dd = lv_event_get_target(e);
+            int idx = (int)(intptr_t)lv_event_get_user_data(e);
+            state.tank_unit[idx] = (uint8_t)lv_dropdown_get_selected(dd);
+        }, LV_EVENT_VALUE_CHANGED, (void*)(intptr_t)i);
     }
     update_tank_max_visibility();
 
@@ -1420,12 +1445,35 @@ void ui_settings_screen_init() {
     update_water_relay_dropdowns();
     update_fill_assist_visibility();
 
+    // Section 5: Heizung & Klima
+    lv_obj_t *l_sec_heat = lv_label_create(t_val);
+    lv_label_set_text(l_sec_heat, "Heizung & Klima");
+    lv_obj_set_style_text_font(l_sec_heat, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_color(l_sec_heat, lv_color_hex(UI_COLOR_PRIMARY), 0);
+    lv_obj_align(l_sec_heat, LV_ALIGN_TOP_LEFT, 0, 1094);
+
+    lv_obj_t *l_heat_type = lv_label_create(t_val);
+    lv_label_set_text(l_heat_type, "Verbaute Heizung:");
+    lv_obj_set_style_text_font(l_heat_type, &lv_font_montserrat_14, 0);
+    lv_obj_align(l_heat_type, LV_ALIGN_TOP_LEFT, 0, 1138);
+
+    dd_heater_type = lv_dropdown_create(t_val);
+    lv_dropdown_set_options(dd_heater_type, "Autoterm (Air 2D/4D)\nTruma (Combi/VarioHeat)\nKeine / Deaktiviert");
+    lv_dropdown_set_selected(dd_heater_type, constrain(state.heater_type, 0, 2));
+    lv_obj_set_size(dd_heater_type, 260, 44);
+    lv_obj_set_style_text_font(dd_heater_type, &lv_font_montserrat_14, 0);
+    lv_obj_align(dd_heater_type, LV_ALIGN_TOP_LEFT, 150, 1128);
+    lv_obj_add_event_cb(dd_heater_type, [](lv_event_t * e) {
+        lv_obj_t *dd = lv_event_get_target(e);
+        state.heater_type = (uint8_t)lv_dropdown_get_selected(dd);
+    }, LV_EVENT_VALUE_CHANGED, NULL);
+
     // Hint Note
     lv_obj_t *l_out_desc = lv_label_create(t_val);
     lv_label_set_text(l_out_desc, "Hinweis: Der gewählte Außensensor steuert die Frostwarnung & das Außenklima.");
     lv_obj_set_style_text_color(l_out_desc, ui_theme_muted(), 0);
     lv_obj_set_style_text_font(l_out_desc, &lv_font_montserrat_12, 0);
-    lv_obj_align(l_out_desc, LV_ALIGN_TOP_LEFT, 0, 1100);
+    lv_obj_align(l_out_desc, LV_ALIGN_TOP_LEFT, 0, 1190);
     
     // ==========================================
     // TAB 5: ALARME (KOMFORTABLE 44PX EINGABEN)
@@ -1672,6 +1720,12 @@ void ui_settings_screen_init() {
                 if (val <= 0) val = 100;
                 state.tank_max[i] = val;
             }
+            if (dd_tank_unit[i]) {
+                state.tank_unit[i] = (uint8_t)lv_dropdown_get_selected(dd_tank_unit[i]);
+            }
+        }
+        if (dd_heater_type) {
+            state.heater_type = (uint8_t)lv_dropdown_get_selected(dd_heater_type);
         }
         if (ta_warn_frost) state.warn_frost_temp = String(lv_textarea_get_text(ta_warn_frost)).toFloat();
         if (ta_warn_bat)   state.warn_bat_soc    = String(lv_textarea_get_text(ta_warn_bat)).toInt();

@@ -1,6 +1,7 @@
 #include "ui_main.h"
 #include "ui_energy_history.h"
 #include "wifi_diagnostics.h"
+#include "buzzer.h"
 #include <WiFi.h>
 #include "HWCDC.h"
 #include <time.h>
@@ -336,11 +337,36 @@ void ui_init() {
     lv_obj_set_style_border_side(status_bar, LV_BORDER_SIDE_BOTTOM, 0);
     lv_obj_clear_flag(status_bar, LV_OBJ_FLAG_SCROLLABLE);
     
-    // Left: Time
-    lbl_time = lv_label_create(status_bar);
+    // Left: Time (Clickable touch target: 5s hold emergency backup to settings)
+    lv_obj_t *box_time = lv_obj_create(status_bar);
+    lv_obj_set_size(box_time, 65, 36);
+    lv_obj_align(box_time, LV_ALIGN_LEFT_MID, 6, 0);
+    lv_obj_set_style_bg_opa(box_time, LV_OPA_0, 0);
+    lv_obj_set_style_border_width(box_time, 0, 0);
+    lv_obj_set_style_pad_all(box_time, 0, 0);
+    lv_obj_clear_flag(box_time, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_flag(box_time, LV_OBJ_FLAG_CLICKABLE);
+
+    lbl_time = lv_label_create(box_time);
     lv_label_set_text(lbl_time, "--:--");
     lv_obj_set_style_text_font(lbl_time, &lv_font_montserrat_16, 0);
-    lv_obj_align(lbl_time, LV_ALIGN_LEFT_MID, 16, 0);
+    lv_obj_center(lbl_time);
+
+    static uint32_t time_hold_start = 0;
+    lv_obj_add_event_cb(box_time, [](lv_event_t *e) {
+        lv_event_code_t code = lv_event_get_code(e);
+        if (code == LV_EVENT_PRESSED) {
+            time_hold_start = millis();
+        } else if (code == LV_EVENT_PRESSING) {
+            if (time_hold_start > 0 && (millis() - time_hold_start >= 5000)) {
+                time_hold_start = 0;
+                buzzer_beep_force(120);
+                ui_open_settings();
+            }
+        } else if (code == LV_EVENT_RELEASED || code == LV_EVENT_PRESS_LOST || code == LV_EVENT_DEFOCUSED) {
+            time_hold_start = 0;
+        }
+    }, LV_EVENT_ALL, NULL);
 
     lbl_version = lv_label_create(status_bar);
     lv_obj_set_pos(lbl_version, 72, 2); lv_obj_set_size(lbl_version, 150, 13);

@@ -39,11 +39,7 @@ static void update_row_display() {
             } else {
                 lv_obj_clear_state(rows[i].sw, LV_STATE_CHECKED);
             }
-            if (tab_id == TAB_SETTINGS) {
-                lv_obj_add_state(rows[i].sw, LV_STATE_DISABLED);
-            } else {
-                lv_obj_clear_state(rows[i].sw, LV_STATE_DISABLED);
-            }
+            lv_obj_clear_state(rows[i].sw, LV_STATE_DISABLED);
         }
     }
 }
@@ -74,12 +70,7 @@ static void switch_toggled(lv_event_t *e) {
         uint8_t tab_id = cur_order[row_idx];
         if (tab_id >= TAB_COUNT) tab_id = row_idx;
 
-        if (tab_id == TAB_SETTINGS) {
-            if (rows[row_idx].sw) lv_obj_add_state(rows[row_idx].sw, LV_STATE_CHECKED);
-            cur_enabled[tab_id] = true;
-        } else {
-            cur_enabled[tab_id] = lv_obj_has_state(lv_event_get_target(e), LV_STATE_CHECKED);
-        }
+        cur_enabled[tab_id] = lv_obj_has_state(lv_event_get_target(e), LV_STATE_CHECKED);
         update_row_display();
     }
 }
@@ -87,7 +78,7 @@ static void switch_toggled(lv_event_t *e) {
 static void build_rows(lv_obj_t *parent) {
     // Explanatory Hint at top of the list
     lv_obj_t *hint = lv_label_create(parent);
-    lv_label_set_text(hint, "Reihenfolge mit " LV_SYMBOL_UP " / " LV_SYMBOL_DOWN " anpassen. Schalter aktiviert/deaktiviert Tabs.\nAusgeblendete Tabs sparen CPU & RAM.");
+    lv_label_set_text(hint, "Reihenfolge mit " LV_SYMBOL_UP " / " LV_SYMBOL_DOWN " anpassen. Schalter aktiviert/deaktiviert Tabs.\nSettings ausgeblendet? 5 Sek. lang die Uhrzeit druecken oeffnet die Einstellungen!");
     lv_obj_set_style_text_font(hint, &lv_font_montserrat_12, 0);
     lv_obj_set_style_text_color(hint, ui_theme_muted(), 0);
     lv_obj_set_width(hint, 440);
@@ -172,8 +163,6 @@ static void save_and_restart_clicked(lv_event_t *) {
         state.tab_order[i] = cur_order[i];
         state.tab_enabled[i] = cur_enabled[i];
     }
-    // Safety check: Settings must remain enabled
-    state.tab_enabled[TAB_SETTINGS] = true;
 
     // Save permanently to NVS
     state_save();

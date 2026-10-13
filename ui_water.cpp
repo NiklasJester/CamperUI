@@ -130,7 +130,8 @@ void ui_update_water_tab() {
             if (state.tank_show_liters && lbl_tanks_liters[i]) {
                 int max_l = state.tank_max[i] > 0 ? state.tank_max[i] : 100;
                 int liters = (state.tank_level[i] * max_l) / 100;
-                lv_label_set_text_fmt(lbl_tanks_liters[i], "%d / %d L", liters, max_l);
+                const char *unit = (state.tank_unit[i] == 1) ? "kg" : "L";
+                lv_label_set_text_fmt(lbl_tanks_liters[i], "%d / %d %s", liters, max_l, unit);
             }
             
             last_tank_level[i] = state.tank_level[i];
@@ -246,7 +247,8 @@ void ui_build_water(lv_obj_t *parent) {
             lv_obj_set_width(lbl_tanks_liters[i], col_width);
             lv_obj_set_style_text_align(lbl_tanks_liters[i], LV_TEXT_ALIGN_CENTER, 0);
             int max_l = state.tank_max[i] > 0 ? state.tank_max[i] : 100;
-            lv_label_set_text_fmt(lbl_tanks_liters[i], "0 / %d L", max_l);
+            const char *unit = (state.tank_unit[i] == 1) ? "kg" : "L";
+            lv_label_set_text_fmt(lbl_tanks_liters[i], "0 / %d %s", max_l, unit);
             lv_obj_align(lbl_tanks_liters[i], LV_ALIGN_TOP_LEFT, col_x, lit_y);
         }
     }

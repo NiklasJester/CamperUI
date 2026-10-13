@@ -228,19 +228,19 @@ state.display_brightness = prefs.getInt("disp_bright", 100);
     if (r_en != sizeof(state.tab_enabled)) {
         for (uint8_t i = 0; i < TAB_COUNT; ++i) state.tab_enabled[i] = true;
     }
-    // Settings is always enabled so the user can never get locked out
-    state.tab_enabled[TAB_SETTINGS] = true;
 
     state.tank_count = prefs.getInt("tank_cnt", 2);
     if (state.tank_count < 1 || state.tank_count > 4) state.tank_count = 2;
     state.tank_show_liters = prefs.getBool("tank_liters", true);
 
     for (int i = 0; i < 4; i++) {
-        char key_max[16], key_en[16], key_nm[16];
+        char key_max[16], key_en[16], key_nm[16], key_un[16];
         sprintf(key_max, "tank%d_max", i);
         sprintf(key_en, "tank%d_en", i);
         sprintf(key_nm, "tank%d_nm", i);
+        sprintf(key_un, "tank%d_un", i);
         state.tank_max[i] = prefs.getInt(key_max, 100);
+        state.tank_unit[i] = constrain(prefs.getInt(key_un, 0), 0, 1);
         state.tank_enabled[i] = (i < state.tank_count);
         
         String def_name = "";
@@ -311,6 +311,7 @@ state.display_brightness = prefs.getInt("disp_bright", 100);
     state.heater_status = "";
     state.heater_error = "no";
     state.fan_on = false;
+    state.heater_type = constrain(prefs.getInt("heater_type", HEATER_TYPE_AUTOTERM), 0, 2);
 
     state.pitch_angle = 0.0f;
     state.roll_angle = 0.0f;
@@ -409,13 +410,15 @@ void state_save() {
     prefs.putInt("tank_cnt", state.tank_count);
     prefs.putBool("tank_liters", state.tank_show_liters);
     for (int i = 0; i < 4; i++) {
-        char key_max[16], key_en[16], key_nm[16];
+        char key_max[16], key_en[16], key_nm[16], key_un[16];
         sprintf(key_max, "tank%d_max", i);
         sprintf(key_en, "tank%d_en", i);
         sprintf(key_nm, "tank%d_nm", i);
+        sprintf(key_un, "tank%d_un", i);
         prefs.putInt(key_max, state.tank_max[i]);
         prefs.putBool(key_en, state.tank_enabled[i]);
         prefs.putString(key_nm, state.tank_names[i]);
+        prefs.putInt(key_un, state.tank_unit[i]);
     }
     
     for (int i = 0; i < 8; i++) {
@@ -439,6 +442,7 @@ void state_save() {
     prefs.putInt("fill_assist_act", state.fill_assist_action_type);
     prefs.putInt("fill_assist_rel", state.fill_assist_relay);
     prefs.putInt("fill_assist_dim", state.fill_assist_dimmer);
+    prefs.putInt("heater_type", state.heater_type);
 
     prefs.putBool("time_auto", state.time_auto_ntp);
     prefs.putInt("time_tz_v2", state.time_zone_idx);

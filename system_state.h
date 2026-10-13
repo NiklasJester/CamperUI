@@ -18,6 +18,12 @@ enum TabId : uint8_t {
     TAB_COUNT = 10
 };
 
+enum HeaterType : uint8_t {
+    HEATER_TYPE_AUTOTERM = 0,
+    HEATER_TYPE_TRUMA = 1,
+    HEATER_TYPE_NONE = 2
+};
+
 // Global State Structure to hold all sensor data and system settings
 static constexpr int TEMP_SOURCE_COUNT = 13; // temp1..4, ruuvitag0..8 (stable persisted indices)
 struct SystemState {
@@ -60,13 +66,14 @@ struct SystemState {
     bool home_show_solar;
     bool home_show_water;
     int home_water_source; // /level index 0..3
-
     // Tank Capacities & Display Settings
     int tank_count;        // 1..4 tanks shown
     bool tank_show_liters; // true: show liters below %
-    int tank_max[4];       // Capacities in Liters
+    int tank_max[4];       // Capacities in Liters or kg
+    uint8_t tank_unit[4];  // 0 = "L", 1 = "kg"
     bool tank_enabled[4];
     String tank_names[4];
+    uint8_t heater_type;   // 0 = Autoterm, 1 = Truma, 2 = None
 
     // Water Protection & Fill Assistant (Persisted)
     int pump_auto_off_sec;        // 0 = Aus, 60, 120, 180, 300, 600

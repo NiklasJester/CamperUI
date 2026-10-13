@@ -148,6 +148,7 @@ extern lv_obj_t *lbl_debug_info;
 extern lv_obj_t *scr_main;
 extern lv_obj_t *scr_settings;
 void ui_settings_screen_init();
+void ui_open_settings();
 void ui_build_temps(lv_obj_t *parent);
 void ui_update_temps_tab();
 

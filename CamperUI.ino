@@ -428,6 +428,7 @@ void loop() {
     }
     
     web_ota_loop();
+    wifi_diagnostics_loop();
     bool high_fps_needed = (lv_anim_count_running() > 0) || touch_is_pressed;
     if (wait_ms > 0 && !high_fps_needed) {
         if (wait_ms > 5) wait_ms = 5;

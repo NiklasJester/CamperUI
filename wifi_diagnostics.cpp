@@ -8,6 +8,9 @@
 namespace {
 std::atomic<unsigned> last_reason{0};
 std::atomic<uint32_t> attempt_started{0};
+std::atomic<uint32_t> last_reconnect_attempt{0};
+std::atomic<bool> is_scanning{false};
+
 const char *reason_text(unsigned reason) {
     switch (reason) {
         case WIFI_REASON_NO_AP_FOUND: return "Netz nicht gefunden: SSID, Reichweite und 2.4 GHz pruefen.";
@@ -24,6 +27,15 @@ const char *reason_text(unsigned reason) {
     }
 }
 }
+
+void wifi_set_scanning(bool scanning) {
+    is_scanning.store(scanning);
+}
+
+bool wifi_is_scanning() {
+    return is_scanning.load();
+}
+
 void wifi_diagnostics_init() {
     static bool registered = false;
     if (registered) return;
@@ -39,8 +51,12 @@ void wifi_diagnostics_init() {
         }
     }, ARDUINO_EVENT_WIFI_STA_GOT_IP);
 }
+
 void wifi_connect_configured() {
-    last_reason.store(0); attempt_started.store(millis());
+    last_reason.store(0);
+    uint32_t now = millis();
+    attempt_started.store(now);
+    last_reconnect_attempt.store(now);
     WiFi.persistent(false);
     WiFi.mode(WIFI_STA);
     WiFi.setSleep(false);
@@ -48,6 +64,30 @@ void wifi_connect_configured() {
     WiFi.setHostname("esp32s3-camper-ui");
     if (state.wifi_ssid.isEmpty()) return;
     WiFi.begin(state.wifi_ssid.c_str(), state.wifi_pass.c_str());
+}
+
+void wifi_diagnostics_loop() {
+    if (state.wifi_ssid.isEmpty()) return;
+    if (is_scanning.load()) return;
+
+    if (WiFi.status() == WL_CONNECTED) {
+        state.wifi_connected = true;
+        return;
+    }
+
+    state.wifi_connected = false;
+    uint32_t now = millis();
+    // Allow 15 seconds after an initial connection attempt before auto-retrying
+    if (now - attempt_started.load() < 15000) return;
+
+    // Retry every 10 seconds if disconnected
+    if (now - last_reconnect_attempt.load() >= 10000) {
+        last_reconnect_attempt.store(now);
+        Serial.printf("[WIFI] Auto-Reconnect fuer '%s' (Grund: %u)...\n", state.wifi_ssid.c_str(), last_reason.load());
+        WiFi.disconnect(false, false);
+        delay(30);
+        WiFi.begin(state.wifi_ssid.c_str(), state.wifi_pass.c_str());
+    }
 }
 String wifi_connection_summary() {
     if (WiFi.status() == WL_CONNECTED) return "WLAN verbunden (" + String(WiFi.RSSI()) + " dBm)";

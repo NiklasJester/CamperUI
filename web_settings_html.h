@@ -582,7 +582,7 @@ static const char SETTINGS_HTML[] PROGMEM = R"rawliteral(
       <div class="cat-pill" onclick="showTab('tabs')">📑 Menü & Tabs</div>
       <div class="cat-pill" onclick="showTab('water')">💧 Wassertanks</div>
       <div class="cat-pill" onclick="showTab('switches')">⚡ Schalter & Dimmer</div>
-      <div class="cat-pill" onclick="showTab('sensors')">🌡️ Sensoren & Alarme</div>
+      <div class="cat-pill" onclick="showTab('sensors')">🌡️ Sensoren & Klima</div>
       <div class="cat-pill" onclick="showTab('time')">🕒 Zeit & Zone</div>
       <div class="cat-pill" onclick="showTab('home')">🏠 Home Kacheln</div>
     </div>
@@ -680,7 +680,7 @@ static const char SETTINGS_HTML[] PROGMEM = R"rawliteral(
       <div id="tab-tabs" class="tab-section">
         <div class="card">
           <div class="card-title">📑 Menüleiste anpassen</div>
-          <div class="subtext" style="margin-bottom:12px;">Aktiviere oder deaktiviere Tabs und ändere die Reihenfolge in der unteren Navigationsleiste:</div>
+          <div class="subtext" style="margin-bottom:12px;">Aktiviere oder deaktiviere Tabs und ändere die Reihenfolge in der unteren Navigationsleiste:<br><small style="color:#94a3b8; display:inline-block; margin-top:5px;">💡 Notfall-Zugriff: Wenn Settings ausgeblendet ist, tippe auf dem Display 5 Sekunden lang auf die Uhrzeit in der oberen Statusleiste.</small></div>
           <div class="reorder-list" id="tabReorderList">
             <!-- Dynamisch befüllt -->
           </div>
@@ -702,8 +702,8 @@ static const char SETTINGS_HTML[] PROGMEM = R"rawliteral(
           </div>
           <div class="toggle-row" style="margin-bottom:12px;">
             <div class="toggle-info">
-              <div class="toggle-title">Liter unter Prozent anzeigen</div>
-              <div class="toggle-desc">Berechnet Restliter anhand der Kapazität</div>
+              <div class="toggle-title">Einheit/Menge unter Prozent anzeigen</div>
+              <div class="toggle-desc">Berechnet Restmenge (L / kg) anhand der Kapazität</div>
             </div>
             <label class="switch">
               <input type="checkbox" id="tank_show_liters">
@@ -712,20 +712,44 @@ static const char SETTINGS_HTML[] PROGMEM = R"rawliteral(
           </div>
           <div class="grid-2">
             <div class="field" id="wrap_tank0">
-              <label class="label">Kapazität Tank 1 (L)</label>
-              <input type="number" id="tank_max_0" min="10" max="1000">
+              <label class="label">Kapazität &amp; Einheit Tank 1</label>
+              <div style="display:flex; gap:8px;">
+                <input type="number" id="tank_max_0" min="10" max="1000" style="flex:1;">
+                <select id="tank_unit_0" style="width:75px;">
+                  <option value="0">L</option>
+                  <option value="1">kg</option>
+                </select>
+              </div>
             </div>
             <div class="field" id="wrap_tank1">
-              <label class="label">Kapazität Tank 2 (L)</label>
-              <input type="number" id="tank_max_1" min="10" max="1000">
+              <label class="label">Kapazität &amp; Einheit Tank 2</label>
+              <div style="display:flex; gap:8px;">
+                <input type="number" id="tank_max_1" min="10" max="1000" style="flex:1;">
+                <select id="tank_unit_1" style="width:75px;">
+                  <option value="0">L</option>
+                  <option value="1">kg</option>
+                </select>
+              </div>
             </div>
             <div class="field" id="wrap_tank2">
-              <label class="label">Kapazität Tank 3 (L)</label>
-              <input type="number" id="tank_max_2" min="10" max="1000">
+              <label class="label">Kapazität &amp; Einheit Tank 3</label>
+              <div style="display:flex; gap:8px;">
+                <input type="number" id="tank_max_2" min="10" max="1000" style="flex:1;">
+                <select id="tank_unit_2" style="width:75px;">
+                  <option value="0">L</option>
+                  <option value="1">kg</option>
+                </select>
+              </div>
             </div>
             <div class="field" id="wrap_tank3">
-              <label class="label">Kapazität Tank 4 (L)</label>
-              <input type="number" id="tank_max_3" min="10" max="1000">
+              <label class="label">Kapazität &amp; Einheit Tank 4</label>
+              <div style="display:flex; gap:8px;">
+                <input type="number" id="tank_max_3" min="10" max="1000" style="flex:1;">
+                <select id="tank_unit_3" style="width:75px;">
+                  <option value="0">L</option>
+                  <option value="1">kg</option>
+                </select>
+              </div>
             </div>
           </div>
         </div>
@@ -843,6 +867,15 @@ static const char SETTINGS_HTML[] PROGMEM = R"rawliteral(
 
       <!-- ================= TAB: SENSOREN & ALARME ================= -->
       <div id="tab-sensors" class="tab-section">
+        <div class="card">
+          <div class="card-title">🔥 Heizung &amp; Klima</div>
+          <div class="field">
+            <label class="label">Verbaute Standheizung</label>
+            <select id="heater_type"></select>
+          </div>
+          <div class="subtext" style="margin-top:6px; color:#94a3b8; font-size:12px;">Wähle das verbaute Heizungssystem (z.B. Autoterm, Truma).</div>
+        </div>
+
         <div class="card">
           <div class="card-title">🌡️ Sensor Zuordnung</div>
           <div class="field">
@@ -1068,6 +1101,8 @@ static const char SETTINGS_HTML[] PROGMEM = R"rawliteral(
           for (let i = 0; i < 4; i++) {
             const el = document.getElementById('tank_max_' + i);
             if (el) el.value = (data.tank_max && data.tank_max[i]) ? data.tank_max[i] : 100;
+            const elU = document.getElementById('tank_unit_' + i);
+            if (elU) elU.value = (data.tank_unit && data.tank_unit[i] !== undefined) ? data.tank_unit[i] : 0;
           }
           updateTankInputs();
 
@@ -1078,6 +1113,9 @@ static const char SETTINGS_HTML[] PROGMEM = R"rawliteral(
 
           // Dropdown: Dimmers
           populateDimmerSelect('fill_assist_dimmer', data.dimmers, data.fill_assist_dimmer);
+
+          // Heater
+          populateHeaterTypes(data.heater_types, data.heater_type !== undefined ? data.heater_type : 0);
 
           // Water Protect
           document.getElementById('pump_auto_off_sec').value = data.pump_auto_off_sec || 0;
@@ -1196,6 +1234,24 @@ static const char SETTINGS_HTML[] PROGMEM = R"rawliteral(
         opt.value = tz.idx;
         opt.text = tz.name;
         if (tz.idx === selectedIdx) opt.selected = true;
+        sel.appendChild(opt);
+      });
+    }
+
+    function populateHeaterTypes(heaterTypes, selectedType) {
+      const sel = document.getElementById('heater_type');
+      if (!sel) return;
+      sel.innerHTML = '';
+      const list = heaterTypes || [
+        { id: 0, name: 'Autoterm (Air 2D/4D)' },
+        { id: 1, name: 'Truma (Combi/VarioHeat)' },
+        { id: 2, name: 'Keine / Deaktiviert' }
+      ];
+      list.forEach(h => {
+        const opt = document.createElement('option');
+        opt.value = h.id;
+        opt.text = h.name;
+        if (h.id === selectedType) opt.selected = true;
         sel.appendChild(opt);
       });
     }
@@ -1369,6 +1425,12 @@ static const char SETTINGS_HTML[] PROGMEM = R"rawliteral(
           parseInt(document.getElementById('tank_max_2').value) || 100,
           parseInt(document.getElementById('tank_max_3').value) || 100
         ],
+        tank_unit: [
+          parseInt(document.getElementById('tank_unit_0').value) || 0,
+          parseInt(document.getElementById('tank_unit_1').value) || 0,
+          parseInt(document.getElementById('tank_unit_2').value) || 0,
+          parseInt(document.getElementById('tank_unit_3').value) || 0
+        ],
 
         pump_relay: parseInt(document.getElementById('pump_relay').value),
         drain_relay: parseInt(document.getElementById('drain_relay').value),
@@ -1379,6 +1441,7 @@ static const char SETTINGS_HTML[] PROGMEM = R"rawliteral(
         fill_assist_action_type: parseInt(document.getElementById('fill_assist_action_type').value),
         fill_assist_relay: parseInt(document.getElementById('fill_assist_relay').value),
         fill_assist_dimmer: parseInt(document.getElementById('fill_assist_dimmer').value),
+        heater_type: parseInt(document.getElementById('heater_type').value) || 0,
 
         show_wrelay: document.getElementById('show_wrelay').checked,
         switch_visible: [],
