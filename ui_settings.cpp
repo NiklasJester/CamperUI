@@ -1245,6 +1245,16 @@ void ui_settings_screen_init() {
     lv_obj_add_event_cb(dd_heater_type, [](lv_event_t * e) {
         lv_obj_t *dd = lv_event_get_target(e);
         state.heater_type = (uint8_t)lv_dropdown_get_selected(dd);
+        if (state.heater_type == HEATER_TYPE_TRUMA) {
+            state.tab_enabled[TAB_TRUMA] = true;
+            state.tab_enabled[TAB_CLIMATE] = false;
+        } else if (state.heater_type == HEATER_TYPE_AUTOTERM) {
+            state.tab_enabled[TAB_CLIMATE] = true;
+            state.tab_enabled[TAB_TRUMA] = false;
+        } else {
+            state.tab_enabled[TAB_CLIMATE] = false;
+            state.tab_enabled[TAB_TRUMA] = false;
+        }
     }, LV_EVENT_VALUE_CHANGED, NULL);
 
     // Hint Note
@@ -1505,6 +1515,16 @@ void ui_settings_screen_init() {
         }
         if (dd_heater_type) {
             state.heater_type = (uint8_t)lv_dropdown_get_selected(dd_heater_type);
+            if (state.heater_type == HEATER_TYPE_TRUMA) {
+                state.tab_enabled[TAB_TRUMA] = true;
+                state.tab_enabled[TAB_CLIMATE] = false;
+            } else if (state.heater_type == HEATER_TYPE_AUTOTERM) {
+                state.tab_enabled[TAB_CLIMATE] = true;
+                state.tab_enabled[TAB_TRUMA] = false;
+            } else {
+                state.tab_enabled[TAB_CLIMATE] = false;
+                state.tab_enabled[TAB_TRUMA] = false;
+            }
         }
         if (ta_warn_frost) state.warn_frost_temp = String(lv_textarea_get_text(ta_warn_frost)).toFloat();
         if (ta_warn_bat)   state.warn_bat_soc    = String(lv_textarea_get_text(ta_warn_bat)).toInt();

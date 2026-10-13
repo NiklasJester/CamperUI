@@ -13,6 +13,9 @@ bool http_publish_wrelay(int index, bool on);
 void http_publish_dimmer(int index, int val);
 
 void http_publish_heater_cmd(String mode, int value);
+void http_publish_truma_air(int temp);
+void http_publish_truma_water(const char *mode);
+void http_publish_truma_energy(const char *mode);
 void http_calibrate_position();
 
 #endif

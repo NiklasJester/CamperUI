@@ -15,7 +15,8 @@ enum TabId : uint8_t {
     TAB_SWITCHES = 7,
     TAB_LEVEL = 8,
     TAB_SETTINGS = 9,
-    TAB_COUNT = 10
+    TAB_TRUMA = 10,
+    TAB_COUNT = 11
 };
 
 enum HeaterType : uint8_t {
@@ -152,6 +153,19 @@ struct SystemState {
     String heater_status;   // raw "heatstatus" from VanPi (e.g. "standby", "heating")
     String heater_error;    // raw "heaterror" from VanPi ("no" = no error)
     bool fan_on;
+
+    // Truma Climate & Boiler
+    bool truma_online;
+    String truma_model;
+    bool truma_heating_on;
+    float truma_target_temp;
+    String truma_air_mode;
+    String truma_water_mode;
+    String truma_energy_mode;
+    int truma_power_limit;
+    bool truma_230v;
+    String truma_error;
+    uint32_t truma_hold_until;
 
     // Inclinometer / Leveling
     float pitch_angle;

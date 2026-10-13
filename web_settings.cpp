@@ -207,7 +207,19 @@ void web_settings_register_routes(WebServer &server) {
 
             if (doc["pump_relay"].is<int>()) state.pump_relay = doc["pump_relay"].as<int>();
             if (doc["drain_relay"].is<int>()) state.drain_relay = doc["drain_relay"].as<int>();
-            if (doc["heater_type"].is<int>()) state.heater_type = constrain(doc["heater_type"].as<int>(), 0, 2);
+            if (doc["heater_type"].is<int>()) {
+                state.heater_type = constrain(doc["heater_type"].as<int>(), 0, 2);
+                if (state.heater_type == HEATER_TYPE_TRUMA) {
+                    state.tab_enabled[TAB_TRUMA] = true;
+                    state.tab_enabled[TAB_CLIMATE] = false;
+                } else if (state.heater_type == HEATER_TYPE_AUTOTERM) {
+                    state.tab_enabled[TAB_CLIMATE] = true;
+                    state.tab_enabled[TAB_TRUMA] = false;
+                } else {
+                    state.tab_enabled[TAB_CLIMATE] = false;
+                    state.tab_enabled[TAB_TRUMA] = false;
+                }
+            }
 
             if (doc["show_wrelay"].is<bool>()) state.show_wrelay = doc["show_wrelay"].as<bool>();
             if (doc["switch_visible"].is<JsonArray>()) {

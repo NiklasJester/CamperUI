@@ -347,6 +347,31 @@ state.display_brightness = prefs.getInt("disp_bright", 100);
     state.fan_on = false;
     state.heater_type = constrain(prefs.getInt("heater_type", HEATER_TYPE_AUTOTERM), 0, 2);
 
+    // Truma Climate & Boiler defaults
+    state.truma_online = false;
+    state.truma_model = "Truma Combi";
+    state.truma_heating_on = false;
+    state.truma_target_temp = 22.0f;
+    state.truma_air_mode = "normal";
+    state.truma_water_mode = "off";
+    state.truma_energy_mode = "fuel";
+    state.truma_power_limit = 900;
+    state.truma_230v = false;
+    state.truma_error = "none";
+    state.truma_hold_until = 0;
+
+    // Sync tab visibility with heater_type
+    if (state.heater_type == HEATER_TYPE_TRUMA) {
+        state.tab_enabled[TAB_TRUMA] = true;
+        state.tab_enabled[TAB_CLIMATE] = false;
+    } else if (state.heater_type == HEATER_TYPE_AUTOTERM) {
+        state.tab_enabled[TAB_CLIMATE] = true;
+        state.tab_enabled[TAB_TRUMA] = false;
+    } else {
+        state.tab_enabled[TAB_CLIMATE] = false;
+        state.tab_enabled[TAB_TRUMA] = false;
+    }
+
     state.pitch_angle = 0.0f;
     state.roll_angle = 0.0f;
 

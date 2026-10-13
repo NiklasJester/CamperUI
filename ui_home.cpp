@@ -171,7 +171,7 @@ void ui_build_home(lv_obj_t *parent) {
     water_value = label(water, "--", 360, 0, &lv_font_montserrat_22);
     water_bar = lv_bar_create(water); lv_obj_set_pos(water_bar, 0, 26); lv_obj_set_size(water_bar, 438, 8);
     lv_bar_set_range(water_bar, 0, 100); lv_obj_set_style_bg_color(water_bar, ui_theme_track(), LV_PART_MAIN);
-    for (auto card : temperatures) link(card, state.tab_enabled[TAB_TEMPS] ? TAB_TEMPS : TAB_CLIMATE);
+    for (auto card : temperatures) link(card, state.tab_enabled[TAB_TEMPS] ? TAB_TEMPS : (state.tab_enabled[TAB_TRUMA] ? TAB_TRUMA : TAB_CLIMATE));
     link(battery, TAB_POWER); link(solar, TAB_POWER); link(water, TAB_WATER);
     layout();
 }

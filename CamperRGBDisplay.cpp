@@ -6,6 +6,8 @@
 
 #include "Arduino_GFX.h"
 #include "CamperRGBDisplay.h"
+#include "WS_CH32_IO.h"
+#include <Wire.h>
 
 CamperRGBDisplay::CamperRGBDisplay(
     int16_t w, int16_t h, CamperRGBPanel *rgbpanel, uint8_t r, bool auto_flush,
@@ -40,17 +42,31 @@ bool CamperRGBDisplay::begin(int32_t speed)
   {
     pinMode(_rst, OUTPUT);
     digitalWrite(_rst, HIGH);
-    delay(100);
+    delay(20);
     digitalWrite(_rst, LOW);
-    delay(120);
+    delay(50);
     digitalWrite(_rst, HIGH);
     delay(120);
   }
   else
   {
+    // ST7701S on Waveshare ESP32-S3-Touch-LCD-4 has its hardware reset line (RESX)
+    // connected to CH32V003 IO expander (PIN_LCD_RST = bit 3).
+    // On soft reboots (ESP.restart() or after flashing), the ST7701S enters a locked state
+    // because RGB clocks suddenly stopped, and SPI Software Reset (0x01) is ignored.
+    // We MUST pulse the physical RESX pin LOW then HIGH while power (PIN_SYS_EN) is stable
+    // and SPI pins are held in their idle state.
+    WS_CH32_IO::writeRegister(Wire, WS_CH32_IO::REG_OUTPUT,
+                              WS_CH32_IO::PIN_SYS_EN | WS_CH32_IO::PIN_LCD_TOUCH_RST);
+    delay(50);
+    WS_CH32_IO::writeRegister(Wire, WS_CH32_IO::REG_OUTPUT,
+                              WS_CH32_IO::OUT_DISPLAY_ON);
+    // ST7701S datasheet mandates >= 120ms after RESX rising edge before Sleep Out or commands
+    delay(120);
+
     if (_bus)
     {
-      // Software Rest
+      // Software Reset as additional guarantee
       _bus->sendCommand(0x01);
       delay(120);
     }

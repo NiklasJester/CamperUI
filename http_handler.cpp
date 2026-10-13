@@ -286,7 +286,7 @@ static void parse_temp_json(const char *payload) {
 // GET /heater -> { "autoterm1": { "heatertoggle": bool, "heatstatus": str, "heaterror": str,
 //   "targettemp_vanpi": num, "mode": str, "powerlevel": int, "fanspeed": int }, ... }
 static void parse_heater_json(const char *payload) {
-    StaticJsonDocument<1024> doc;
+    DynamicJsonDocument doc(2048);
     if (deserializeJson(doc, payload)) return;
 
     bool has_at = doc.containsKey("autoterm1");
@@ -361,14 +361,16 @@ static void parse_heater_json(const char *payload) {
     };
 
     if (is_active_status(raw_hs)) is_on = true;
-    state.heating_on = is_on;
+    if (state.heater_type != HEATER_TYPE_TRUMA) {
+        state.heating_on = is_on;
+    }
 
     if (has_at && at.containsKey("targettemp_vanpi")) {
         float t = jsonFloat(at["targettemp_vanpi"]);
-        if (t > 0) state.target_temp = t;
+        if (t > 0 && state.heater_type != HEATER_TYPE_TRUMA) state.target_temp = t;
     } else if (doc.containsKey("targettemp_vanpi")) {
         float t = jsonFloat(doc["targettemp_vanpi"]);
-        if (t > 0) state.target_temp = t;
+        if (t > 0 && state.heater_type != HEATER_TYPE_TRUMA) state.target_temp = t;
     }
 
     if (state.heater_vent_mode) {
@@ -379,6 +381,104 @@ static void parse_heater_json(const char *payload) {
     } else if (has_at && at.containsKey("powerlevel")) {
         int p = jsonInt(at["powerlevel"]);
         if (p > 0) state.heater_power_level = p;
+    }
+
+    // --- Truma CI Telemetry Parsing ---
+    if (doc.containsKey("truma_CI")) {
+        JsonObject truma = doc["truma_CI"];
+
+        bool alive = false;
+        String model = "Truma Combi";
+        String err = "none";
+        String energy = "fuel";
+        int power_lim = 900;
+        bool has_230v = false;
+
+        if (truma.containsKey("diagnostics")) {
+            JsonObject diag = truma["diagnostics"];
+            const char *al = diag["alive"] | "";
+            alive = (strcasecmp(al, "online") == 0);
+
+            const char *md = diag["model"] | "";
+            if (md && md[0] != '\0') model = md;
+
+            const char *er = diag["error"] | "";
+            if (er && er[0] != '\0') err = er;
+
+            const char *en = diag["energy"] | "";
+            if (en && en[0] != '\0') energy = en;
+
+            power_lim = diag["power_limit"] | 900;
+
+            if (diag.containsKey("flags")) {
+                if (diag["flags"].is<const char*>()) {
+                    String fl = diag["flags"].as<const char*>();
+                    if (fl.indexOf("230") >= 0) has_230v = true;
+                } else if (diag["flags"].is<JsonArray>()) {
+                    for (JsonVariant v : diag["flags"].as<JsonArray>()) {
+                        String s = v.as<String>();
+                        if (s.indexOf("230") >= 0) { has_230v = true; break; }
+                    }
+                }
+            }
+        }
+
+        state.truma_online = alive;
+        state.truma_model = model;
+        state.truma_230v = has_230v;
+        state.truma_error = err;
+        state.truma_power_limit = power_lim;
+
+        // Map energy & power limit to user energy mode: "fuel", "mix1", "mix2", "el1", "el2"
+        if (energy.indexOf("mix") >= 0) {
+            state.truma_energy_mode = (power_lim >= 1800) ? "mix2" : "mix1";
+        } else if (energy.indexOf("elec") >= 0) {
+            state.truma_energy_mode = (power_lim >= 1800) ? "el2" : "el1";
+        } else {
+            state.truma_energy_mode = "fuel";
+        }
+
+        // Only update air & water target if user isn't actively adjusting them
+        if ((int32_t)(millis() - state.truma_hold_until) >= 0) {
+            if (truma.containsKey("air")) {
+                JsonObject air = truma["air"];
+                if (air.containsKey("target")) {
+                    if (air["target"].is<const char*>() && strcmp(air["target"].as<const char*>(), "off") == 0) {
+                        state.truma_heating_on = false;
+                    } else {
+                        float tg = jsonFloat(air["target"]);
+                        if (tg >= 5.0f && tg <= 30.0f) {
+                            state.truma_target_temp = tg;
+                            state.truma_heating_on = true;
+                        } else {
+                            state.truma_heating_on = false;
+                        }
+                    }
+                }
+                const char *am = air["mode"] | "normal";
+                state.truma_air_mode = am;
+            }
+
+            if (truma.containsKey("water")) {
+                JsonObject water = truma["water"];
+                const char *wt = water["target"] | "off";
+                state.truma_water_mode = wt;
+            }
+        }
+
+        // If Truma is the active heater type, sync main heater state
+        if (state.heater_type == HEATER_TYPE_TRUMA) {
+            state.heating_on = state.truma_heating_on;
+            state.target_temp = state.truma_target_temp;
+            if (state.truma_heating_on) {
+                state.heater_status = "Heizt";
+            } else if (state.truma_water_mode != "off") {
+                state.heater_status = "Warmwasser (" + state.truma_water_mode + ")";
+            } else {
+                state.heater_status = "Standby";
+            }
+            state.heater_error = (state.truma_error != "none") ? state.truma_error : "no";
+        }
     }
 }
 
@@ -563,7 +663,9 @@ void http_loop() {
             case 3: fetch_endpoint("/level",   parse_level_json);   break;
             case 4: fetch_endpoint("/temp",    parse_temp_json);    break;
             case 5:
-                if (state.tab_enabled[TAB_CLIMATE]) fetch_endpoint("/heater", parse_heater_json);
+                if (state.tab_enabled[TAB_CLIMATE] || state.tab_enabled[TAB_TRUMA] || state.heater_type != HEATER_TYPE_NONE) {
+                    fetch_endpoint("/heater", parse_heater_json);
+                }
                 break;
             case 6: fetch_endpoint("/mppt/",   parse_mppt_json);    break;
             case 7:
@@ -647,6 +749,40 @@ void http_publish_dimmer(int index, int val) {
 void http_publish_heater_cmd(String mode, int value) {
     char path[64];
     snprintf(path, sizeof(path), "/autoterm/%s/%d", mode.c_str(), value);
+    queue_cmd(path);
+}
+
+void http_publish_truma_air(int temp) {
+    state.truma_hold_until = millis() + 4000;
+    char path[64];
+    if (temp <= 0) {
+        state.truma_heating_on = false;
+        snprintf(path, sizeof(path), "/truma_ci/air/off");
+    } else {
+        state.truma_heating_on = true;
+        state.truma_target_temp = (float)temp;
+        snprintf(path, sizeof(path), "/truma_ci/air/%d", temp);
+    }
+    if (state.heater_type == HEATER_TYPE_TRUMA) {
+        state.heating_on = state.truma_heating_on;
+        state.target_temp = state.truma_target_temp;
+    }
+    queue_cmd(path);
+}
+
+void http_publish_truma_water(const char *mode) {
+    state.truma_hold_until = millis() + 4000;
+    state.truma_water_mode = mode ? mode : "off";
+    char path[64];
+    snprintf(path, sizeof(path), "/truma_ci/water/%s", state.truma_water_mode.c_str());
+    queue_cmd(path);
+}
+
+void http_publish_truma_energy(const char *mode) {
+    state.truma_hold_until = millis() + 4000;
+    state.truma_energy_mode = mode ? mode : "fuel";
+    char path[64];
+    snprintf(path, sizeof(path), "/truma_ci/energymix/%s", state.truma_energy_mode.c_str());
     queue_cmd(path);
 }
 

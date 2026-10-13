@@ -983,7 +983,9 @@ static const char SETTINGS_HTML[] PROGMEM = R"rawliteral(
       { id: 5, name: "Temps", icon: "🌡️" },
       { id: 6, name: "MaxxFan", icon: "💨" },
       { id: 7, name: "Schalter", icon: "🔘" },
-      { id: 8, name: "Level", icon: "⚖️" }
+      { id: 8, name: "Level", icon: "⚖️" },
+      { id: 9, name: "Einstellungen", icon: "⚙️" },
+      { id: 10, name: "Truma", icon: "🔥" }
     ];
 
     function showTab(id) {
@@ -1012,7 +1014,7 @@ static const char SETTINGS_HTML[] PROGMEM = R"rawliteral(
         .then(r => r.json())
         .then(data => {
           currentSettings = data;
-          document.getElementById('badgeVer').innerText = data.version || 'V1.4.0';
+          document.getElementById('badgeVer').innerText = data.version || 'V1.5.0';
           
           // Network
           document.getElementById('wifi_ssid').value = data.wifi_ssid || '';
@@ -1084,7 +1086,10 @@ static const char SETTINGS_HTML[] PROGMEM = R"rawliteral(
           populateFavoriteSelect('home_favorite_1', data.relays, data.dimmers, data.home_favorite ? data.home_favorite[1] : 0);
 
           // Tabs
-          tabOrder = (data.tab_order && data.tab_order.length) ? data.tab_order : [0,1,2,3,4,5,6,7,8];
+          tabOrder = (data.tab_order && data.tab_order.length) ? data.tab_order.slice() : [0,1,2,3,4,5,6,7,8,9,10];
+          tabMeta.forEach(m => {
+            if (!tabOrder.includes(m.id)) tabOrder.push(m.id);
+          });
           tabEnabled = {};
           if (data.tab_enabled) {
             for (let i = 0; i < data.tab_enabled.length; i++) {
@@ -1173,6 +1178,20 @@ static const char SETTINGS_HTML[] PROGMEM = R"rawliteral(
         if (h.id === selectedType) opt.selected = true;
         sel.appendChild(opt);
       });
+      sel.onchange = function() {
+        const val = parseInt(this.value);
+        if (val === 0) { // Autoterm
+          tabEnabled[4] = true;
+          tabEnabled[10] = false;
+        } else if (val === 1) { // Truma
+          tabEnabled[4] = false;
+          tabEnabled[10] = true;
+        } else { // None
+          tabEnabled[4] = false;
+          tabEnabled[10] = false;
+        }
+        renderTabReorderList();
+      };
     }
 
     function populateFavoriteSelect(elemId, relays, dimmers, selectedVal) {
@@ -1392,7 +1411,7 @@ static const char SETTINGS_HTML[] PROGMEM = R"rawliteral(
         payload.wrelay_visible.push(wr ? wr.checked : true);
       }
 
-      for (let i = 0; i < 10; i++) {
+      for (let i = 0; i < tabMeta.length; i++) {
         payload.tab_enabled.push(tabEnabled[i] !== undefined ? tabEnabled[i] : true);
       }
 

@@ -6,7 +6,7 @@
 #include "ui_mdi_icons.h"
 #include "ui_fonts.h"
 #include <string.h>
-#define CAMPERUI_VERSION "V1.4.0"
+#define CAMPERUI_VERSION "V1.5.0"
 
 #if !LV_MEM_CUSTOM && LV_MEM_SIZE < (512U * 1024U)
 #error "CamperUI needs config/lv_conf.h: copy it to Arduino/libraries/lv_conf.h (LV_MEM_SIZE >= 512 KiB)."
@@ -105,6 +105,7 @@ void ui_update_visible_page();
 void ui_update_power_tab();
 void ui_update_water_tab();
 void ui_update_climate_tab();
+void ui_update_truma_tab();
 void ui_update_switches_tab();
 void ui_update_dimmers_tab();
 void ui_update_level_tab();
@@ -123,6 +124,8 @@ void ui_build_power(lv_obj_t *parent);
 void ui_build_water(lv_obj_t *parent);
 void ui_rebuild_water(void);
 void ui_build_climate(lv_obj_t *parent);
+void ui_build_truma(lv_obj_t *parent);
+void ui_truma_reset();
 void ui_build_switches(lv_obj_t *parent);
 void ui_build_dimmers(lv_obj_t *parent);
 void ui_build_level(lv_obj_t *parent);

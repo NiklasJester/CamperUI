@@ -40,7 +40,8 @@ const TabMeta TAB_METAS[TAB_COUNT] = {
     {TAB_MAXXFAN, "MaxxFan", MDI_FAN},
     {TAB_SWITCHES, "Schalter", MDI_TOGGLE_SWITCH},
     {TAB_LEVEL, "Level", MDI_SPIRIT_LEVEL},
-    {TAB_SETTINGS, "Einstellungen", MDI_TUNE}
+    {TAB_SETTINGS, "Einstellungen", MDI_TUNE},
+    {TAB_TRUMA, "Truma", MDI_FIRE}
 };
 
 static constexpr uint8_t PAGE_COUNT = TAB_COUNT;
@@ -323,6 +324,7 @@ static void rebuild_ui(void *) {
     ui_temps_reset();
     ui_power_reset();
     ui_climate_reset();
+    ui_truma_reset();
     ui_level_reset();
     ui_water_reset();
     ui_switches_reset();
@@ -503,6 +505,7 @@ void ui_init() {
             case TAB_SWITCHES: ui_build_switches(pages[i]); break;
             case TAB_LEVEL:    ui_build_level(pages[i]); break;
             case TAB_SETTINGS: ui_build_settings(pages[i]); break;
+            case TAB_TRUMA:    ui_build_truma(pages[i]); break;
             default: break;
         }
     }
@@ -620,6 +623,7 @@ void ui_update_visible_page() {
         case TAB_SWITCHES: ui_update_switches_tab(); break;
         case TAB_LEVEL: ui_update_level_tab(); break;
         case TAB_MAXXFAN: ui_update_maxxfan(); break;
+        case TAB_TRUMA: ui_update_truma_tab(); break;
         default: break;
     }
 }

@@ -166,8 +166,9 @@ void i2c_scan() {
 }
 
 bool init_gt911_with_probe(int sda_pin, int scl_pin) {
-    Wire.begin(sda_pin, scl_pin);
-    delay(100);
+    // Note: TwoWire was already initialized by WS_CH32_IO::begin() at 400kHz.
+    // Avoid redundant Wire.begin() which would reset bus timing.
+    delay(20);
 
     i2c_scan();
 
@@ -234,6 +235,12 @@ void setup() {
     }
     screenWidth = gfx->width();
     screenHeight = gfx->height();
+
+    // Re-affirm backlight PWM now that the ST7701S panel is fully initialized
+    {
+        uint8_t pwm = 255 - (state.display_brightness * 255 / 100);
+        WS_CH32_IO::setPwm(Wire, pwm);
+    }
 
     // Reserve WiFi and data-worker allocations before the optional larger
     // draw buffer. Otherwise the UI may start while its data task cannot.
