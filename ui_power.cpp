@@ -1,28 +1,52 @@
 #include "ui_main.h"
 #include "ui_energy_history.h"
+#include <stdio.h>
+#include <math.h>
 
-static lv_obj_t *arc_battery;
-static lv_obj_t *arc_solar;
-static lv_obj_t *lbl_bat_pct;
-static lv_obj_t *lbl_bat_volt;
-static lv_obj_t *lbl_bat_curr;
-static lv_obj_t *lbl_bat_ttg;
-static lv_obj_t *lbl_bat_charge_icon;
+// =========================================================================
+// UI Pointers - CamperUI Energy Flow Dashboard V6
+// =========================================================================
 
-static lv_obj_t *lbl_solar_watt;
-static lv_obj_t *lbl_solar_curr;
+// 1. Produzenten (Top Row, Höhe 74px)
+static lv_obj_t *lbl_solar_w = nullptr;
+static lv_obj_t *lbl_solar_sub = nullptr;
+static lv_obj_t *lbl_shore_w = nullptr;
+static lv_obj_t *lbl_shore_sub = nullptr;
+static lv_obj_t *badge_shore = nullptr;
+static lv_obj_t *lbl_alt_w = nullptr;
+static lv_obj_t *lbl_alt_sub = nullptr;
+static lv_obj_t *badge_alt = nullptr;
 
-// Visual Energy Flow Elements
-static lv_obj_t *lbl_flow_solar_val;
-static lv_obj_t *lbl_flow_arr1;
-static lv_obj_t *lbl_flow_bat_val;
-static lv_obj_t *lbl_flow_arr2;
-static lv_obj_t *lbl_flow_load_val;
+// 2. Fluss-Linien (Top -> Center)
+static lv_obj_t *line_solar = nullptr;
+static lv_obj_t *line_shore = nullptr;
+static lv_obj_t *line_alt = nullptr;
 
+// 3. Zentrale Einheit: Batterie (Center: 132px, Arc vertikal mittig, % mittig im Arc, Spannung unter Watt/A)
+static lv_obj_t *card_bat_hub = nullptr;
+static lv_obj_t *arc_battery = nullptr;
+static lv_obj_t *lbl_bat_pct = nullptr;
+static lv_obj_t *lbl_bat_volt = nullptr;
+static lv_obj_t *lbl_bat_watt = nullptr;
+static lv_obj_t *lbl_bat_amp = nullptr;
+
+// 4. Fluss-Linie: Center -> Bottom
+static lv_obj_t *line_load = nullptr;
+
+// 5. Verbraucher (Bottom: Höhe 74px wie Erzeuger, weiter unten & zentriert)
+static lv_obj_t *card_load = nullptr;
+static lv_obj_t *lbl_load_watt = nullptr;
+static lv_obj_t *lbl_load_sub = nullptr;
+
+// Statische Koordinaten für LVGL-Linien (LVGL speichert Zeiger auf Punkte)
+static lv_point_t pts_solar[3];
+static lv_point_t pts_shore[3];
+static lv_point_t pts_alt[3];
+static lv_point_t pts_load[2] = {{220, 246}, {220, 286}};
+
+// Animation & Caching
 static int last_soc = -1;
-static int last_solar = -1;
-static int last_charge_icon = -1;
-static int last_solar_max = -1;
+static int last_shunt_dir = -99;
 
 static void set_arc_val_cb(void * var, int32_t v) {
     lv_arc_set_value((lv_obj_t*)var, v);
@@ -30,154 +54,229 @@ static void set_arc_val_cb(void * var, int32_t v) {
 
 void ui_trigger_power_anim() {
     last_soc = -1;
-    last_solar = -1;
-    last_charge_icon = -1;
-    last_solar_max = -1;
+    last_shunt_dir = -99;
     if (arc_battery) lv_arc_set_value(arc_battery, 0);
-    if (arc_solar) lv_arc_set_value(arc_solar, 0);
-}
-
-void ui_update_power_tab() {
-    if (!arc_battery) return;
-    
-    // Battery SOC
-    if (state.bat_soc != last_soc) {
-        lv_anim_t a;
-        lv_anim_init(&a);
-        lv_anim_set_var(&a, arc_battery);
-        lv_anim_set_exec_cb(&a, set_arc_val_cb);
-        lv_anim_set_time(&a, 1000);
-        lv_anim_set_values(&a, lv_arc_get_value(arc_battery), state.bat_soc);
-        lv_anim_start(&a);
-        last_soc = state.bat_soc;
-        lv_label_set_text_fmt(lbl_bat_pct, "%d%%", state.bat_soc);
-        
-    }
-    // Threshold changes also apply when the measured SOC is unchanged.
-    lv_color_t soc_color = ui_battery_soc_color(state.bat_soc);
-    lv_obj_set_style_arc_color(arc_battery, soc_color, LV_PART_INDICATOR);
-    ui_text_color_if_changed(lbl_bat_pct, soc_color);
-    
-    // Voltage / Current
-    ui_label_set_float(lbl_bat_volt, "%.1f V", state.bat_voltage);
-    ui_label_set_float(lbl_bat_curr, "%+.1f A", state.bat_current);
-    if (state.bat_current > 0.05f) {
-        lv_obj_set_style_text_color(lbl_bat_curr, lv_color_hex(UI_COLOR_SUCCESS), 0);
-    } else if (state.bat_current < -0.05f) {
-        lv_obj_set_style_text_color(lbl_bat_curr, lv_color_hex(UI_COLOR_WARNING), 0);
-    } else {
-        lv_obj_set_style_text_color(lbl_bat_curr, ui_theme_muted(), 0);
-    }
-    
-    // TTG estimation
-    if (state.bat_current < -0.1f) {
-        float capacity_ah = state.bat_capacity_ah > 0 ? state.bat_capacity_ah : 100.0f;
-        float rem_ah = (state.bat_soc / 100.0f) * capacity_ah;
-        float hrs = rem_ah / (-state.bat_current);
-        if (hrs > 99.0f) hrs = 99.0f;
-        ui_label_set_float(lbl_bat_ttg, "Restzeit: %.1f h", hrs);
-    } else if (state.bat_current > 0.1f) {
-        ui_label_set_text_if_changed(lbl_bat_ttg, "Wird geladen");
-    } else {
-        ui_label_set_text_if_changed(lbl_bat_ttg, "Standby");
-    }
-    
-    // Charge icon
-    bool charge_icon_on = (state.bat_current > 0.05f);
-    if ((int)charge_icon_on != last_charge_icon) {
-        last_charge_icon = (int)charge_icon_on;
-        if (charge_icon_on) {
-            lv_obj_clear_flag(lbl_bat_charge_icon, LV_OBJ_FLAG_HIDDEN);
-        } else {
-            lv_obj_add_flag(lbl_bat_charge_icon, LV_OBJ_FLAG_HIDDEN);
-        }
-    }
-                          
-    // Solar
-    int solar_w = (int)state.solar_power;
-    int s_max_upd = (int)state.solar_max_w;
-    if (s_max_upd <= 0) s_max_upd = 200;
-    if (s_max_upd != last_solar_max) {
-        last_solar_max = s_max_upd;
-        lv_arc_set_range(arc_solar, 0, s_max_upd);
-    }
-    
-    if (solar_w != last_solar) {
-        lv_anim_t a;
-        lv_anim_init(&a);
-        lv_anim_set_var(&a, arc_solar);
-        lv_anim_set_exec_cb(&a, set_arc_val_cb);
-        lv_anim_set_time(&a, 1000);
-        lv_anim_set_values(&a, lv_arc_get_value(arc_solar), solar_w);
-        lv_anim_start(&a);
-        last_solar = solar_w;
-        char buf[32];
-        snprintf(buf, sizeof(buf), "%d W", solar_w);
-        ui_label_set_text_if_changed(lbl_solar_watt, buf);
-    }
-    ui_label_set_float(lbl_solar_curr, "%.1f A", state.solar_current);
-
-    // ==========================================
-    // Visual Energy Flow Calculation & Update
-    // ==========================================
-    if (lbl_flow_solar_val) {
-        float p_solar = state.solar_power;
-        float p_bat = state.bat_voltage * state.bat_current;
-        float p_load = p_solar - p_bat;
-        if (p_load < 0.0f) p_load = 0.0f;
-
-        // Solar node
-        ui_label_set_float(lbl_flow_solar_val, "%.0f W", p_solar);
-
-        // Arrow 1 & Battery node
-        if (p_bat > 1.5f) {
-            ui_label_set_float(lbl_flow_bat_val, "+%.0f W", p_bat);
-            ui_text_color_if_changed(lbl_flow_bat_val, lv_color_hex(UI_COLOR_SUCCESS));
-            ui_label_set_text_if_changed(lbl_flow_arr1, ">");
-            ui_text_color_if_changed(lbl_flow_arr1, lv_color_hex(UI_COLOR_SUCCESS));
-        } else if (p_bat < -1.5f) {
-            ui_label_set_float(lbl_flow_bat_val, "%.0f W", p_bat);
-            ui_text_color_if_changed(lbl_flow_bat_val, lv_color_hex(UI_COLOR_WARNING));
-            ui_label_set_text_if_changed(lbl_flow_arr1, "-");
-            ui_text_color_if_changed(lbl_flow_arr1, ui_theme_muted());
-        } else {
-            ui_label_set_text_if_changed(lbl_flow_bat_val, "0 W");
-            ui_text_color_if_changed(lbl_flow_bat_val, ui_theme_muted());
-            ui_label_set_text_if_changed(lbl_flow_arr1, "-");
-            ui_text_color_if_changed(lbl_flow_arr1, ui_theme_muted());
-        }
-
-        // Arrow 2 & Load node
-        if (p_load > 1.5f) {
-            ui_label_set_text_if_changed(lbl_flow_arr2, ">");
-            ui_text_color_if_changed(lbl_flow_arr2, lv_color_hex(UI_COLOR_PRIMARY));
-        } else {
-            ui_label_set_text_if_changed(lbl_flow_arr2, "-");
-            ui_text_color_if_changed(lbl_flow_arr2, ui_theme_muted());
-        }
-    }
 }
 
 void ui_power_reset() {
     if (arc_battery) lv_anim_del(arc_battery, set_arc_val_cb);
     arc_battery = nullptr;
-    arc_solar = nullptr;
     lbl_bat_pct = nullptr;
     lbl_bat_volt = nullptr;
-    lbl_bat_curr = nullptr;
-    lbl_bat_ttg = nullptr;
-    lbl_bat_charge_icon = nullptr;
-    lbl_solar_watt = nullptr;
-    lbl_solar_curr = nullptr;
-    lbl_flow_solar_val = nullptr;
-    lbl_flow_arr1 = nullptr;
-    lbl_flow_bat_val = nullptr;
-    lbl_flow_arr2 = nullptr;
-    lbl_flow_load_val = nullptr;
+    lbl_bat_watt = nullptr;
+    lbl_bat_amp = nullptr;
+    card_bat_hub = nullptr;
+
+    lbl_solar_w = nullptr;
+    lbl_solar_sub = nullptr;
+    lbl_shore_w = nullptr;
+    lbl_shore_sub = nullptr;
+    badge_shore = nullptr;
+    lbl_alt_w = nullptr;
+    lbl_alt_sub = nullptr;
+    badge_alt = nullptr;
+
+    line_solar = nullptr;
+    line_shore = nullptr;
+    line_alt = nullptr;
+    line_load = nullptr;
+
+    card_load = nullptr;
+    lbl_load_watt = nullptr;
+    lbl_load_sub = nullptr;
+
     last_soc = -1;
-    last_solar = -1;
-    last_charge_icon = -1;
-    last_solar_max = -1;
+    last_shunt_dir = -99;
+}
+
+void ui_update_power_tab() {
+    if (!arc_battery) return;
+
+    // -------------------------------------------------------------
+    // 1. Sensordaten & elektrische Bilanz berechnen
+    // -------------------------------------------------------------
+    float v_bat = (state.bat_voltage > 5.0f && isfinite(state.bat_voltage)) ? state.bat_voltage : 13.2f;
+    float i_bat = isfinite(state.bat_current) ? state.bat_current : 0.0f;
+    float p_bat = v_bat * i_bat; // + = Laden, - = Entladen
+    int soc = constrain(state.bat_soc, 0, 100);
+
+    // Solar
+    float p_solar = state.power_show_solar ? ((state.solar_power >= 0.0f && isfinite(state.solar_power)) ? state.solar_power : 0.0f) : 0.0f;
+    float v_solar = (state.solar_voltage > 1.0f && isfinite(state.solar_voltage)) ? state.solar_voltage : (p_solar > 5.0f ? 18.2f : 0.0f);
+    float i_solar = (state.solar_current > 0.05f && isfinite(state.solar_current)) ? state.solar_current : (v_solar > 1.0f ? (p_solar / v_solar) : 0.0f);
+
+    // Landstrom (230V)
+    bool shore_active = state.power_show_shore && (state.shore_connected || state.truma_230v || state.shore_power > 5.0f);
+    float p_shore = state.power_show_shore ? ((state.shore_power > 0.0f && isfinite(state.shore_power)) ? state.shore_power : 0.0f) : 0.0f;
+    float v_shore = (state.shore_voltage > 50.0f && isfinite(state.shore_voltage)) ? state.shore_voltage : (shore_active ? 230.0f : 0.0f);
+    float i_shore = (state.shore_current > 0.05f && isfinite(state.shore_current)) ? state.shore_current : (v_shore > 50.0f ? (p_shore / v_shore) : 0.0f);
+    if (state.power_show_shore && shore_active && p_shore <= 0.0f && p_bat > p_solar + 5.0f) {
+        p_shore = (p_bat - p_solar) * 1.15f;
+        i_shore = p_shore / 230.0f;
+    }
+
+    // Lichtmaschine
+    float v_starter = (state.starter_voltage > 1.0f && isfinite(state.starter_voltage)) ? state.starter_voltage : 12.6f;
+    bool alt_active = state.power_show_alt && (state.alt_active || v_starter >= 13.4f || state.alt_power > 5.0f);
+    float p_alt = state.power_show_alt ? ((state.alt_power > 0.0f && isfinite(state.alt_power)) ? state.alt_power : 0.0f) : 0.0f;
+    if (state.power_show_alt && alt_active && p_alt <= 0.0f && p_bat > (p_solar + p_shore + 10.0f)) {
+        p_alt = p_bat - (p_solar + p_shore);
+    }
+    float i_alt = (state.alt_current > 0.05f && isfinite(state.alt_current)) ? state.alt_current : (v_bat > 10.0f ? (p_alt / v_bat) : 0.0f);
+
+    // Gesamt-Erzeugung & Verbraucher
+    float p_gen = p_solar + (shore_active ? (p_shore / 1.15f) : 0.0f) + p_alt;
+    float p_load = p_gen - p_bat;
+    if (p_load < 0.0f) p_load = 0.0f;
+
+    char buf[48];
+
+    // -------------------------------------------------------------
+    // 2. Produzenten (Oben) - Nur aktualisieren wenn vorhanden
+    // -------------------------------------------------------------
+    if (lbl_solar_w) {
+        snprintf(buf, sizeof(buf), "%.0f W", p_solar);
+        ui_label_set_text_if_changed(lbl_solar_w, buf);
+        snprintf(buf, sizeof(buf), "%.1fV  %.1fA", v_solar, i_solar);
+        ui_label_set_text_if_changed(lbl_solar_sub, buf);
+    }
+
+    if (lbl_shore_w) {
+        if (p_shore > 5.0f) snprintf(buf, sizeof(buf), "%.0f W", p_shore);
+        else snprintf(buf, sizeof(buf), "%s", shore_active ? "230V" : "0 W");
+        ui_label_set_text_if_changed(lbl_shore_w, buf);
+        snprintf(buf, sizeof(buf), "%.0fV  %.1fA", v_shore, i_shore);
+        ui_label_set_text_if_changed(lbl_shore_sub, buf);
+        if (badge_shore) {
+            ui_label_set_text_if_changed(badge_shore, shore_active ? "230V" : "OFF");
+            lv_obj_set_style_text_color(badge_shore, shore_active ? lv_color_hex(UI_COLOR_PRIMARY) : ui_theme_muted(), 0);
+        }
+    }
+
+    if (lbl_alt_w) {
+        if (p_alt > 5.0f) snprintf(buf, sizeof(buf), "%.0f W", p_alt);
+        else snprintf(buf, sizeof(buf), "%s", alt_active ? "AN" : "0 W");
+        ui_label_set_text_if_changed(lbl_alt_w, buf);
+        snprintf(buf, sizeof(buf), "%.1fV Lima", v_starter);
+        ui_label_set_text_if_changed(lbl_alt_sub, buf);
+        if (badge_alt) {
+            ui_label_set_text_if_changed(badge_alt, alt_active ? "AKTIV" : "STANDBY");
+            lv_obj_set_style_text_color(badge_alt, alt_active ? lv_color_hex(0xa855f7) : ui_theme_muted(), 0);
+        }
+    }
+
+    // -------------------------------------------------------------
+    // 3. Status Laden / Entladen & Linienfarben
+    // -------------------------------------------------------------
+    // Wenn geladen wird: ALLE aktiven Linien (auch zu den Verbrauchern) werden GRÜN!
+    bool is_charging = (i_bat > 0.1f);
+    lv_color_t green_c = lv_color_hex(UI_COLOR_SUCCESS);
+
+    if (line_solar) {
+        lv_obj_set_style_line_color(line_solar, p_solar > 5.0f ? (is_charging ? green_c : lv_color_hex(UI_COLOR_WARNING)) : ui_theme_border(), 0);
+    }
+    if (line_shore) {
+        lv_obj_set_style_line_color(line_shore, (shore_active || p_shore > 5.0f) ? (is_charging ? green_c : lv_color_hex(UI_COLOR_PRIMARY)) : ui_theme_border(), 0);
+    }
+    if (line_alt) {
+        lv_obj_set_style_line_color(line_alt, (alt_active || p_alt > 5.0f) ? (is_charging ? green_c : lv_color_hex(0xa855f7)) : ui_theme_border(), 0);
+    }
+    // Linie zu den Verbrauchern: auch grün, wenn insgesamt geladen wird!
+    if (line_load) {
+        if (p_load > 5.0f) {
+            lv_obj_set_style_line_color(line_load, is_charging ? green_c : lv_color_hex(UI_COLOR_WARNING), 0);
+        } else {
+            lv_obj_set_style_line_color(line_load, ui_theme_border(), 0);
+        }
+    }
+
+    // -------------------------------------------------------------
+    // 4. Zentrale Einheit: Batterie (Mitte) - Großer SoC im Arc, Spannung unter Watt & Ampere
+    // -------------------------------------------------------------
+    if (soc != last_soc) {
+        lv_anim_t a;
+        lv_anim_init(&a);
+        lv_anim_set_var(&a, arc_battery);
+        lv_anim_set_exec_cb(&a, set_arc_val_cb);
+        lv_anim_set_time(&a, 800);
+        lv_anim_set_values(&a, lv_arc_get_value(arc_battery), soc);
+        lv_anim_start(&a);
+        last_soc = soc;
+        snprintf(buf, sizeof(buf), "%d%%", soc);
+        ui_label_set_text_if_changed(lbl_bat_pct, buf);
+    }
+
+    lv_color_t soc_color = ui_battery_soc_color(soc);
+    lv_obj_set_style_arc_color(arc_battery, soc_color, LV_PART_INDICATOR);
+    ui_text_color_if_changed(lbl_bat_pct, soc_color);
+
+    // Spannung unter Watt & Ampere
+    snprintf(buf, sizeof(buf), "%.1f V", v_bat);
+    ui_label_set_text_if_changed(lbl_bat_volt, buf);
+
+    int current_dir = (i_bat > 0.1f) ? 1 : ((i_bat < -0.1f) ? -1 : 0);
+    if (current_dir > 0) {
+        // Laden (Grün) - Groß die Watt, daneben der Strom
+        snprintf(buf, sizeof(buf), "+%.0f W", p_bat);
+        ui_label_set_text_if_changed(lbl_bat_watt, buf);
+        lv_obj_set_style_text_color(lbl_bat_watt, green_c, 0);
+
+        snprintf(buf, sizeof(buf), "(+%.1f A)", i_bat);
+        ui_label_set_text_if_changed(lbl_bat_amp, buf);
+        lv_obj_set_style_text_color(lbl_bat_amp, green_c, 0);
+
+        if (card_bat_hub) lv_obj_set_style_border_color(card_bat_hub, green_c, 0);
+    } else if (current_dir < 0) {
+        // Entladen (Orange/Amber)
+        snprintf(buf, sizeof(buf), "%.0f W", p_bat);
+        ui_label_set_text_if_changed(lbl_bat_watt, buf);
+        lv_obj_set_style_text_color(lbl_bat_watt, lv_color_hex(UI_COLOR_WARNING), 0);
+
+        snprintf(buf, sizeof(buf), "(%.1f A)", i_bat);
+        ui_label_set_text_if_changed(lbl_bat_amp, buf);
+        lv_obj_set_style_text_color(lbl_bat_amp, lv_color_hex(UI_COLOR_WARNING), 0);
+
+        if (card_bat_hub) lv_obj_set_style_border_color(card_bat_hub, lv_color_hex(UI_COLOR_WARNING), 0);
+    } else {
+        // Standby (Muted)
+        ui_label_set_text_if_changed(lbl_bat_watt, "0 W");
+        lv_obj_set_style_text_color(lbl_bat_watt, ui_theme_text(), 0);
+
+        ui_label_set_text_if_changed(lbl_bat_amp, "(0.0 A)");
+        lv_obj_set_style_text_color(lbl_bat_amp, ui_theme_muted(), 0);
+
+        if (card_bat_hub) lv_obj_set_style_border_color(card_bat_hub, ui_theme_border(), 0);
+    }
+    last_shunt_dir = current_dir;
+
+    // -------------------------------------------------------------
+    // 5. Verbraucher (Unten) - Nur Leistung & große Restzeit
+    // -------------------------------------------------------------
+    snprintf(buf, sizeof(buf), "%.0f W", p_load);
+    ui_label_set_text_if_changed(lbl_load_watt, buf);
+
+    float cap_max = state.bat_capacity_ah > 10.0f ? state.bat_capacity_ah : 100.0f;
+    if (i_bat < -0.1f) {
+        float rem_ah = (soc / 100.0f) * cap_max;
+        float hrs = rem_ah / (-i_bat);
+        if (hrs > 99.0f) hrs = 99.0f;
+        snprintf(buf, sizeof(buf), "Restzeit: %.1f h", hrs);
+        ui_label_set_text_if_changed(lbl_load_sub, buf);
+        lv_obj_set_style_text_color(lbl_load_sub, lv_color_hex(UI_COLOR_WARNING), 0);
+    } else if (i_bat > 0.1f && soc < 100) {
+        float need_ah = ((100 - soc) / 100.0f) * cap_max;
+        float hrs = need_ah / i_bat;
+        if (hrs > 99.0f) hrs = 99.0f;
+        snprintf(buf, sizeof(buf), "Voll in: %.1f h", hrs);
+        ui_label_set_text_if_changed(lbl_load_sub, buf);
+        lv_obj_set_style_text_color(lbl_load_sub, green_c, 0);
+    } else if (soc >= 100) {
+        ui_label_set_text_if_changed(lbl_load_sub, "Batterie Voll");
+        lv_obj_set_style_text_color(lbl_load_sub, green_c, 0);
+    } else {
+        ui_label_set_text_if_changed(lbl_load_sub, "Standby");
+        lv_obj_set_style_text_color(lbl_load_sub, ui_theme_muted(), 0);
+    }
 }
 
 void ui_build_power(lv_obj_t *parent) {
@@ -185,159 +284,297 @@ void ui_build_power(lv_obj_t *parent) {
     ui_setup_tab_page(parent);
     lv_obj_clear_flag(parent, LV_OBJ_FLAG_SCROLLABLE);
 
-    // ==========================================
-    // 1. Battery Card (Top: Height 144px)
-    // ==========================================
-    lv_obj_t *card_bat = ui_create_card(parent, 440, 144);
-    lv_obj_align(card_bat, LV_ALIGN_TOP_MID, 0, 0);
+    // =========================================================================
+    // 1. TIER 1: PRODUZENTEN (Dynamisch zentriert je nach Auswahl in den Settings)
+    // =========================================================================
+    struct ProdSlot {
+        int type; // 0=Solar, 1=Landstrom, 2=Lichtmaschine
+        lv_coord_t x;
+        lv_coord_t w;
+        lv_coord_t cx;
+    };
+    ProdSlot slots[3];
+    int prod_count = 0;
+    if (state.power_show_solar) { slots[prod_count++].type = 0; }
+    if (state.power_show_shore) { slots[prod_count++].type = 1; }
+    if (state.power_show_alt)   { slots[prod_count++].type = 2; }
 
-    // Battery Arc Gauge (Left)
-    arc_battery = lv_arc_create(card_bat);
-    lv_obj_set_size(arc_battery, 118, 118);
+    if (prod_count == 3) {
+        slots[0].x = 0;   slots[0].w = 140; slots[0].cx = 70;
+        slots[1].x = 150; slots[1].w = 140; slots[1].cx = 220;
+        slots[2].x = 300; slots[2].w = 140; slots[2].cx = 370;
+    } else if (prod_count == 2) {
+        slots[0].x = 12;  slots[0].w = 200; slots[0].cx = 112;
+        slots[1].x = 228; slots[1].w = 200; slots[1].cx = 328;
+    } else if (prod_count == 1) {
+        slots[0].x = 100; slots[0].w = 240; slots[0].cx = 220;
+    }
+
+    for (int i = 0; i < prod_count; i++) {
+        lv_coord_t x = slots[i].x;
+        lv_coord_t w = slots[i].w;
+        lv_coord_t cx = slots[i].cx;
+        int t = slots[i].type;
+
+        // 1. Kachel erstellen
+        lv_obj_t *card = ui_create_card(parent, w, 74);
+        lv_obj_set_pos(card, x, 0);
+        lv_obj_set_style_pad_all(card, 8, 0);
+
+        // 2. Fluss-Linie erstellen & symmetrisch an Batterie anbinden
+        lv_obj_t **line_ptr = nullptr;
+        lv_point_t *pts = nullptr;
+        int pt_cnt = 0;
+
+        if (t == 0) {
+            line_ptr = &line_solar;
+            pts = pts_solar;
+        } else if (t == 1) {
+            line_ptr = &line_shore;
+            pts = pts_shore;
+        } else {
+            line_ptr = &line_alt;
+            pts = pts_alt;
+        }
+
+        if (cx < 180) {
+            lv_coord_t hub_x = (prod_count == 2) ? 160 : 150;
+            pts[0] = {cx, 74};
+            pts[1] = {cx, 94};
+            pts[2] = {hub_x, 114};
+            pt_cnt = 3;
+        } else if (cx > 260) {
+            lv_coord_t hub_x = (prod_count == 2) ? 280 : 290;
+            pts[0] = {cx, 74};
+            pts[1] = {cx, 94};
+            pts[2] = {hub_x, 114};
+            pt_cnt = 3;
+        } else {
+            pts[0] = {220, 74};
+            pts[1] = {220, 114};
+            pt_cnt = 2;
+        }
+
+        *line_ptr = lv_line_create(parent);
+        lv_line_set_points(*line_ptr, pts, pt_cnt);
+        lv_obj_set_style_line_width(*line_ptr, 3, 0);
+        lv_obj_set_style_line_rounded(*line_ptr, true, 0);
+        lv_obj_set_style_line_color(*line_ptr, ui_theme_border(), 0);
+
+        // 3. Inhalt der Kachel
+        if (t == 0) {
+            // Solar Card
+            lv_obj_t *l_sol_title = lv_label_create(card);
+            lv_label_set_text_fmt(l_sol_title, "%s Solar", LV_SYMBOL_CHARGE);
+            lv_obj_set_style_text_font(l_sol_title, &lv_font_montserrat_12, 0);
+            lv_obj_set_style_text_color(l_sol_title, lv_color_hex(UI_COLOR_WARNING), 0);
+            lv_obj_align(l_sol_title, LV_ALIGN_TOP_LEFT, 0, 0);
+
+            lbl_solar_w = lv_label_create(card);
+            lv_obj_set_style_text_font(lbl_solar_w, &lv_font_montserrat_20, 0);
+            lv_obj_set_style_text_color(lbl_solar_w, lv_color_hex(UI_COLOR_WARNING), 0);
+            lv_label_set_text(lbl_solar_w, "0 W");
+            lv_obj_align(lbl_solar_w, LV_ALIGN_TOP_LEFT, 0, 18);
+
+            lbl_solar_sub = lv_label_create(card);
+            lv_obj_set_style_text_font(lbl_solar_sub, &lv_font_montserrat_12, 0);
+            lv_obj_set_style_text_color(lbl_solar_sub, ui_theme_muted(), 0);
+            lv_label_set_text(lbl_solar_sub, "--V  --A");
+            lv_obj_align(lbl_solar_sub, LV_ALIGN_BOTTOM_LEFT, 0, 0);
+
+            // Klick auf das gesamte Solar-Feld öffnet automatisch den Solar-Verlauf
+            ui_energy_history_button(card, true);
+            lv_obj_t *sol_btn = lv_obj_get_child(card, -1);
+            if (sol_btn) {
+                lv_obj_set_size(sol_btn, LV_PCT(100), LV_PCT(100));
+                lv_obj_set_pos(sol_btn, 0, 0);
+                lv_obj_set_style_bg_opa(sol_btn, LV_OPA_0, 0);
+                lv_obj_set_style_border_width(sol_btn, 0, 0);
+                lv_obj_set_style_shadow_width(sol_btn, 0, 0);
+                for (uint32_t c = 0; c < lv_obj_get_child_cnt(sol_btn); ++c) {
+                    lv_obj_add_flag(lv_obj_get_child(sol_btn, c), LV_OBJ_FLAG_HIDDEN);
+                }
+            }
+        } else if (t == 1) {
+            // Landstrom Card
+            lv_obj_t *l_shore_title = lv_label_create(card);
+            lv_label_set_text(l_shore_title, "Landstrom");
+            lv_obj_set_style_text_font(l_shore_title, &lv_font_montserrat_12, 0);
+            lv_obj_set_style_text_color(l_shore_title, lv_color_hex(UI_COLOR_PRIMARY), 0);
+            lv_obj_align(l_shore_title, LV_ALIGN_TOP_LEFT, 0, 0);
+
+            badge_shore = lv_label_create(card);
+            lv_label_set_text(badge_shore, "230V");
+            lv_obj_set_style_text_font(badge_shore, &lv_font_montserrat_10, 0);
+            lv_obj_set_style_text_color(badge_shore, ui_theme_muted(), 0);
+            lv_obj_align(badge_shore, LV_ALIGN_TOP_RIGHT, 0, 0);
+
+            lbl_shore_w = lv_label_create(card);
+            lv_obj_set_style_text_font(lbl_shore_w, &lv_font_montserrat_20, 0);
+            lv_obj_set_style_text_color(lbl_shore_w, lv_color_hex(UI_COLOR_PRIMARY), 0);
+            lv_label_set_text(lbl_shore_w, "0 W");
+            lv_obj_align(lbl_shore_w, LV_ALIGN_TOP_LEFT, 0, 18);
+
+            lbl_shore_sub = lv_label_create(card);
+            lv_obj_set_style_text_font(lbl_shore_sub, &lv_font_montserrat_12, 0);
+            lv_obj_set_style_text_color(lbl_shore_sub, ui_theme_muted(), 0);
+            lv_label_set_text(lbl_shore_sub, "230V  0.0A");
+            lv_obj_align(lbl_shore_sub, LV_ALIGN_BOTTOM_LEFT, 0, 0);
+        } else if (t == 2) {
+            // Lichtmaschine Card
+            lv_obj_t *l_alt_title = lv_label_create(card);
+            lv_label_set_text(l_alt_title, "Lichtmasch.");
+            lv_obj_set_style_text_font(l_alt_title, &lv_font_montserrat_12, 0);
+            lv_obj_set_style_text_color(l_alt_title, lv_color_hex(0xa855f7), 0);
+            lv_obj_align(l_alt_title, LV_ALIGN_TOP_LEFT, 0, 0);
+
+            badge_alt = lv_label_create(card);
+            lv_label_set_text(badge_alt, "B2B");
+            lv_obj_set_style_text_font(badge_alt, &lv_font_montserrat_10, 0);
+            lv_obj_set_style_text_color(badge_alt, ui_theme_muted(), 0);
+            lv_obj_align(badge_alt, LV_ALIGN_TOP_RIGHT, 0, 0);
+
+            lbl_alt_w = lv_label_create(card);
+            lv_obj_set_style_text_font(lbl_alt_w, &lv_font_montserrat_20, 0);
+            lv_obj_set_style_text_color(lbl_alt_w, lv_color_hex(0xa855f7), 0);
+            lv_label_set_text(lbl_alt_w, "0 W");
+            lv_obj_align(lbl_alt_w, LV_ALIGN_TOP_LEFT, 0, 18);
+
+            lbl_alt_sub = lv_label_create(card);
+            lv_obj_set_style_text_font(lbl_alt_sub, &lv_font_montserrat_12, 0);
+            lv_obj_set_style_text_color(lbl_alt_sub, ui_theme_muted(), 0);
+            lv_label_set_text(lbl_alt_sub, "12.6V Lima");
+            lv_obj_align(lbl_alt_sub, LV_ALIGN_BOTTOM_LEFT, 0, 0);
+        }
+    }
+
+    // =========================================================================
+    // 2. TIER 2: ZENTRALE EINHEIT (Batterie - 132px Höhe, Arc mittig, % mittig, Spannung unter Watt/A)
+    // =========================================================================
+    card_bat_hub = ui_create_card(parent, 390, 132);
+    lv_obj_align(card_bat_hub, LV_ALIGN_TOP_MID, 0, 114);
+    lv_obj_set_style_pad_all(card_bat_hub, 10, 0);
+    lv_obj_set_style_radius(card_bat_hub, 16, 0);
+
+    // Links: Circular Arc Gauge - Vertikal mittig ausgerichtet, % Zahl genau mittig
+    arc_battery = lv_arc_create(card_bat_hub);
+    lv_obj_set_size(arc_battery, 106, 106);
     lv_arc_set_rotation(arc_battery, 135);
     lv_arc_set_bg_angles(arc_battery, 0, 270);
     lv_arc_set_value(arc_battery, 0);
     lv_obj_clear_flag(arc_battery, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_align(arc_battery, LV_ALIGN_LEFT_MID, 0, 0);
+    lv_obj_align(arc_battery, LV_ALIGN_LEFT_MID, 8, 0);
 
     lv_obj_set_style_arc_color(arc_battery, lv_color_hex(UI_COLOR_SUCCESS), LV_PART_INDICATOR);
-    lv_obj_set_style_arc_width(arc_battery, 12, LV_PART_INDICATOR);
+    lv_obj_set_style_arc_width(arc_battery, 10, LV_PART_INDICATOR);
     lv_obj_set_style_arc_color(arc_battery, ui_theme_track(), LV_PART_MAIN);
-    lv_obj_set_style_arc_width(arc_battery, 12, LV_PART_MAIN);
+    lv_obj_set_style_arc_width(arc_battery, 10, LV_PART_MAIN);
     lv_obj_remove_style(arc_battery, NULL, LV_PART_KNOB);
 
     lbl_bat_pct = lv_label_create(arc_battery);
     lv_obj_set_style_text_font(lbl_bat_pct, &lv_font_montserrat_28, 0);
     lv_label_set_text(lbl_bat_pct, "0%");
-    lv_obj_center(lbl_bat_pct);
+    lv_obj_align(lbl_bat_pct, LV_ALIGN_CENTER, 0, 0);
 
-    // Battery Info (Right)
-    lv_obj_t *l_battitle = lv_label_create(card_bat);
-    lv_label_set_text_fmt(l_battitle, "%s Batterie", LV_SYMBOL_BATTERY_3);
-    lv_obj_set_style_text_font(l_battitle, &lv_font_montserrat_14, 0);
-    lv_obj_set_style_text_color(l_battitle, ui_theme_muted(), 0);
-    lv_obj_align(l_battitle, LV_ALIGN_TOP_LEFT, 145, 4);
+    // Rechts: "Batterie", Watt groß & Ampere nebeneinander, darunter Spannung
+    lv_obj_t *box_bat_info = lv_obj_create(card_bat_hub);
+    lv_obj_set_size(box_bat_info, 245, 110);
+    lv_obj_align(box_bat_info, LV_ALIGN_RIGHT_MID, 0, 0);
+    lv_obj_set_style_bg_opa(box_bat_info, LV_OPA_0, 0);
+    lv_obj_set_style_border_width(box_bat_info, 0, 0);
+    lv_obj_set_style_pad_all(box_bat_info, 2, 0);
+    lv_obj_clear_flag(box_bat_info, LV_OBJ_FLAG_CLICKABLE);
 
-    lbl_bat_volt = lv_label_create(card_bat);
-    lv_obj_set_style_text_font(lbl_bat_volt, &lv_font_montserrat_24, 0);
-    lv_obj_set_style_text_color(lbl_bat_volt, ui_theme_text(), 0);
+    // Titel: Nur "Batterie"
+    lv_obj_t *l_hub_title = lv_label_create(box_bat_info);
+    lv_label_set_text_fmt(l_hub_title, "%s Batterie", LV_SYMBOL_BATTERY_3);
+    lv_obj_set_style_text_font(l_hub_title, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_color(l_hub_title, ui_theme_muted(), 0);
+    lv_obj_align(l_hub_title, LV_ALIGN_TOP_LEFT, 0, 4);
+
+    // Zeile: Watt groß und Ampere nebeneinander
+    lv_obj_t *row_pwr = lv_obj_create(box_bat_info);
+    lv_obj_set_size(row_pwr, 240, 40);
+    lv_obj_align(row_pwr, LV_ALIGN_TOP_LEFT, 0, 26);
+    lv_obj_set_style_bg_opa(row_pwr, LV_OPA_0, 0);
+    lv_obj_set_style_border_width(row_pwr, 0, 0);
+    lv_obj_set_style_pad_all(row_pwr, 0, 0);
+    lv_obj_set_flex_flow(row_pwr, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(row_pwr, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_column(row_pwr, 8, 0);
+    lv_obj_clear_flag(row_pwr, LV_OBJ_FLAG_CLICKABLE);
+
+    lbl_bat_watt = lv_label_create(row_pwr);
+    lv_obj_set_style_text_font(lbl_bat_watt, &lv_font_montserrat_28, 0);
+    lv_obj_set_style_text_color(lbl_bat_watt, lv_color_hex(UI_COLOR_SUCCESS), 0);
+    lv_label_set_text(lbl_bat_watt, "0 W");
+
+    lbl_bat_amp = lv_label_create(row_pwr);
+    lv_obj_set_style_text_font(lbl_bat_amp, &lv_font_montserrat_18, 0);
+    lv_obj_set_style_text_color(lbl_bat_amp, ui_theme_muted(), 0);
+    lv_label_set_text(lbl_bat_amp, "(0.0 A)");
+
+    // Unter Watt & Ampere: Batteriespannung
+    lbl_bat_volt = lv_label_create(box_bat_info);
+    lv_obj_set_style_text_font(lbl_bat_volt, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_color(lbl_bat_volt, ui_theme_muted(), 0);
     lv_label_set_text(lbl_bat_volt, "-- V");
-    lv_obj_align(lbl_bat_volt, LV_ALIGN_TOP_LEFT, 145, 28);
+    lv_obj_align(lbl_bat_volt, LV_ALIGN_TOP_LEFT, 2, 70);
 
-    lbl_bat_curr = lv_label_create(card_bat);
-    lv_obj_set_style_text_font(lbl_bat_curr, &lv_font_montserrat_18, 0);
-    lv_obj_set_style_text_color(lbl_bat_curr, ui_theme_muted(), 0);
-    lv_label_set_text(lbl_bat_curr, "-- A");
-    lv_obj_align(lbl_bat_curr, LV_ALIGN_TOP_LEFT, 145, 62);
+    // Klick auf das gesamte Batterie-Feld öffnet automatisch den Verlauf
+    ui_energy_history_button(card_bat_hub, false);
+    lv_obj_t *hist_btn = lv_obj_get_child(card_bat_hub, -1);
+    if (hist_btn) {
+        lv_obj_set_size(hist_btn, LV_PCT(100), LV_PCT(100));
+        lv_obj_set_pos(hist_btn, 0, 0);
+        lv_obj_set_style_bg_opa(hist_btn, LV_OPA_0, 0);
+        lv_obj_set_style_border_width(hist_btn, 0, 0);
+        lv_obj_set_style_shadow_width(hist_btn, 0, 0);
+        for (uint32_t i = 0; i < lv_obj_get_child_cnt(hist_btn); ++i) {
+            lv_obj_add_flag(lv_obj_get_child(hist_btn, i), LV_OBJ_FLAG_HIDDEN);
+        }
+    }
 
-    lbl_bat_ttg = lv_label_create(card_bat);
-    lv_obj_set_style_text_font(lbl_bat_ttg, &lv_font_montserrat_14, 0);
-    lv_obj_set_style_text_color(lbl_bat_ttg, ui_theme_muted(), 0);
-    lv_label_set_text(lbl_bat_ttg, "Standby");
-    lv_obj_align(lbl_bat_ttg, LV_ALIGN_TOP_LEFT, 145, 94);
+    // =========================================================================
+    // 3. FLUSS-LINIE (Zentrum -> Verbraucher: 40px Abstand)
+    // =========================================================================
+    line_load = lv_line_create(parent);
+    lv_line_set_points(line_load, pts_load, 2);
+    lv_obj_set_style_line_width(line_load, 3, 0);
+    lv_obj_set_style_line_rounded(line_load, true, 0);
+    lv_obj_set_style_line_color(line_load, ui_theme_border(), 0);
 
-    lbl_bat_charge_icon = lv_label_create(card_bat);
-    lv_label_set_text(lbl_bat_charge_icon, LV_SYMBOL_CHARGE);
-    lv_obj_set_style_text_font(lbl_bat_charge_icon, &lv_font_montserrat_20, 0);
-    lv_obj_set_style_text_color(lbl_bat_charge_icon, lv_color_hex(UI_COLOR_SUCCESS), 0);
-    lv_obj_align(lbl_bat_charge_icon, LV_ALIGN_TOP_RIGHT, -58, 4);
-    ui_energy_history_button(card_bat, false);
-    lv_obj_add_flag(lbl_bat_charge_icon, LV_OBJ_FLAG_HIDDEN);
+    // =========================================================================
+    // 4. TIER 3: VERBRAUCHER (Unten: Höhe 74px wie Erzeuger, ganz unten & zentriert)
+    // =========================================================================
+    card_load = ui_create_card(parent, 360, 74);
+    lv_obj_align(card_load, LV_ALIGN_TOP_MID, 0, 286);
+    lv_obj_set_style_pad_all(card_load, 8, 0);
+    lv_obj_set_style_radius(card_load, 16, 0);
 
-    // ==========================================
-    // 2. Visual Energy Flow Bar (Middle: Height 56px)
-    // ==========================================
-    lv_obj_t *card_flow = ui_create_card(parent, 440, 56);
-    lv_obj_align(card_flow, LV_ALIGN_TOP_MID, 0, 152);
-    lv_obj_set_style_pad_all(card_flow, 6, 0);
+    // Links: Icon & Titel
+    lv_obj_t *l_load_icon = lv_label_create(card_load);
+    lv_label_set_text(l_load_icon, LV_SYMBOL_POWER);
+    lv_obj_set_style_text_font(l_load_icon, &lv_font_montserrat_20, 0);
+    lv_obj_set_style_text_color(l_load_icon, lv_color_hex(UI_COLOR_WARNING), 0);
+    lv_obj_align(l_load_icon, LV_ALIGN_LEFT_MID, 8, 0);
 
-    // Helper for creating a flow node
-    auto create_flow_node = [card_flow](const char *title, int x) -> lv_obj_t* {
-        lv_obj_t *lbl_t = lv_label_create(card_flow);
-        lv_label_set_text(lbl_t, title);
-        lv_obj_set_style_text_font(lbl_t, &lv_font_montserrat_12, 0);
-        lv_obj_set_style_text_color(lbl_t, ui_theme_muted(), 0);
-        lv_obj_align(lbl_t, LV_ALIGN_TOP_LEFT, x, 2);
+    lv_obj_t *l_load_title = lv_label_create(card_load);
+    lv_label_set_text(l_load_title, "Verbraucher");
+    lv_obj_set_style_text_font(l_load_title, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_color(l_load_title, ui_theme_text(), 0);
+    lv_obj_align(l_load_title, LV_ALIGN_LEFT_MID, 36, 0);
 
-        lv_obj_t *lbl_v = lv_label_create(card_flow);
-        lv_label_set_text(lbl_v, "-- W");
-        lv_obj_set_style_text_font(lbl_v, &lv_font_montserrat_16, 0);
-        lv_obj_set_style_text_color(lbl_v, ui_theme_text(), 0);
-        lv_obj_align(lbl_v, LV_ALIGN_TOP_LEFT, x, 22);
-        return lbl_v;
-    };
+    // Rechts: Nur Leistung (groß) & große Restzeit
+    lbl_load_watt = lv_label_create(card_load);
+    lv_obj_set_style_text_font(lbl_load_watt, &lv_font_montserrat_24, 0);
+    lv_obj_set_style_text_color(lbl_load_watt, lv_color_hex(UI_COLOR_WARNING), 0);
+    lv_label_set_text(lbl_load_watt, "0 W");
+    lv_obj_align(lbl_load_watt, LV_ALIGN_TOP_RIGHT, -6, 2);
 
-    // Node 1: Solar
-    lbl_flow_solar_val = create_flow_node("Solar", 14);
-
-    // Arrow 1
-    lbl_flow_arr1 = lv_label_create(card_flow);
-    lv_label_set_text(lbl_flow_arr1, ">");
-    lv_obj_set_style_text_font(lbl_flow_arr1, &lv_font_montserrat_18, 0);
-    lv_obj_set_style_text_color(lbl_flow_arr1, ui_theme_muted(), 0);
-    lv_obj_align(lbl_flow_arr1, LV_ALIGN_CENTER, -65, 2);
-
-    // Node 2: Battery Net
-    lbl_flow_bat_val = create_flow_node("Batterie", 165);
-
-    // Arrow 2
-    lbl_flow_arr2 = lv_label_create(card_flow);
-    lv_label_set_text(lbl_flow_arr2, ">");
-    lv_obj_set_style_text_font(lbl_flow_arr2, &lv_font_montserrat_18, 0);
-    lv_obj_set_style_text_color(lbl_flow_arr2, ui_theme_muted(), 0);
-    lv_obj_align(lbl_flow_arr2, LV_ALIGN_CENTER, 75, 2);
-
-    // Node 3: Load (Consumers)
-    lbl_flow_load_val = create_flow_node("Verbrauch", 315);
-
-    // ==========================================
-    // 3. Solar Card (Bottom: Height 144px)
-    // ==========================================
-    lv_obj_t *card_solar = ui_create_card(parent, 440, 144);
-    lv_obj_align(card_solar, LV_ALIGN_BOTTOM_MID, 0, 0);
-
-    ui_energy_history_button(card_solar, true);
-
-    // Solar Arc Gauge (Left)
-    arc_solar = lv_arc_create(card_solar);
-    lv_obj_set_size(arc_solar, 118, 118);
-    lv_arc_set_rotation(arc_solar, 135);
-    lv_arc_set_bg_angles(arc_solar, 0, 270);
-    int s_max = (int)state.solar_max_w;
-    if (s_max <= 0) s_max = 200;
-    lv_arc_set_range(arc_solar, 0, s_max);
-    lv_arc_set_value(arc_solar, 0);
-    lv_obj_clear_flag(arc_solar, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_align(arc_solar, LV_ALIGN_LEFT_MID, 0, 0);
-
-    lv_obj_set_style_arc_color(arc_solar, lv_color_hex(UI_COLOR_WARNING), LV_PART_INDICATOR);
-    lv_obj_set_style_arc_width(arc_solar, 12, LV_PART_INDICATOR);
-    lv_obj_set_style_arc_color(arc_solar, ui_theme_track(), LV_PART_MAIN);
-    lv_obj_set_style_arc_width(arc_solar, 12, LV_PART_MAIN);
-    lv_obj_remove_style(arc_solar, NULL, LV_PART_KNOB);
-
-    lbl_solar_watt = lv_label_create(arc_solar);
-    lv_obj_set_style_text_font(lbl_solar_watt, &lv_font_montserrat_24, 0);
-    lv_obj_set_style_text_color(lbl_solar_watt, lv_color_hex(UI_COLOR_WARNING), 0);
-    lv_label_set_text(lbl_solar_watt, "0 W");
-    lv_obj_center(lbl_solar_watt);
-
-    // Solar Info (Right)
-    lv_obj_t *l_soltitle = lv_label_create(card_solar);
-    lv_label_set_text_fmt(l_soltitle, "%s Solaranlage", LV_SYMBOL_CHARGE);
-    lv_obj_set_style_text_font(l_soltitle, &lv_font_montserrat_14, 0);
-    lv_obj_set_style_text_color(l_soltitle, ui_theme_muted(), 0);
-    lv_obj_align(l_soltitle, LV_ALIGN_TOP_LEFT, 145, 8);
-
-    lbl_solar_curr = lv_label_create(card_solar);
-    lv_obj_set_style_text_font(lbl_solar_curr, &lv_font_montserrat_24, 0);
-    lv_obj_set_style_text_color(lbl_solar_curr, lv_color_hex(UI_COLOR_WARNING), 0);
-    lv_label_set_text(lbl_solar_curr, "-- A");
-    lv_obj_align(lbl_solar_curr, LV_ALIGN_TOP_LEFT, 145, 38);
-
-    lv_obj_t *lbl_sol_max = lv_label_create(card_solar);
-    lv_obj_set_style_text_font(lbl_sol_max, &lv_font_montserrat_14, 0);
-    lv_obj_set_style_text_color(lbl_sol_max, ui_theme_muted(), 0);
-    lv_label_set_text_fmt(lbl_sol_max, "Max: %d W", s_max);
-    lv_obj_align(lbl_sol_max, LV_ALIGN_TOP_LEFT, 145, 86);
+    lbl_load_sub = lv_label_create(card_load);
+    lv_obj_set_style_text_font(lbl_load_sub, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_color(lbl_load_sub, ui_theme_muted(), 0);
+    lv_label_set_text(lbl_load_sub, "Standby");
+    lv_obj_align(lbl_load_sub, LV_ALIGN_BOTTOM_RIGHT, -6, -2);
 }

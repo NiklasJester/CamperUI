@@ -87,6 +87,9 @@ void web_settings_register_routes(WebServer &server) {
             doc["home_show_solar"] = state.home_show_solar;
             doc["home_show_water"] = state.home_show_water;
             doc["home_water_source"] = state.home_water_source;
+            doc["power_show_solar"] = state.power_show_solar;
+            doc["power_show_shore"] = state.power_show_shore;
+            doc["power_show_alt"] = state.power_show_alt;
             JsonArray h_fav = doc["home_favorite"].to<JsonArray>();
             h_fav.add(state.home_favorite[0]);
             h_fav.add(state.home_favorite[1]);
@@ -145,8 +148,9 @@ void web_settings_register_routes(WebServer &server) {
             // Metadata: Heater Types
             JsonArray ht_arr = doc["heater_types"].to<JsonArray>();
             JsonObject ht0 = ht_arr.add<JsonObject>(); ht0["id"] = 0; ht0["name"] = "Autoterm (Air 2D/4D)";
-            JsonObject ht1 = ht_arr.add<JsonObject>(); ht1["id"] = 1; ht1["name"] = "Truma (Combi/VarioHeat)";
-            JsonObject ht2 = ht_arr.add<JsonObject>(); ht2["id"] = 2; ht2["name"] = "Keine / Deaktiviert";
+            JsonObject ht1 = ht_arr.add<JsonObject>(); ht1["id"] = 1; ht1["name"] = "Truma (Gas/Diesel)";
+            JsonObject ht2 = ht_arr.add<JsonObject>(); ht2["id"] = 2; ht2["name"] = "Truma + Elektro (Combi E)";
+            JsonObject ht3 = ht_arr.add<JsonObject>(); ht3["id"] = 3; ht3["name"] = "Keine / Deaktiviert";
         }
         String out;
         serializeJson(doc, out);
@@ -208,8 +212,8 @@ void web_settings_register_routes(WebServer &server) {
             if (doc["pump_relay"].is<int>()) state.pump_relay = doc["pump_relay"].as<int>();
             if (doc["drain_relay"].is<int>()) state.drain_relay = doc["drain_relay"].as<int>();
             if (doc["heater_type"].is<int>()) {
-                state.heater_type = constrain(doc["heater_type"].as<int>(), 0, 2);
-                if (state.heater_type == HEATER_TYPE_TRUMA) {
+                state.heater_type = constrain(doc["heater_type"].as<int>(), 0, 3);
+                if (is_truma_heater(state.heater_type)) {
                     state.tab_enabled[TAB_TRUMA] = true;
                     state.tab_enabled[TAB_CLIMATE] = false;
                 } else if (state.heater_type == HEATER_TYPE_AUTOTERM) {
@@ -261,6 +265,9 @@ void web_settings_register_routes(WebServer &server) {
             if (doc["home_show_solar"].is<bool>()) state.home_show_solar = doc["home_show_solar"].as<bool>();
             if (doc["home_show_water"].is<bool>()) state.home_show_water = doc["home_show_water"].as<bool>();
             if (doc["home_water_source"].is<int>()) state.home_water_source = doc["home_water_source"].as<int>();
+            if (doc["power_show_solar"].is<bool>()) state.power_show_solar = doc["power_show_solar"].as<bool>();
+            if (doc["power_show_shore"].is<bool>()) state.power_show_shore = doc["power_show_shore"].as<bool>();
+            if (doc["power_show_alt"].is<bool>()) state.power_show_alt = doc["power_show_alt"].as<bool>();
             if (doc["home_favorite"].is<JsonArray>()) {
                 JsonArray arr = doc["home_favorite"].as<JsonArray>();
                 if (arr.size() > 0) state.home_favorite[0] = arr[0].as<int>();

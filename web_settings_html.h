@@ -1014,7 +1014,7 @@ static const char SETTINGS_HTML[] PROGMEM = R"rawliteral(
         .then(r => r.json())
         .then(data => {
           currentSettings = data;
-          document.getElementById('badgeVer').innerText = data.version || 'V1.5.0';
+          document.getElementById('badgeVer').innerText = data.version || 'V1.6.0';
           
           // Network
           document.getElementById('wifi_ssid').value = data.wifi_ssid || '';
@@ -1168,8 +1168,9 @@ static const char SETTINGS_HTML[] PROGMEM = R"rawliteral(
       sel.innerHTML = '';
       const list = heaterTypes || [
         { id: 0, name: 'Autoterm (Air 2D/4D)' },
-        { id: 1, name: 'Truma (Combi/VarioHeat)' },
-        { id: 2, name: 'Keine / Deaktiviert' }
+        { id: 1, name: 'Truma (Gas/Diesel)' },
+        { id: 2, name: 'Truma + Elektro (Combi E)' },
+        { id: 3, name: 'Keine / Deaktiviert' }
       ];
       list.forEach(h => {
         const opt = document.createElement('option');
@@ -1183,7 +1184,7 @@ static const char SETTINGS_HTML[] PROGMEM = R"rawliteral(
         if (val === 0) { // Autoterm
           tabEnabled[4] = true;
           tabEnabled[10] = false;
-        } else if (val === 1) { // Truma
+        } else if (val === 1 || val === 2) { // Truma (pure or electric)
           tabEnabled[4] = false;
           tabEnabled[10] = true;
         } else { // None

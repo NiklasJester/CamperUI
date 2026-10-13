@@ -845,24 +845,6 @@ void ui_settings_screen_init() {
     lv_obj_set_scroll_dir(t_vis, LV_DIR_VER);
     lv_obj_set_style_pad_bottom(t_vis, 90, 0);
     
-    lv_obj_t *l_vis = lv_label_create(t_vis);
-    lv_label_set_text(l_vis, "Schalter & Dimmer Sichtbarkeit");
-    lv_obj_set_style_text_font(l_vis, &lv_font_montserrat_16, 0);
-    lv_obj_set_style_text_color(l_vis, lv_color_hex(UI_COLOR_PRIMARY), 0);
-    lv_obj_align(l_vis, LV_ALIGN_TOP_LEFT, 0, 0);
-
-    lv_obj_t *l_hdr_relays = lv_label_create(t_vis);
-    lv_label_set_text(l_hdr_relays, "Relais (8)");
-    lv_obj_set_style_text_font(l_hdr_relays, &lv_font_montserrat_14, 0);
-    lv_obj_set_style_text_color(l_hdr_relays, ui_theme_muted(), 0);
-    lv_obj_align(l_hdr_relays, LV_ALIGN_TOP_LEFT, 4, 28);
-
-    lv_obj_t *l_hdr_dimmers = lv_label_create(t_vis);
-    lv_label_set_text(l_hdr_dimmers, "Dimmer (8)");
-    lv_obj_set_style_text_font(l_hdr_dimmers, &lv_font_montserrat_14, 0);
-    lv_obj_set_style_text_color(l_hdr_dimmers, ui_theme_muted(), 0);
-    lv_obj_align(l_hdr_dimmers, LV_ALIGN_TOP_LEFT, 229, 28);
-
     // Helper for creating generous, finger-friendly toggle rows with clickable cards
     auto make_toggle_row = [](lv_obj_t *parent, lv_coord_t x, lv_coord_t y, lv_coord_t w, lv_coord_t h,
                               const char *name, bool is_active, auto val_changed_cb, void *user_data) {
@@ -903,8 +885,52 @@ void ui_settings_screen_init() {
         return card;
     };
 
+    // 1. Energie Erzeuger (Power Dashboard)
+    lv_obj_t *l_pwr_prod = lv_label_create(t_vis);
+    lv_label_set_text(l_pwr_prod, "Erzeuger (Power Dashboard)");
+    lv_obj_set_style_text_font(l_pwr_prod, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_color(l_pwr_prod, lv_color_hex(UI_COLOR_PRIMARY), 0);
+    lv_obj_align(l_pwr_prod, LV_ALIGN_TOP_LEFT, 0, 0);
+
+    make_toggle_row(t_vis, 0, 26, 140, 42, "Solar", state.power_show_solar,
+        [](lv_event_t *e) {
+            lv_obj_t *obj = lv_event_get_target(e);
+            state.power_show_solar = lv_obj_has_state(obj, LV_STATE_CHECKED);
+        }, NULL);
+
+    make_toggle_row(t_vis, 150, 26, 140, 42, "Landstrom", state.power_show_shore,
+        [](lv_event_t *e) {
+            lv_obj_t *obj = lv_event_get_target(e);
+            state.power_show_shore = lv_obj_has_state(obj, LV_STATE_CHECKED);
+        }, NULL);
+
+    make_toggle_row(t_vis, 300, 26, 140, 42, "Lichtm.", state.power_show_alt,
+        [](lv_event_t *e) {
+            lv_obj_t *obj = lv_event_get_target(e);
+            state.power_show_alt = lv_obj_has_state(obj, LV_STATE_CHECKED);
+        }, NULL);
+
+    // 2. Schalter & Dimmer
+    lv_obj_t *l_vis = lv_label_create(t_vis);
+    lv_label_set_text(l_vis, "Schalter & Dimmer Sichtbarkeit");
+    lv_obj_set_style_text_font(l_vis, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_color(l_vis, lv_color_hex(UI_COLOR_PRIMARY), 0);
+    lv_obj_align(l_vis, LV_ALIGN_TOP_LEFT, 0, 80);
+
+    lv_obj_t *l_hdr_relays = lv_label_create(t_vis);
+    lv_label_set_text(l_hdr_relays, "Relais (8)");
+    lv_obj_set_style_text_font(l_hdr_relays, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_color(l_hdr_relays, ui_theme_muted(), 0);
+    lv_obj_align(l_hdr_relays, LV_ALIGN_TOP_LEFT, 4, 108);
+
+    lv_obj_t *l_hdr_dimmers = lv_label_create(t_vis);
+    lv_label_set_text(l_hdr_dimmers, "Dimmer (8)");
+    lv_obj_set_style_text_font(l_hdr_dimmers, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_color(l_hdr_dimmers, ui_theme_muted(), 0);
+    lv_obj_align(l_hdr_dimmers, LV_ALIGN_TOP_LEFT, 229, 108);
+
     for (int i = 0; i < 8; i++) {
-        lv_coord_t row_y = 50 + (i * 48);
+        lv_coord_t row_y = 130 + (i * 48);
 
         // Relais (Left Column)
         make_toggle_row(t_vis, 0, row_y, 215, 42, state.switch_names[i].c_str(), state.switch_visible[i],
@@ -923,16 +949,16 @@ void ui_settings_screen_init() {
             }, (void *)(intptr_t)i);
     }
 
-    // WiFi Relais Section at y = 442
+    // 3. WiFi Relais Section at y = 522
     lv_obj_t *l_wr_head = lv_label_create(t_vis);
     lv_label_set_text(l_wr_head, "WiFi-Relais");
     lv_obj_set_style_text_font(l_wr_head, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(l_wr_head, lv_color_hex(UI_COLOR_PRIMARY), 0);
-    lv_obj_align(l_wr_head, LV_ALIGN_TOP_LEFT, 0, 442);
+    lv_obj_align(l_wr_head, LV_ALIGN_TOP_LEFT, 0, 522);
 
     lv_obj_t *cont_wr = lv_obj_create(t_vis);
     lv_obj_set_size(cont_wr, 440, 210);
-    lv_obj_align(cont_wr, LV_ALIGN_TOP_LEFT, 0, 520);
+    lv_obj_align(cont_wr, LV_ALIGN_TOP_LEFT, 0, 600);
     lv_obj_set_style_bg_opa(cont_wr, 0, 0);
     lv_obj_set_style_border_width(cont_wr, 0, 0);
     lv_obj_set_style_pad_all(cont_wr, 0, 0);
@@ -941,7 +967,7 @@ void ui_settings_screen_init() {
 
     // Master Switch Row for WiFi Relais
     lv_obj_t *card_master_wr = lv_obj_create(t_vis);
-    lv_obj_set_pos(card_master_wr, 0, 468);
+    lv_obj_set_pos(card_master_wr, 0, 548);
     lv_obj_set_size(card_master_wr, 440, 44);
     lv_obj_set_style_radius(card_master_wr, 8, 0);
     lv_obj_set_style_bg_color(card_master_wr, ui_theme_card(), 0);
@@ -1237,15 +1263,15 @@ void ui_settings_screen_init() {
     lv_obj_align(l_heat_type, LV_ALIGN_TOP_LEFT, 0, 784);
 
     dd_heater_type = lv_dropdown_create(t_val);
-    lv_dropdown_set_options(dd_heater_type, "Autoterm (Air 2D/4D)\nTruma (Combi/VarioHeat)\nKeine / Deaktiviert");
-    lv_dropdown_set_selected(dd_heater_type, constrain(state.heater_type, 0, 2));
+    lv_dropdown_set_options(dd_heater_type, "Autoterm (Air 2D/4D)\nTruma (Gas/Diesel)\nTruma + Elektro (Combi E)\nKeine / Deaktiviert");
+    lv_dropdown_set_selected(dd_heater_type, constrain(state.heater_type, 0, 3));
     lv_obj_set_size(dd_heater_type, 260, 44);
     lv_obj_set_style_text_font(dd_heater_type, &lv_font_montserrat_14, 0);
     lv_obj_align(dd_heater_type, LV_ALIGN_TOP_LEFT, 150, 774);
     lv_obj_add_event_cb(dd_heater_type, [](lv_event_t * e) {
         lv_obj_t *dd = lv_event_get_target(e);
         state.heater_type = (uint8_t)lv_dropdown_get_selected(dd);
-        if (state.heater_type == HEATER_TYPE_TRUMA) {
+        if (is_truma_heater(state.heater_type)) {
             state.tab_enabled[TAB_TRUMA] = true;
             state.tab_enabled[TAB_CLIMATE] = false;
         } else if (state.heater_type == HEATER_TYPE_AUTOTERM) {
@@ -1515,7 +1541,7 @@ void ui_settings_screen_init() {
         }
         if (dd_heater_type) {
             state.heater_type = (uint8_t)lv_dropdown_get_selected(dd_heater_type);
-            if (state.heater_type == HEATER_TYPE_TRUMA) {
+            if (is_truma_heater(state.heater_type)) {
                 state.tab_enabled[TAB_TRUMA] = true;
                 state.tab_enabled[TAB_CLIMATE] = false;
             } else if (state.heater_type == HEATER_TYPE_AUTOTERM) {

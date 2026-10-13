@@ -112,8 +112,45 @@ static void parse_batt_json(const char *payload) {
     if (validEnergyNumber(doc["VoltB"])) { state.bat_voltage = jsonFloat(doc["VoltB"]); state.battery_fields |= 1; state.bat_voltage_updated_ms = millis(); }
     if (validEnergyNumber(doc["Ampere"])) { state.bat_current = jsonFloat(doc["Ampere"]); state.battery_fields |= 2; state.bat_current_updated_ms = millis(); }
     if (validEnergyNumber(doc["battsoc"])) { state.bat_soc = jsonInt(doc["battsoc"]); state.battery_fields |= 4; state.bat_soc_updated_ms = millis(); }
-    // Optional extension, not assumed to exist in the standard VanPi /batt response.
-    if (doc.containsKey("starter_voltage")) { state.starter_voltage = jsonFloat(doc["starter_voltage"]); state.battery_fields |= 8; }
+    // Starter voltage / Lima
+    if (doc.containsKey("starter_voltage")) {
+        state.starter_voltage = jsonFloat(doc["starter_voltage"]);
+        state.battery_fields |= 8;
+    } else if (doc.containsKey("VoltS")) {
+        state.starter_voltage = jsonFloat(doc["VoltS"]);
+        state.battery_fields |= 8;
+    } else if (doc.containsKey("starter")) {
+        state.starter_voltage = jsonFloat(doc["starter"]);
+        state.battery_fields |= 8;
+    }
+
+    // Landstrom / Shore (230V)
+    if (doc.containsKey("shore_power")) {
+        state.shore_power = jsonFloat(doc["shore_power"]);
+        state.shore_connected = (state.shore_power > 0.0f || (doc.containsKey("shore_connected") && doc["shore_connected"].as<bool>()));
+    } else if (doc.containsKey("charger_power")) {
+        state.shore_power = jsonFloat(doc["charger_power"]);
+        state.shore_connected = (state.shore_power > 0.0f);
+    } else if (doc.containsKey("ac_power")) {
+        state.shore_power = jsonFloat(doc["ac_power"]);
+        state.shore_connected = (state.shore_power > 0.0f);
+    }
+    if (doc.containsKey("shore_connected")) {
+        state.shore_connected = doc["shore_connected"].as<bool>();
+    }
+    if (doc.containsKey("shore_voltage")) state.shore_voltage = jsonFloat(doc["shore_voltage"]);
+    if (doc.containsKey("shore_current")) state.shore_current = jsonFloat(doc["shore_current"]);
+
+    // Lichtmaschine / B2B Booster
+    if (doc.containsKey("alt_power")) {
+        state.alt_power = jsonFloat(doc["alt_power"]);
+        state.alt_active = (state.alt_power > 5.0f);
+    } else if (doc.containsKey("b2b_power")) {
+        state.alt_power = jsonFloat(doc["b2b_power"]);
+        state.alt_active = (state.alt_power > 5.0f);
+    }
+    if (doc.containsKey("alt_current")) state.alt_current = jsonFloat(doc["alt_current"]);
+    if (doc.containsKey("alt_active")) state.alt_active = doc["alt_active"].as<bool>();
 }
 
 // GET /mppt/ -> { "mppt_pv_watts": float, "mppt_pv_amps": float, "mppt_pv_volts": float }
@@ -361,16 +398,16 @@ static void parse_heater_json(const char *payload) {
     };
 
     if (is_active_status(raw_hs)) is_on = true;
-    if (state.heater_type != HEATER_TYPE_TRUMA) {
+    if (!is_truma_heater(state.heater_type)) {
         state.heating_on = is_on;
     }
 
     if (has_at && at.containsKey("targettemp_vanpi")) {
         float t = jsonFloat(at["targettemp_vanpi"]);
-        if (t > 0 && state.heater_type != HEATER_TYPE_TRUMA) state.target_temp = t;
+        if (t > 0 && !is_truma_heater(state.heater_type)) state.target_temp = t;
     } else if (doc.containsKey("targettemp_vanpi")) {
         float t = jsonFloat(doc["targettemp_vanpi"]);
-        if (t > 0 && state.heater_type != HEATER_TYPE_TRUMA) state.target_temp = t;
+        if (t > 0 && !is_truma_heater(state.heater_type)) state.target_temp = t;
     }
 
     if (state.heater_vent_mode) {
@@ -467,7 +504,7 @@ static void parse_heater_json(const char *payload) {
         }
 
         // If Truma is the active heater type, sync main heater state
-        if (state.heater_type == HEATER_TYPE_TRUMA) {
+        if (is_truma_heater(state.heater_type)) {
             state.heating_on = state.truma_heating_on;
             state.target_temp = state.truma_target_temp;
             if (state.truma_heating_on) {
@@ -544,6 +581,10 @@ void http_loop() {
         state.bat_voltage = state.bat_current = state.starter_voltage = 0;
         state.bat_soc = 0;
         state.solar_power = state.solar_current = state.solar_voltage = 0;
+        state.shore_power = state.shore_voltage = state.shore_current = 0.0f;
+        state.shore_connected = false;
+        state.alt_power = state.alt_current = 0.0f;
+        state.alt_active = false;
         state.indoor_temp = state.outdoor_temp = 0;
         state.heating_on = state.fan_on = false;
         for (int i = 0; i < TEMP_SOURCE_COUNT; ++i) { state.temp_sensors[i] = 0; state.temp_is_humidity[i] = false; }
@@ -566,12 +607,21 @@ void http_loop() {
         if (millis() - last_http_poll > 500) {
             switch (poll_step) {
                 case 0: {
-                    // String-encoded float/int values
+                    // String-encoded float/int values with all energy producers simulated
                     float phase = (millis() % 240000UL) * (2.0f * PI / 240000.0f);
-                    char data[160];
-                    snprintf(data, sizeof(data), "{\"VoltB\":%.2f,\"Ampere\":%.2f,\"battsoc\":%d,\"starter_voltage\":%.2f}",
-                        13.2f + .2f * cosf(phase), -2.1f - 4.0f * sinf(phase),
-                        (int)lroundf(50 + 45 * cosf(phase)), 12.7f + .1f * sinf(phase));
+                    float sim_v_starter = 14.1f + 0.15f * sinf(phase);
+                    float sim_p_shore = 280.0f + 60.0f * cosf(phase);
+                    float sim_p_alt = 190.0f + 30.0f * sinf(phase * 1.5f);
+                    float sim_v_bat = 13.4f + 0.12f * cosf(phase);
+                    float sim_i_bat = 18.5f + 4.0f * sinf(phase);
+                    int sim_soc = (int)lroundf(78 + 14 * cosf(phase));
+
+                    char data[256];
+                    snprintf(data, sizeof(data),
+                        "{\"VoltB\":%.2f,\"Ampere\":%.2f,\"battsoc\":%d,\"starter_voltage\":%.2f,\"shore_power\":%.1f,\"shore_voltage\":230.0,\"shore_current\":%.2f,\"shore_connected\":true,\"alt_power\":%.1f,\"alt_current\":%.1f,\"alt_active\":true}",
+                        sim_v_bat, sim_i_bat, constrain(sim_soc, 0, 100), sim_v_starter,
+                        sim_p_shore, sim_p_shore / 230.0f,
+                        sim_p_alt, sim_p_alt / sim_v_bat);
                     parse_batt_json(data);
                     break;
                 }
@@ -603,7 +653,7 @@ void http_loop() {
                 }
                 case 6: {
                     float phase = (millis() % 180000UL) * (2.0f * PI / 180000.0f);
-                    float volts = 17.9f + .4f * sinf(phase), watts = 148.5f + 60 * sinf(phase);
+                    float volts = 18.2f + .3f * sinf(phase), watts = 195.0f + 65.0f * sinf(phase);
                     char data[144];
                     snprintf(data, sizeof(data), "{\"mppt_pv_watts\":%.2f,\"mppt_pv_amps\":%.2f,\"mppt_pv_volts\":%.2f}", watts, watts / volts, volts);
                     parse_mppt_json(data);
@@ -763,7 +813,7 @@ void http_publish_truma_air(int temp) {
         state.truma_target_temp = (float)temp;
         snprintf(path, sizeof(path), "/truma_ci/air/%d", temp);
     }
-    if (state.heater_type == HEATER_TYPE_TRUMA) {
+    if (is_truma_heater(state.heater_type)) {
         state.heating_on = state.truma_heating_on;
         state.target_temp = state.truma_target_temp;
     }

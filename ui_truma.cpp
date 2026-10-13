@@ -34,6 +34,9 @@ static lv_obj_t *btn_water_hot = nullptr;
 static lv_obj_t *lbl_btn_water_hot = nullptr;
 
 // --- Energy Mix Widgets ---
+static lv_obj_t *card_energy = nullptr;
+static lv_obj_t *mix_row = nullptr;
+static lv_obj_t *el_row = nullptr;
 static lv_obj_t *lbl_energy_status = nullptr;
 static lv_obj_t *lbl_230v_hint = nullptr;
 static lv_obj_t *btn_energy_fuel = nullptr;
@@ -152,6 +155,9 @@ void ui_truma_reset() {
     btn_water_hot = nullptr;
     lbl_btn_water_hot = nullptr;
 
+    card_energy = nullptr;
+    mix_row = nullptr;
+    el_row = nullptr;
     lbl_energy_status = nullptr;
     lbl_230v_hint = nullptr;
     btn_energy_fuel = nullptr;

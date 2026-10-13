@@ -22,8 +22,17 @@ enum TabId : uint8_t {
 enum HeaterType : uint8_t {
     HEATER_TYPE_AUTOTERM = 0,
     HEATER_TYPE_TRUMA = 1,
-    HEATER_TYPE_NONE = 2
+    HEATER_TYPE_TRUMA_ELECTRIC = 2,
+    HEATER_TYPE_NONE = 3
 };
+
+inline bool is_truma_heater(uint8_t type) {
+    return (type == HEATER_TYPE_TRUMA || type == HEATER_TYPE_TRUMA_ELECTRIC);
+}
+
+inline bool truma_has_electric(uint8_t type) {
+    return (type == HEATER_TYPE_TRUMA_ELECTRIC);
+}
 
 // Pre-configuration block that can be patched directly in the binary before flashing
 struct __attribute__((packed)) PreFlashingConfig {
@@ -82,6 +91,12 @@ struct SystemState {
     bool home_show_solar;
     bool home_show_water;
     int home_water_source; // /level index 0..3
+
+    // Power Dashboard Producers (Persisted)
+    bool power_show_solar;
+    bool power_show_shore;
+    bool power_show_alt;
+
     // Tank Capacities & Display Settings
     int tank_count;        // 1..4 tanks shown
     bool tank_show_liters; // true: show liters below %
@@ -89,7 +104,7 @@ struct SystemState {
     uint8_t tank_unit[4];  // 0 = "L", 1 = "kg"
     bool tank_enabled[4];
     String tank_names[4];
-    uint8_t heater_type;   // 0 = Autoterm, 1 = Truma, 2 = None
+    uint8_t heater_type;   // 0 = Autoterm, 1 = Truma, 2 = Truma + Elektro, 3 = None
     
     // Custom Names
     String switch_names[8];
@@ -126,6 +141,13 @@ struct SystemState {
     float solar_current;
     float solar_voltage;
     float starter_voltage; // optional /batt extension: starter_voltage
+    float shore_power;     // W
+    float shore_voltage;   // V
+    float shore_current;   // A
+    bool shore_connected;  // true if 230V Landstrom connected
+    float alt_power;       // W (B2B booster / Lima)
+    float alt_current;     // A
+    bool alt_active;       // true if alternator / booster active
     uint32_t bat_soc_updated_ms, bat_voltage_updated_ms, bat_current_updated_ms, solar_power_updated_ms;
     uint8_t battery_fields; // VoltB=1, Ampere=2, battsoc=4, optional starter_voltage=8
     uint8_t solar_fields; // watts=1, amps=2, volts=4

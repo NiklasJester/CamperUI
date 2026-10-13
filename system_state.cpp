@@ -246,6 +246,11 @@ state.display_brightness = prefs.getInt("disp_bright", 100);
     state.home_show_water = prefs.getBool("home_water", true);
     state.home_water_source = constrain(prefs.getInt("home_tank", 0), 0, 3);
 
+    // Power Dashboard Producers
+    state.power_show_solar = prefs.getBool("pwr_solar", true);
+    state.power_show_shore = prefs.getBool("pwr_shore", true);
+    state.power_show_alt   = prefs.getBool("pwr_alt", true);
+
     // Tab Order & Visibility
     size_t r_order = prefs.getBytes("tab_order", state.tab_order, sizeof(state.tab_order));
     if (r_order != sizeof(state.tab_order)) {
@@ -320,6 +325,13 @@ state.display_brightness = prefs.getInt("disp_bright", 100);
     state.solar_current = 0.0f;
     state.solar_voltage = 0.0f;
     state.starter_voltage = 0.0f;
+    state.shore_power = 0.0f;
+    state.shore_voltage = 0.0f;
+    state.shore_current = 0.0f;
+    state.shore_connected = false;
+    state.alt_power = 0.0f;
+    state.alt_current = 0.0f;
+    state.alt_active = false;
     state.battery_fields = state.solar_fields = state.temp_fields = state.tank_fields = 0;
     state.relay_fields = state.dimmer_fields = 0;
     state.data_is_demo = state.debug_mode;
@@ -345,7 +357,7 @@ state.display_brightness = prefs.getInt("disp_bright", 100);
     state.heater_status = "";
     state.heater_error = "no";
     state.fan_on = false;
-    state.heater_type = constrain(prefs.getInt("heater_type", HEATER_TYPE_AUTOTERM), 0, 2);
+    state.heater_type = constrain(prefs.getInt("heater_type", HEATER_TYPE_AUTOTERM), 0, 3);
 
     // Truma Climate & Boiler defaults
     state.truma_online = false;
@@ -361,7 +373,7 @@ state.display_brightness = prefs.getInt("disp_bright", 100);
     state.truma_hold_until = 0;
 
     // Sync tab visibility with heater_type
-    if (state.heater_type == HEATER_TYPE_TRUMA) {
+    if (is_truma_heater(state.heater_type)) {
         state.tab_enabled[TAB_TRUMA] = true;
         state.tab_enabled[TAB_CLIMATE] = false;
     } else if (state.heater_type == HEATER_TYPE_AUTOTERM) {
@@ -438,6 +450,9 @@ void state_save() {
     prefs.putBool("home_solar", state.home_show_solar);
     prefs.putBool("home_water", state.home_show_water);
     prefs.putInt("home_tank", state.home_water_source);
+    prefs.putBool("pwr_solar", state.power_show_solar);
+    prefs.putBool("pwr_shore", state.power_show_shore);
+    prefs.putBool("pwr_alt", state.power_show_alt);
     prefs.putString("wifi_ssid", state.wifi_ssid);
     prefs.putString("wifi_pass", state.wifi_pass);
     prefs.putString("vanpi_ip", state.vanpi_ip);
