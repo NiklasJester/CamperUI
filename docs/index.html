@@ -561,12 +561,13 @@
           </div>
 
           <div class="config-card">
-            <div class="config-toggle-row" onclick="toggleConfigExpansion()">
+            <div class="config-toggle-row" onclick="toggleConfigExpansion(event)">
               <div class="config-toggle-title">
+                <span id="cfg-arrow" style="font-size: 0.8rem; color: #60a5fa; transition: transform 0.2s;">►</span>
                 <span>⚙️ Express-Setup (WLAN, VanPi & Display)</span>
               </div>
-              <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;" onclick="event.stopPropagation()">
-                <input type="checkbox" id="cfg-enable" onchange="onConfigInputsChanged()">
+              <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                <input type="checkbox" id="cfg-enable" onchange="onConfigToggleChanged()">
                 <span style="font-size: 0.85rem; color: #94a3b8; font-weight: 600;">Aktivieren</span>
               </label>
             </div>
@@ -736,13 +737,20 @@
     const cfgBright = document.getElementById('cfg-bright');
     const cfgStatusPill = document.getElementById('cfg-status-pill');
 
-    function toggleConfigExpansion() {
-      const isExpanded = cfgBody.style.display !== 'none';
-      cfgBody.style.display = isExpanded ? 'none' : 'block';
-      if (!isExpanded && !cfgEnable.checked) {
-        cfgEnable.checked = true;
-        onConfigInputsChanged();
+    function onConfigToggleChanged() {
+      const isEnabled = cfgEnable.checked;
+      cfgBody.style.display = isEnabled ? 'block' : 'none';
+      const arrow = document.getElementById('cfg-arrow');
+      if (arrow) arrow.textContent = isEnabled ? '▼' : '►';
+      onConfigInputsChanged();
+    }
+
+    function toggleConfigExpansion(e) {
+      if (e && (e.target === cfgEnable || e.target.closest('label'))) {
+        return;
       }
+      cfgEnable.checked = !cfgEnable.checked;
+      onConfigToggleChanged();
     }
 
     function togglePasswordVisibility() {
