@@ -3,6 +3,7 @@
 #include "CamperRGBDisplay.h"
 #include "display_sync.h"
 #include "wifi_diagnostics.h"
+#include "improv_serial.h"
 #include "lv_conf.h"
 #include "HWCDC.h"
 #include "TouchDrvGT911.hpp"
@@ -359,8 +360,11 @@ void loop() {
         WS_CH32_IO::setPwm(Wire, 255); // 255 is OFF for inverted PWM
     }
 
-    if (USBSerial.available()) {
+    while (USBSerial.available()) {
         char c = USBSerial.read();
+        if (improv_serial_process_char(c)) {
+            continue;
+        }
         if (c == 't' || c == 'T') {
             touch_input_enabled = !touch_input_enabled;
             ignore_touch_until_release = true;

@@ -36,19 +36,24 @@ bool wifi_is_scanning() {
     return is_scanning.load();
 }
 
+#include "improv_serial.h"
+
 void wifi_diagnostics_init() {
     static bool registered = false;
     if (registered) return;
     registered = true;
     time_apply_configuration();
+    improv_serial_init();
     WiFi.onEvent([](WiFiEvent_t, WiFiEventInfo_t info) {
         last_reason.store(info.wifi_sta_disconnected.reason);
+        improv_serial_on_wifi_disconnected();
     }, ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
     WiFi.onEvent([](WiFiEvent_t, WiFiEventInfo_t) {
         last_reason.store(0);
         if (state.time_auto_ntp) {
             time_apply_configuration();
         }
+        improv_serial_on_wifi_connected();
     }, ARDUINO_EVENT_WIFI_STA_GOT_IP);
 }
 

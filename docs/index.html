@@ -481,6 +481,149 @@
     #file-input {
       display: none;
     }
+
+    /* Post-Flash Success Card */
+    .post-flash-card {
+      border: 1px solid rgba(16, 185, 129, 0.45);
+      background: radial-gradient(circle at top right, rgba(16, 185, 129, 0.08) 0%, rgba(26, 31, 39, 0.95) 70%);
+      box-shadow: 0 12px 36px rgba(0, 0, 0, 0.5), 0 0 20px rgba(16, 185, 129, 0.15);
+      animation: fadeIn 0.4s ease-out;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .success-header {
+      text-align: center;
+      margin-bottom: 22px;
+    }
+
+    .success-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(16, 185, 129, 0.18);
+      border: 1px solid var(--accent-green);
+      color: #6ee7b7;
+      padding: 6px 14px;
+      border-radius: 999px;
+      font-size: 0.88rem;
+      font-weight: 700;
+      margin-bottom: 12px;
+    }
+
+    .detected-box {
+      background: #141820;
+      border: 1px solid rgba(59, 130, 246, 0.35);
+      border-radius: 12px;
+      padding: 18px;
+      text-align: center;
+      margin-bottom: 18px;
+    }
+
+    .detected-title {
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 6px;
+    }
+
+    .detected-ip {
+      font-size: 1.8rem;
+      font-weight: 800;
+      color: #ffffff;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      letter-spacing: 0.5px;
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+    }
+
+    .btn-action-primary {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+      color: #ffffff;
+      border: none;
+      padding: 14px 24px;
+      font-size: 1rem;
+      font-weight: 700;
+      border-radius: 10px;
+      text-decoration: none;
+      cursor: pointer;
+      box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35);
+      transition: transform 0.15s, box-shadow 0.15s;
+      width: 100%;
+    }
+
+    .btn-action-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(16, 185, 129, 0.5);
+      background: linear-gradient(135deg, #34d399 0%, #10b981 100%);
+    }
+
+    .btn-action-secondary {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      background: rgba(59, 130, 246, 0.12);
+      border: 1px solid rgba(59, 130, 246, 0.4);
+      color: #93c5fd;
+      padding: 11px 18px;
+      font-size: 0.92rem;
+      font-weight: 600;
+      border-radius: 8px;
+      text-decoration: none;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+      width: 100%;
+    }
+
+    .btn-action-secondary:hover {
+      background: rgba(59, 130, 246, 0.22);
+      border-color: var(--accent);
+      color: #ffffff;
+    }
+
+    .fallback-section {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-top: 14px;
+      padding-top: 14px;
+      border-top: 1px solid var(--card-border);
+    }
+
+    .ip-input-row {
+      display: flex;
+      gap: 10px;
+    }
+
+    .btn-go {
+      background: #2b3341;
+      border: 1px solid #3e4859;
+      color: #f8fafc;
+      padding: 0 18px;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 0.9rem;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .btn-go:hover {
+      background: var(--accent);
+      border-color: var(--accent);
+    }
   </style>
 </head>
 <body>
@@ -675,6 +818,58 @@
         </div>
       </div>
 
+    </div>
+
+    <!-- Post-Flash Success & IP Navigation Card -->
+    <div id="post-flash-card" class="card post-flash-card" style="display: none;">
+      <div class="success-header">
+        <div class="success-badge">
+          <span>✓</span> <span>Flashen erfolgreich abgeschlossen!</span>
+        </div>
+        <h2 style="font-size: 1.6rem; font-weight: 800; color: #ffffff; margin-bottom: 6px;">
+          CamperUI ist einsatzbereit
+        </h2>
+        <p class="subtitle" style="font-size: 0.95rem;">
+          Das Display hat neu gestartet und steht nun im Netzwerk bereit.
+        </p>
+      </div>
+
+      <!-- Detected IP Box (populated via Improv Serial) -->
+      <div id="detected-ip-box" class="detected-box">
+        <div class="detected-title" id="detected-box-title">Erkannte IP-Adresse im Netzwerk</div>
+        <div class="detected-ip">
+          <span id="detected-ip-val">Warte auf Verbindung...</span>
+        </div>
+        <a id="btn-detected-link" href="http://camperui.local/settings" target="_blank" rel="noopener" class="btn-action-primary">
+          ⚙️ CamperUI Einstellungen öffnen (<span id="detected-url-label">/settings</span>)
+        </a>
+      </div>
+
+      <!-- Fallback / mDNS & Manual Options -->
+      <div class="fallback-section">
+        <div>
+          <div style="font-size: 0.85rem; font-weight: 600; color: var(--text-dim); margin-bottom: 6px;">
+            🌐 Direkter Zugriff über mDNS (Hostname):
+          </div>
+          <a href="http://camperui.local/settings" target="_blank" rel="noopener" class="btn-action-secondary">
+            🔗 http://camperui.local/settings öffnen
+          </a>
+        </div>
+
+        <div>
+          <div style="font-size: 0.85rem; font-weight: 600; color: var(--text-dim); margin-bottom: 6px;">
+            🔢 Manuelle IP eingeben (falls mDNS nicht auflöst):
+          </div>
+          <div class="ip-input-row">
+            <input type="text" id="manual-ip-input" class="input-text" placeholder="z. B. 192.168.1.123" onkeydown="if(event.key==='Enter')openManualIpSettings()">
+            <button type="button" class="btn-go" onclick="openManualIpSettings()">Öffnen</button>
+          </div>
+        </div>
+
+        <div id="wifi-config-reminder" style="font-size: 0.82rem; color: #94a3b8; margin-top: 4px; display: none;">
+          📶 Vorkonfiguriertes WLAN: <strong id="remind-ssid-val" style="color: #60a5fa;"></strong>
+        </div>
+      </div>
     </div>
 
     <!-- Help & Troubleshooting -->
@@ -1089,9 +1284,11 @@
         name: `CamperUI (${label})`,
         version: verName,
         new_install_prompt_erase: true,
+        new_install_improv_wait_time: 15,
         builds: [
           {
             chipFamily: "ESP32-S3",
+            improv: true,
             parts: [
               { path: firmwarePath, offset: 0 }
             ]
@@ -1103,6 +1300,125 @@
       currentManifestBlobUrl = URL.createObjectURL(manifestBlob);
       installBtn.manifest = currentManifestBlobUrl;
     }
+
+    // Post-Flash IP-Erkennung & Weiterleitung
+    let activeDialog = null;
+    let detectedSettingsUrl = null;
+    let detectedIpAddress = null;
+    let isFlashFinished = false;
+
+    function setDetectedUrl(url) {
+      if (!url) return;
+      detectedSettingsUrl = url;
+      const match = url.match(/^https?:\/\/([^/:]+)/);
+      if (match) {
+        detectedIpAddress = match[1];
+      }
+      updatePostFlashUI();
+    }
+
+    function updatePostFlashUI() {
+      const card = document.getElementById('post-flash-card');
+      const ipVal = document.getElementById('detected-ip-val');
+      const boxTitle = document.getElementById('detected-box-title');
+      const urlLabel = document.getElementById('detected-url-label');
+      const btnLink = document.getElementById('btn-detected-link');
+      const manualInput = document.getElementById('manual-ip-input');
+      const reminder = document.getElementById('wifi-config-reminder');
+      const remindSsid = document.getElementById('remind-ssid-val');
+
+      if (cfgEnable && cfgEnable.checked && cfgSsid && cfgSsid.value.trim().length > 0) {
+        if (reminder) reminder.style.display = 'block';
+        if (remindSsid) remindSsid.textContent = cfgSsid.value.trim();
+      } else {
+        if (reminder) reminder.style.display = 'none';
+      }
+
+      if (detectedIpAddress) {
+        if (boxTitle) boxTitle.textContent = "Erkannte IP-Adresse im Netzwerk";
+        if (ipVal) {
+          ipVal.textContent = detectedIpAddress;
+          ipVal.style.color = "#6ee7b7";
+        }
+        const finalUrl = detectedSettingsUrl || `http://${detectedIpAddress}/settings`;
+        if (btnLink) btnLink.href = finalUrl;
+        if (urlLabel) urlLabel.textContent = `http://${detectedIpAddress}/settings`;
+        if (manualInput && !manualInput.value) manualInput.value = detectedIpAddress;
+      } else {
+        if (boxTitle) boxTitle.textContent = "Netzwerkstatus";
+        if (ipVal) {
+          ipVal.textContent = "camperui.local";
+          ipVal.style.color = "#93c5fd";
+        }
+        if (btnLink) btnLink.href = "http://camperui.local/settings";
+        if (urlLabel) urlLabel.textContent = "camperui.local/settings";
+      }
+    }
+
+    function showPostFlashCard() {
+      const card = document.getElementById('post-flash-card');
+      if (card) {
+        card.style.display = 'block';
+        updatePostFlashUI();
+        card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    }
+
+    function openManualIpSettings() {
+      const input = document.getElementById('manual-ip-input');
+      const raw = input ? input.value.trim() : '';
+      if (!raw) return;
+      let target = raw;
+      if (!target.startsWith('http://') && !target.startsWith('https://')) {
+        target = 'http://' + target;
+      }
+      if (!target.includes('/settings')) {
+        target = target.replace(/\/+$/, '') + '/settings';
+      }
+      window.open(target, '_blank');
+    }
+
+    function attachDialogWatcher(dialog) {
+      activeDialog = dialog;
+
+      const pollTimer = setInterval(() => {
+        if (!dialog.isConnected) {
+          clearInterval(pollTimer);
+          return;
+        }
+
+        // 1. Prüfe ob Flashen abgeschlossen ist
+        if (dialog._installState && dialog._installState.state === 'finished') {
+          isFlashFinished = true;
+          showPostFlashCard();
+        }
+
+        // 2. Prüfe ob Improv nextUrl empfangen hat
+        if (dialog._client && dialog._client.nextUrl) {
+          setDetectedUrl(dialog._client.nextUrl);
+          showPostFlashCard();
+        }
+      }, 400);
+
+      dialog.addEventListener('closed', () => {
+        clearInterval(pollTimer);
+        if (isFlashFinished || detectedSettingsUrl) {
+          showPostFlashCard();
+        }
+      }, { once: true });
+    }
+
+    // Beobachte document.body auf Öffnen des ESP Web Tools Dialogs
+    const dialogObserver = new MutationObserver((mutations) => {
+      for (const m of mutations) {
+        for (const node of m.addedNodes) {
+          if (node.nodeName && node.nodeName.toLowerCase() === 'ewt-install-dialog') {
+            attachDialogWatcher(node);
+          }
+        }
+      }
+    });
+    dialogObserver.observe(document.body, { childList: true });
 
     // Drag & Drop
     const dropZone = document.getElementById('drop-zone');
