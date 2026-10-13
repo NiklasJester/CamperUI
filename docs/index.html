@@ -880,8 +880,59 @@
       return -1;
     }
 
+    // Berechnet die ESP32 XOR-Prüfsumme und den SHA-256 Validierungs-Hash neu
+    async function updateEspImageChecksumAndHash(bytes) {
+      // In merged.bin liegt die App an 0x10000 (Magic 0xE9), bei reiner App.bin an 0x0
+      let appOffset = 0;
+      if (bytes.length > 0x10000 && bytes[0x10000] === 0xE9) {
+        appOffset = 0x10000;
+      } else if (bytes[0] === 0xE9) {
+        appOffset = 0;
+      } else {
+        console.warn("ESP Image Header (0xE9) nicht gefunden.");
+        return false;
+      }
+
+      const segmentsCount = bytes[appOffset + 1];
+      const hashAppended = (bytes[appOffset + 23] === 1);
+
+      let pos = appOffset + 24;
+      let xorSum = 0xEF;
+
+      for (let i = 0; i < segmentsCount; i++) {
+        // Segment-Länge (uint32 little-endian an pos + 4)
+        const segLen = ((bytes[pos + 4]) | (bytes[pos + 5] << 8) | (bytes[pos + 6] << 16) | (bytes[pos + 7] << 24)) >>> 0;
+        pos += 8;
+        for (let b = 0; b < segLen; b++) {
+          xorSum ^= bytes[pos + b];
+        }
+        pos += segLen;
+      }
+
+      // 16-Byte Padding zur Prüfsumme
+      let padLen = 15 - (pos % 16);
+      if (padLen < 0) padLen += 16;
+      const checksumPos = pos + padLen;
+
+      // Neue XOR-Prüfsumme schreiben
+      bytes[checksumPos] = xorSum;
+      console.log(`ESP Checksumme aktualisiert: 0x${xorSum.toString(16)} an Offset ${checksumPos}`);
+
+      // Wenn SHA-256 Digest angehängt ist: Hash neu berechnen
+      if (hashAppended && window.crypto && window.crypto.subtle) {
+        const hashPos = checksumPos + 1;
+        const dataToHash = bytes.subarray(appOffset, hashPos);
+        const hashBuffer = await window.crypto.subtle.digest('SHA-256', dataToHash);
+        const hashBytes = new Uint8Array(hashBuffer);
+        bytes.set(hashBytes, hashPos);
+        console.log("ESP SHA-256 Validierungs-Hash erfolgreich neu berechnet.");
+      }
+
+      return true;
+    }
+
     // Patched den Puffer mit den Nutzereingaben
-    function patchBuffer(buffer, config) {
+    async function patchBuffer(buffer, config) {
       const bytes = new Uint8Array(buffer);
       const encoder = new TextEncoder();
 
@@ -920,6 +971,9 @@
 
       // dark_mode (int8)
       view.setInt8(offset + 212, 1); // 1 = dark mode
+
+      // Checksumme und SHA-256 neu berechnen, damit der ESP32 Bootloader die Datei akzeptiert
+      await updateEspImageChecksumAndHash(bytes);
 
       return { success: true, offset: offset };
     }
@@ -965,7 +1019,7 @@
           rotation: parseInt(cfgRot.value) || 2
         };
 
-        const result = patchBuffer(workingBuffer, config);
+        const result = await patchBuffer(workingBuffer, config);
 
         if (result.success) {
           if (currentFirmwareBlobUrl) URL.revokeObjectURL(currentFirmwareBlobUrl);
