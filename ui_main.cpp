@@ -451,7 +451,6 @@ void ui_init() {
     setup_fixed_region(content, STATUS_HEIGHT, CONTENT_HEIGHT);
     lv_obj_set_style_bg_color(content, ui_theme_bg(), 0);
     for (uint8_t i = 0; i < TAB_COUNT; ++i) {
-        if (i == TAB_SETTINGS) state.tab_enabled[i] = true;
         if (!state.tab_enabled[i]) {
             pages[i] = nullptr;
             continue;
@@ -551,7 +550,7 @@ void ui_init() {
     lv_obj_scroll_to_x(home_nav, nav_scroll_x, LV_ANIM_OFF);
 
     // Pick active tab: if active_page is valid and enabled, use it; otherwise use first enabled tab from tab_order
-    uint8_t target_tab = TAB_SETTINGS;
+    uint8_t target_tab = TAB_HOME;
     for (int i = 0; i < TAB_COUNT; ++i) {
         uint8_t id = state.tab_order[i];
         if (id < TAB_COUNT && state.tab_enabled[id] && pages[id]) {

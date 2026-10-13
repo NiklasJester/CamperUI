@@ -766,74 +766,6 @@ static const char SETTINGS_HTML[] PROGMEM = R"rawliteral(
               <select id="drain_relay"></select>
             </div>
           </div>
-          <div class="grid-2">
-            <div class="field">
-              <label class="label">Pumpe Auto-Off Timer</label>
-              <select id="pump_auto_off_sec">
-                <option value="0">Aus (Dauerbetrieb)</option>
-                <option value="60">1 Minute</option>
-                <option value="120">2 Minuten</option>
-                <option value="180">3 Minuten</option>
-                <option value="300">5 Minuten</option>
-                <option value="600">10 Minuten</option>
-              </select>
-            </div>
-            <div class="field">
-              <label class="label">Trockenlaufschutz</label>
-              <select id="dry_run_protect_pct">
-                <option value="0">Aus</option>
-                <option value="3">3 %</option>
-                <option value="5">5 %</option>
-                <option value="8">8 %</option>
-                <option value="10">10 %</option>
-                <option value="15">15 %</option>
-              </select>
-            </div>
-          </div>
-        </div>
-
-        <div class="card">
-          <div class="card-title">🎯 Befüll-Assistent</div>
-          <div class="toggle-row">
-            <div class="toggle-info">
-              <div class="toggle-title">Befüll-Assistent aktivieren</div>
-              <div class="toggle-desc">Signalisiert Erreichen des Wunschfüllstands</div>
-            </div>
-            <label class="switch">
-              <input type="checkbox" id="fill_assist_enabled" onchange="toggleFillAssistUI()">
-              <span class="slider"></span>
-            </label>
-          </div>
-          <div id="fill_assist_opts" style="margin-top:12px;">
-            <div class="grid-2">
-              <div class="field">
-                <label class="label">Ziel-Füllstand</label>
-                <select id="fill_assist_target_pct">
-                  <option value="80">80 %</option>
-                  <option value="85">85 %</option>
-                  <option value="90">90 %</option>
-                  <option value="95">95 %</option>
-                  <option value="100">100 %</option>
-                </select>
-              </div>
-              <div class="field">
-                <label class="label">Signal-Aktion</label>
-                <select id="fill_assist_action_type" onchange="toggleFillDeviceSelect()">
-                  <option value="0">Buzzer (Tonfolge)</option>
-                  <option value="1">Relais schalten</option>
-                  <option value="2">Dimmer (5x pulsieren)</option>
-                </select>
-              </div>
-            </div>
-            <div class="field" id="wrap_fill_relay">
-              <label class="label">Signal-Relais</label>
-              <select id="fill_assist_relay"></select>
-            </div>
-            <div class="field" id="wrap_fill_dimmer">
-              <label class="label">Signal-Dimmer (Licht)</label>
-              <select id="fill_assist_dimmer"></select>
-            </div>
-          </div>
         </div>
       </div>
 
@@ -1109,22 +1041,9 @@ static const char SETTINGS_HTML[] PROGMEM = R"rawliteral(
           // Dropdowns: Relays
           populateRelaySelect('pump_relay', data.relays, data.pump_relay);
           populateRelaySelect('drain_relay', data.relays, data.drain_relay);
-          populateRelaySelect('fill_assist_relay', data.relays, data.fill_assist_relay);
-
-          // Dropdown: Dimmers
-          populateDimmerSelect('fill_assist_dimmer', data.dimmers, data.fill_assist_dimmer);
 
           // Heater
           populateHeaterTypes(data.heater_types, data.heater_type !== undefined ? data.heater_type : 0);
-
-          // Water Protect
-          document.getElementById('pump_auto_off_sec').value = data.pump_auto_off_sec || 0;
-          document.getElementById('dry_run_protect_pct').value = data.dry_run_protect_pct || 0;
-          document.getElementById('fill_assist_enabled').checked = !!data.fill_assist_enabled;
-          document.getElementById('fill_assist_target_pct').value = data.fill_assist_target_pct || 90;
-          document.getElementById('fill_assist_action_type').value = data.fill_assist_action_type || 0;
-          toggleFillAssistUI();
-          toggleFillDeviceSelect();
 
           // Relays & Dimmers lists
           buildRelaysList(data.switch_names, data.switch_visible);
@@ -1290,17 +1209,6 @@ static const char SETTINGS_HTML[] PROGMEM = R"rawliteral(
       }
     }
 
-    function toggleFillAssistUI() {
-      const en = document.getElementById('fill_assist_enabled').checked;
-      document.getElementById('fill_assist_opts').style.display = en ? 'block' : 'none';
-    }
-
-    function toggleFillDeviceSelect() {
-      const act = parseInt(document.getElementById('fill_assist_action_type').value) || 0;
-      document.getElementById('wrap_fill_relay').style.display = (act === 1) ? 'block' : 'none';
-      document.getElementById('wrap_fill_dimmer').style.display = (act === 2) ? 'block' : 'none';
-    }
-
     function toggleManualTimeUI() {
       const auto = document.getElementById('time_auto_ntp').checked;
       document.getElementById('man_time_wrap').style.display = auto ? 'none' : 'block';
@@ -1434,13 +1342,6 @@ static const char SETTINGS_HTML[] PROGMEM = R"rawliteral(
 
         pump_relay: parseInt(document.getElementById('pump_relay').value),
         drain_relay: parseInt(document.getElementById('drain_relay').value),
-        pump_auto_off_sec: parseInt(document.getElementById('pump_auto_off_sec').value),
-        dry_run_protect_pct: parseInt(document.getElementById('dry_run_protect_pct').value),
-        fill_assist_enabled: document.getElementById('fill_assist_enabled').checked,
-        fill_assist_target_pct: parseInt(document.getElementById('fill_assist_target_pct').value),
-        fill_assist_action_type: parseInt(document.getElementById('fill_assist_action_type').value),
-        fill_assist_relay: parseInt(document.getElementById('fill_assist_relay').value),
-        fill_assist_dimmer: parseInt(document.getElementById('fill_assist_dimmer').value),
         heater_type: parseInt(document.getElementById('heater_type').value) || 0,
 
         show_wrelay: document.getElementById('show_wrelay').checked,

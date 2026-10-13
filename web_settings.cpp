@@ -41,13 +41,6 @@ void web_settings_register_routes(WebServer &server) {
 
             doc["pump_relay"] = state.pump_relay;
             doc["drain_relay"] = state.drain_relay;
-            doc["pump_auto_off_sec"] = state.pump_auto_off_sec;
-            doc["dry_run_protect_pct"] = state.dry_run_protect_pct;
-            doc["fill_assist_enabled"] = state.fill_assist_enabled;
-            doc["fill_assist_target_pct"] = state.fill_assist_target_pct;
-            doc["fill_assist_action_type"] = state.fill_assist_action_type;
-            doc["fill_assist_relay"] = state.fill_assist_relay;
-            doc["fill_assist_dimmer"] = state.fill_assist_dimmer;
             doc["heater_type"] = state.heater_type;
 
             doc["show_wrelay"] = state.show_wrelay;
@@ -214,13 +207,6 @@ void web_settings_register_routes(WebServer &server) {
 
             if (doc["pump_relay"].is<int>()) state.pump_relay = doc["pump_relay"].as<int>();
             if (doc["drain_relay"].is<int>()) state.drain_relay = doc["drain_relay"].as<int>();
-            if (doc["pump_auto_off_sec"].is<int>()) state.pump_auto_off_sec = doc["pump_auto_off_sec"].as<int>();
-            if (doc["dry_run_protect_pct"].is<int>()) state.dry_run_protect_pct = doc["dry_run_protect_pct"].as<int>();
-            if (doc["fill_assist_enabled"].is<bool>()) state.fill_assist_enabled = doc["fill_assist_enabled"].as<bool>();
-            if (doc["fill_assist_target_pct"].is<int>()) state.fill_assist_target_pct = doc["fill_assist_target_pct"].as<int>();
-            if (doc["fill_assist_action_type"].is<int>()) state.fill_assist_action_type = doc["fill_assist_action_type"].as<int>();
-            if (doc["fill_assist_relay"].is<int>()) state.fill_assist_relay = doc["fill_assist_relay"].as<int>();
-            if (doc["fill_assist_dimmer"].is<int>()) state.fill_assist_dimmer = doc["fill_assist_dimmer"].as<int>();
             if (doc["heater_type"].is<int>()) state.heater_type = constrain(doc["heater_type"].as<int>(), 0, 2);
 
             if (doc["show_wrelay"].is<bool>()) state.show_wrelay = doc["show_wrelay"].as<bool>();

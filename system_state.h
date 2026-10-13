@@ -74,15 +74,6 @@ struct SystemState {
     bool tank_enabled[4];
     String tank_names[4];
     uint8_t heater_type;   // 0 = Autoterm, 1 = Truma, 2 = None
-
-    // Water Protection & Fill Assistant (Persisted)
-    int pump_auto_off_sec;        // 0 = Aus, 60, 120, 180, 300, 600
-    int dry_run_protect_pct;      // 0 = Aus, 3, 5, 8, 10, 15 (%)
-    bool fill_assist_enabled;     // true / false
-    int fill_assist_target_pct;   // 80, 85, 90, 95, 100 (%)
-    int fill_assist_action_type;  // 0 = Buzzer, 1 = Relais, 2 = Dimmer
-    int fill_assist_relay;        // -1 = none, 0-7 = standard relays, 8-15 = wrelays
-    int fill_assist_dimmer;       // 0-3 = dimmer 1-4
     
     // Custom Names
     String switch_names[8];

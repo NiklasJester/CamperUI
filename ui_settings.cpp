@@ -125,17 +125,6 @@ static lv_obj_t *dd_pump = NULL;
 static lv_obj_t *dd_drain = NULL;
 static lv_obj_t *dd_heater_type = NULL;
 
-static lv_obj_t *dd_pump_auto_off = NULL;
-static lv_obj_t *dd_dry_run_pct = NULL;
-static lv_obj_t *sw_fill_assist = NULL;
-static lv_obj_t *dd_fill_target = NULL;
-static lv_obj_t *dd_fill_action = NULL;
-static lv_obj_t *dd_fill_relay = NULL;
-static lv_obj_t *dd_fill_dimmer = NULL;
-static lv_obj_t *l_fill_target = NULL;
-static lv_obj_t *l_fill_action = NULL;
-static lv_obj_t *l_fill_device = NULL;
-
 static int relay_opt_map[18];
 static int relay_opt_count = 0;
 
@@ -186,50 +175,6 @@ static void update_water_relay_dropdowns() {
             if (relay_opt_map[k] == state.drain_relay) { sel = k; break; }
         }
         lv_dropdown_set_selected(dd_drain, sel);
-    }
-
-    if (dd_fill_relay) {
-        lv_dropdown_set_options(dd_fill_relay, opts.c_str());
-        int sel = 0;
-        for (int k = 0; k < relay_opt_count; k++) {
-            if (relay_opt_map[k] == state.fill_assist_relay) { sel = k; break; }
-        }
-        lv_dropdown_set_selected(dd_fill_relay, sel);
-    }
-}
-
-static void update_fill_assist_visibility() {
-    bool en = sw_fill_assist && lv_obj_has_state(sw_fill_assist, LV_STATE_CHECKED);
-    auto set_vis = [](lv_obj_t *obj, bool v) {
-        if (!obj) return;
-        if (v) lv_obj_clear_flag(obj, LV_OBJ_FLAG_HIDDEN);
-        else lv_obj_add_flag(obj, LV_OBJ_FLAG_HIDDEN);
-    };
-
-    set_vis(l_fill_target, en);
-    set_vis(dd_fill_target, en);
-    set_vis(l_fill_action, en);
-    set_vis(dd_fill_action, en);
-
-    if (!en) {
-        set_vis(l_fill_device, false);
-        set_vis(dd_fill_relay, false);
-        set_vis(dd_fill_dimmer, false);
-    } else {
-        int act = dd_fill_action ? lv_dropdown_get_selected(dd_fill_action) : state.fill_assist_action_type;
-        if (act == 0) { // Buzzer
-            set_vis(l_fill_device, false);
-            set_vis(dd_fill_relay, false);
-            set_vis(dd_fill_dimmer, false);
-        } else if (act == 1) { // Relais
-            set_vis(l_fill_device, true);
-            set_vis(dd_fill_relay, true);
-            set_vis(dd_fill_dimmer, false);
-        } else if (act == 2) { // Dimmer
-            set_vis(l_fill_device, true);
-            set_vis(dd_fill_relay, false);
-            set_vis(dd_fill_dimmer, true);
-        }
     }
 }
 
@@ -571,14 +516,6 @@ void ui_build_settings(lv_obj_t *parent) {
 void ui_settings_reset() {
     dd_pump = nullptr;
     dd_drain = nullptr;
-    dd_fill_relay = nullptr;
-    dd_fill_dimmer = nullptr;
-    sw_fill_assist = nullptr;
-    dd_fill_target = nullptr;
-    dd_fill_action = nullptr;
-    l_fill_target = nullptr;
-    l_fill_action = nullptr;
-    l_fill_device = nullptr;
     dd_tank_count = nullptr;
     sw_tank_liters = nullptr;
     for (int i = 0; i < 4; i++) {
@@ -587,8 +524,6 @@ void ui_settings_reset() {
         dd_tank_unit[i] = nullptr;
     }
     dd_heater_type = nullptr;
-    dd_pump_auto_off = nullptr;
-    dd_dry_run_pct = nullptr;
     dd_wifi_ssid = nullptr;
     btn_wifi_scan = nullptr;
     lbl_wifi_scan = nullptr;
@@ -1287,182 +1222,26 @@ void ui_settings_screen_init() {
     }
     update_tank_max_visibility();
 
-    // Section 4: Pumpenschutz & Befüll-Assistent
-    lv_obj_t *l_sec_prot = lv_label_create(t_val);
-    lv_label_set_text(l_sec_prot, "Pumpenschutz & Befüll-Assistent");
-    lv_obj_set_style_text_font(l_sec_prot, &lv_font_montserrat_16, 0);
-    lv_obj_set_style_text_color(l_sec_prot, lv_color_hex(UI_COLOR_PRIMARY), 0);
-    lv_obj_align(l_sec_prot, LV_ALIGN_TOP_LEFT, 0, 740);
-
-    // 1. Auto-Off Timer
-    lv_obj_t *l_auto_off = lv_label_create(t_val);
-    lv_label_set_text(l_auto_off, "Pumpe Auto-Off:");
-    lv_obj_set_style_text_font(l_auto_off, &lv_font_montserrat_14, 0);
-    lv_obj_align(l_auto_off, LV_ALIGN_TOP_LEFT, 0, 784);
-
-    dd_pump_auto_off = lv_dropdown_create(t_val);
-    lv_dropdown_set_options(dd_pump_auto_off, "Aus\n1 Minute\n2 Minuten\n3 Minuten\n5 Minuten\n10 Minuten");
-    int sel_ao = 0;
-    if (state.pump_auto_off_sec == 60) sel_ao = 1;
-    else if (state.pump_auto_off_sec == 120) sel_ao = 2;
-    else if (state.pump_auto_off_sec == 180) sel_ao = 3;
-    else if (state.pump_auto_off_sec == 300) sel_ao = 4;
-    else if (state.pump_auto_off_sec >= 600) sel_ao = 5;
-    lv_dropdown_set_selected(dd_pump_auto_off, sel_ao);
-    lv_obj_set_size(dd_pump_auto_off, 250, 44);
-    lv_obj_set_style_text_font(dd_pump_auto_off, &lv_font_montserrat_14, 0);
-    lv_obj_align(dd_pump_auto_off, LV_ALIGN_TOP_LEFT, 150, 774);
-    lv_obj_add_event_cb(dd_pump_auto_off, [](lv_event_t * e) {
-        lv_obj_t *dd = lv_event_get_target(e);
-        static const int auto_off_vals[] = {0, 60, 120, 180, 300, 600};
-        int sel = lv_dropdown_get_selected(dd);
-        if (sel >= 0 && sel < 6) state.pump_auto_off_sec = auto_off_vals[sel];
-    }, LV_EVENT_VALUE_CHANGED, NULL);
-
-    // 2. Trockenlaufschutz
-    lv_obj_t *l_dry_run = lv_label_create(t_val);
-    lv_label_set_text(l_dry_run, "Trockenlaufschutz:");
-    lv_obj_set_style_text_font(l_dry_run, &lv_font_montserrat_14, 0);
-    lv_obj_align(l_dry_run, LV_ALIGN_TOP_LEFT, 0, 838);
-
-    dd_dry_run_pct = lv_dropdown_create(t_val);
-    lv_dropdown_set_options(dd_dry_run_pct, "Aus\n3 %\n5 %\n8 %\n10 %\n15 %");
-    int sel_dr = 0;
-    if (state.dry_run_protect_pct == 3) sel_dr = 1;
-    else if (state.dry_run_protect_pct == 5) sel_dr = 2;
-    else if (state.dry_run_protect_pct == 8) sel_dr = 3;
-    else if (state.dry_run_protect_pct == 10) sel_dr = 4;
-    else if (state.dry_run_protect_pct >= 15) sel_dr = 5;
-    lv_dropdown_set_selected(dd_dry_run_pct, sel_dr);
-    lv_obj_set_size(dd_dry_run_pct, 250, 44);
-    lv_obj_set_style_text_font(dd_dry_run_pct, &lv_font_montserrat_14, 0);
-    lv_obj_align(dd_dry_run_pct, LV_ALIGN_TOP_LEFT, 150, 828);
-    lv_obj_add_event_cb(dd_dry_run_pct, [](lv_event_t * e) {
-        lv_obj_t *dd = lv_event_get_target(e);
-        static const int dry_run_vals[] = {0, 3, 5, 8, 10, 15};
-        int sel = lv_dropdown_get_selected(dd);
-        if (sel >= 0 && sel < 6) state.dry_run_protect_pct = dry_run_vals[sel];
-    }, LV_EVENT_VALUE_CHANGED, NULL);
-
-    // 3. Befüll-Assistent Switch
-    lv_obj_t *l_fill_en = lv_label_create(t_val);
-    lv_label_set_text(l_fill_en, "Befüll-Assistent:");
-    lv_obj_set_style_text_font(l_fill_en, &lv_font_montserrat_14, 0);
-    lv_obj_align(l_fill_en, LV_ALIGN_TOP_LEFT, 0, 892);
-
-    sw_fill_assist = lv_switch_create(t_val);
-    lv_obj_set_size(sw_fill_assist, 52, 28);
-    lv_obj_align(sw_fill_assist, LV_ALIGN_TOP_LEFT, 150, 886);
-    if (state.fill_assist_enabled) lv_obj_add_state(sw_fill_assist, LV_STATE_CHECKED);
-    lv_obj_add_event_cb(sw_fill_assist, [](lv_event_t * e) {
-        lv_obj_t *sw = lv_event_get_target(e);
-        state.fill_assist_enabled = lv_obj_has_state(sw, LV_STATE_CHECKED);
-        update_fill_assist_visibility();
-    }, LV_EVENT_VALUE_CHANGED, NULL);
-
-    // 4. Befüll-Ziel (%)
-    l_fill_target = lv_label_create(t_val);
-    lv_label_set_text(l_fill_target, "Ziel-Füllstand:");
-    lv_obj_set_style_text_font(l_fill_target, &lv_font_montserrat_14, 0);
-    lv_obj_align(l_fill_target, LV_ALIGN_TOP_LEFT, 0, 936);
-
-    dd_fill_target = lv_dropdown_create(t_val);
-    lv_dropdown_set_options(dd_fill_target, "80 %\n85 %\n90 %\n95 %\n100 %");
-    int sel_ft = 2; // Default 90%
-    if (state.fill_assist_target_pct == 80) sel_ft = 0;
-    else if (state.fill_assist_target_pct == 85) sel_ft = 1;
-    else if (state.fill_assist_target_pct == 90) sel_ft = 2;
-    else if (state.fill_assist_target_pct == 95) sel_ft = 3;
-    else if (state.fill_assist_target_pct >= 100) sel_ft = 4;
-    lv_dropdown_set_selected(dd_fill_target, sel_ft);
-    lv_obj_set_size(dd_fill_target, 250, 44);
-    lv_obj_set_style_text_font(dd_fill_target, &lv_font_montserrat_14, 0);
-    lv_obj_align(dd_fill_target, LV_ALIGN_TOP_LEFT, 150, 926);
-    lv_obj_add_event_cb(dd_fill_target, [](lv_event_t * e) {
-        lv_obj_t *dd = lv_event_get_target(e);
-        static const int target_vals[] = {80, 85, 90, 95, 100};
-        int sel = lv_dropdown_get_selected(dd);
-        if (sel >= 0 && sel < 5) state.fill_assist_target_pct = target_vals[sel];
-    }, LV_EVENT_VALUE_CHANGED, NULL);
-
-    // 5. Signal-Aktion
-    l_fill_action = lv_label_create(t_val);
-    lv_label_set_text(l_fill_action, "Signal-Aktion:");
-    lv_obj_set_style_text_font(l_fill_action, &lv_font_montserrat_14, 0);
-    lv_obj_align(l_fill_action, LV_ALIGN_TOP_LEFT, 0, 990);
-
-    dd_fill_action = lv_dropdown_create(t_val);
-    lv_dropdown_set_options(dd_fill_action, "Buzzer (Tonfolge)\nRelais schalten\nDimmer (5x pulsieren)");
-    lv_dropdown_set_selected(dd_fill_action, constrain(state.fill_assist_action_type, 0, 2));
-    lv_obj_set_size(dd_fill_action, 250, 44);
-    lv_obj_set_style_text_font(dd_fill_action, &lv_font_montserrat_14, 0);
-    lv_obj_align(dd_fill_action, LV_ALIGN_TOP_LEFT, 150, 980);
-    lv_obj_add_event_cb(dd_fill_action, [](lv_event_t * e) {
-        lv_obj_t *dd = lv_event_get_target(e);
-        state.fill_assist_action_type = lv_dropdown_get_selected(dd);
-        update_fill_assist_visibility();
-    }, LV_EVENT_VALUE_CHANGED, NULL);
-
-    // 6. Aktions-Gerät (Relais oder Dimmer)
-    l_fill_device = lv_label_create(t_val);
-    lv_label_set_text(l_fill_device, "Aktions-Gerät:");
-    lv_obj_set_style_text_font(l_fill_device, &lv_font_montserrat_14, 0);
-    lv_obj_align(l_fill_device, LV_ALIGN_TOP_LEFT, 0, 1044);
-
-    dd_fill_relay = lv_dropdown_create(t_val);
-    lv_obj_set_size(dd_fill_relay, 250, 44);
-    lv_obj_set_style_text_font(dd_fill_relay, &lv_font_montserrat_14, 0);
-    lv_obj_align(dd_fill_relay, LV_ALIGN_TOP_LEFT, 150, 1034);
-    lv_obj_add_event_cb(dd_fill_relay, [](lv_event_t * e) {
-        lv_obj_t *dd = lv_event_get_target(e);
-        int sel = lv_dropdown_get_selected(dd);
-        if (sel >= 0 && sel < relay_opt_count) {
-            state.fill_assist_relay = relay_opt_map[sel];
-        }
-    }, LV_EVENT_VALUE_CHANGED, NULL);
-
-    dd_fill_dimmer = lv_dropdown_create(t_val);
-    String d_opts = "";
-    for (int k = 0; k < 4; k++) {
-        String nm = state.dimmer_names[k];
-        if (nm.length() == 0 || nm == "PWM " + String(k + 1)) {
-            d_opts += "Dimmer " + String(k + 1);
-        } else {
-            d_opts += nm;
-        }
-        if (k < 3) d_opts += "\n";
-    }
-    lv_dropdown_set_options(dd_fill_dimmer, d_opts.c_str());
-    lv_dropdown_set_selected(dd_fill_dimmer, constrain(state.fill_assist_dimmer, 0, 3));
-    lv_obj_set_size(dd_fill_dimmer, 250, 44);
-    lv_obj_set_style_text_font(dd_fill_dimmer, &lv_font_montserrat_14, 0);
-    lv_obj_align(dd_fill_dimmer, LV_ALIGN_TOP_LEFT, 150, 1034);
-    lv_obj_add_event_cb(dd_fill_dimmer, [](lv_event_t * e) {
-        lv_obj_t *dd = lv_event_get_target(e);
-        state.fill_assist_dimmer = lv_dropdown_get_selected(dd);
-    }, LV_EVENT_VALUE_CHANGED, NULL);
-
     update_water_relay_dropdowns();
-    update_fill_assist_visibility();
 
-    // Section 5: Heizung & Klima
+    // Section 4: Heizung & Klima
     lv_obj_t *l_sec_heat = lv_label_create(t_val);
     lv_label_set_text(l_sec_heat, "Heizung & Klima");
     lv_obj_set_style_text_font(l_sec_heat, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(l_sec_heat, lv_color_hex(UI_COLOR_PRIMARY), 0);
-    lv_obj_align(l_sec_heat, LV_ALIGN_TOP_LEFT, 0, 1094);
+    lv_obj_align(l_sec_heat, LV_ALIGN_TOP_LEFT, 0, 740);
 
     lv_obj_t *l_heat_type = lv_label_create(t_val);
     lv_label_set_text(l_heat_type, "Verbaute Heizung:");
     lv_obj_set_style_text_font(l_heat_type, &lv_font_montserrat_14, 0);
-    lv_obj_align(l_heat_type, LV_ALIGN_TOP_LEFT, 0, 1138);
+    lv_obj_align(l_heat_type, LV_ALIGN_TOP_LEFT, 0, 784);
 
     dd_heater_type = lv_dropdown_create(t_val);
     lv_dropdown_set_options(dd_heater_type, "Autoterm (Air 2D/4D)\nTruma (Combi/VarioHeat)\nKeine / Deaktiviert");
     lv_dropdown_set_selected(dd_heater_type, constrain(state.heater_type, 0, 2));
     lv_obj_set_size(dd_heater_type, 260, 44);
     lv_obj_set_style_text_font(dd_heater_type, &lv_font_montserrat_14, 0);
-    lv_obj_align(dd_heater_type, LV_ALIGN_TOP_LEFT, 150, 1128);
+    lv_obj_align(dd_heater_type, LV_ALIGN_TOP_LEFT, 150, 774);
     lv_obj_add_event_cb(dd_heater_type, [](lv_event_t * e) {
         lv_obj_t *dd = lv_event_get_target(e);
         state.heater_type = (uint8_t)lv_dropdown_get_selected(dd);
@@ -1473,7 +1252,7 @@ void ui_settings_screen_init() {
     lv_label_set_text(l_out_desc, "Hinweis: Der gewählte Außensensor steuert die Frostwarnung & das Außenklima.");
     lv_obj_set_style_text_color(l_out_desc, ui_theme_muted(), 0);
     lv_obj_set_style_text_font(l_out_desc, &lv_font_montserrat_12, 0);
-    lv_obj_align(l_out_desc, LV_ALIGN_TOP_LEFT, 0, 1190);
+    lv_obj_align(l_out_desc, LV_ALIGN_TOP_LEFT, 0, 836);
     
     // ==========================================
     // TAB 5: ALARME (KOMFORTABLE 44PX EINGABEN)

@@ -1,6 +1,5 @@
 #include "ui_main.h"
 #include "http_handler.h"
-#include "water_control.h"
 #include "buzzer.h"
 
 static lv_obj_t *bar_tanks[4];
@@ -53,24 +52,7 @@ static void update_water_button_visuals(bool force = false) {
         }
 
         if (lbl_pump) {
-            if (on) {
-                int rem = water_control_get_remaining_sec();
-                if (rem > 0) {
-                    char buf[32];
-                    snprintf(buf, sizeof(buf), "%s  Pumpe (%02d:%02d)", LV_SYMBOL_TINT, rem / 60, rem % 60);
-                    ui_label_set_text_if_changed(lbl_pump, buf);
-                } else {
-                    ui_label_set_text_if_changed(lbl_pump, LV_SYMBOL_TINT "  Wasserpumpe");
-                }
-            } else {
-                if (state.dry_run_protect_pct > 0 && state.tank_level[0] <= state.dry_run_protect_pct) {
-                    ui_label_set_text_if_changed(lbl_pump, LV_SYMBOL_WARNING "  Pumpe (Trockenschutz)");
-                    lv_obj_set_style_border_color(btn_pump, lv_color_hex(UI_COLOR_WARNING), 0);
-                    ui_text_color_if_changed(lbl_pump, lv_color_hex(UI_COLOR_WARNING));
-                } else {
-                    ui_label_set_text_if_changed(lbl_pump, LV_SYMBOL_TINT "  Wasserpumpe");
-                }
-            }
+            ui_label_set_text_if_changed(lbl_pump, LV_SYMBOL_TINT "  Wasserpumpe");
         }
     }
 
@@ -93,18 +75,6 @@ static void update_water_button_visuals(bool force = false) {
 }
 
 static void on_pump_click() {
-    bool on = get_water_relay_state(state.pump_relay);
-    if (!on) {
-        if (state.dry_run_protect_pct > 0 && state.tank_level[0] <= state.dry_run_protect_pct) {
-            buzzer_beep_force(120);
-            if (lbl_pump) {
-                char warn_msg[32];
-                snprintf(warn_msg, sizeof(warn_msg), "%s  Tank leer (< %d%%)!", LV_SYMBOL_WARNING, state.dry_run_protect_pct);
-                lv_label_set_text(lbl_pump, warn_msg);
-            }
-            return;
-        }
-    }
     toggle_water_relay(state.pump_relay);
     update_water_button_visuals(true);
 }
