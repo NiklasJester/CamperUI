@@ -4,7 +4,7 @@
 #include "ui_fonts.h"
 #include <Wire.h>
 #include <time.h>
-#include "HWCDC.h"
+#include "debug_log.h"
 
 static lv_obj_t *screensaver_cont = nullptr;
 static lv_obj_t *lbl_time = nullptr;
@@ -92,7 +92,7 @@ void ui_screensaver_update() {
 
     if (lbl_sub) {
         char buf[64];
-        snprintf(buf, sizeof(buf), "Batterie: %d%% · %.1f V", state.bat_soc, state.bat_voltage);
+        snprintf(buf, sizeof(buf), "Batterie: %d%% | %.1f V", state.bat_soc, state.bat_voltage);
         lv_label_set_text(lbl_sub, buf);
     }
 }
@@ -105,11 +105,12 @@ void ui_screensaver_enter() {
         ui_screensaver_update();
         lv_obj_clear_flag(screensaver_cont, LV_OBJ_FLAG_HIDDEN);
         lv_obj_invalidate(screensaver_cont);
+        lv_refr_now(nullptr);
     }
 
-    // Set display brightness to 1% (255 is OFF, 0 is 100% -> 253 is 1%)
-    WS_CH32_IO::setPwm(Wire, 253);
-    Serial.println("[SCREENSAVER] Activated (backlight 1%)");
+    // Dim backlight to night mode (PWM 230 = 10% duty cycle, lowest stable hardware backlight)
+    WS_CH32_IO::setPwm(Wire, 230);
+    USBSerial.println("[SCREENSAVER] Activated (night backlight 10% / PWM 230)");
 }
 
 void ui_screensaver_exit() {
@@ -118,12 +119,13 @@ void ui_screensaver_exit() {
 
     if (screensaver_cont) {
         lv_obj_add_flag(screensaver_cont, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_invalidate(lv_scr_act());
+        lv_refr_now(nullptr);
     }
 
-    // Restore user-configured brightness
+    // Restore user-configured brightness only after the screen has redrawn without screensaver
     uint8_t pwm = 255 - (state.display_brightness * 255 / 100);
     WS_CH32_IO::setPwm(Wire, pwm);
     lv_disp_trig_activity(nullptr);
-    lv_obj_invalidate(lv_scr_act());
-    Serial.println("[SCREENSAVER] Deactivated (brightness restored)");
+    USBSerial.println("[SCREENSAVER] Deactivated (brightness restored)");
 }

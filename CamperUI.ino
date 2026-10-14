@@ -431,6 +431,20 @@ void loop() {
             buzzer_beep(50);
             USBSerial.println("[BUZZER] Test-Beep (50ms)");
         }
+        if (c == 'k' || c == 'K') {
+            if (ui_screensaver_is_active()) {
+                ui_screensaver_exit();
+                USBSerial.println("[SCREENSAVER] Manual Exit");
+            } else {
+                ui_screensaver_enter();
+                USBSerial.println("[SCREENSAVER] Manual Enter");
+            }
+        }
+        if (c == 'p' || c == 'P') {
+            int val = USBSerial.parseInt();
+            WS_CH32_IO::setPwm(Wire, val);
+            USBSerial.printf("[PWM] Set raw PWM to %d (duty %d%%)\n", val, (255 - val) * 100 / 255);
+        }
     }
 
     buzzer_loop();
