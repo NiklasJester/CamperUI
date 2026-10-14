@@ -5,7 +5,6 @@
 #include "system_state.h"
 #include "ui_mdi_icons.h"
 #include "ui_fonts.h"
-#include <string.h>
 #define CAMPERUI_VERSION "v1.7.0"
 
 #if !LV_MEM_CUSTOM && LV_MEM_SIZE < (512U * 1024U)
@@ -157,6 +156,7 @@ extern lv_obj_t *scr_main;
 extern lv_obj_t *scr_settings;
 void ui_settings_screen_init();
 void ui_open_settings();
+void ui_open_victron_settings();
 void ui_build_temps(lv_obj_t *parent);
 void ui_update_temps_tab();
 

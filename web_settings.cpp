@@ -1,4 +1,6 @@
 #include "web_settings.h"
+#include "victron_settings.h"
+#include "victron_client.h"
 #include "web_settings_html.h"
 #include "system_state.h"
 #include "ui_main.h"
@@ -85,6 +87,7 @@ void web_settings_register_routes(WebServer &server) {
             doc["home_show_starter"] = state.home_show_starter;
             doc["home_show_solar"] = state.home_show_solar;
             doc["home_show_water"] = state.home_show_water;
+            victron_fill_settings(doc.as<JsonObject>());
             doc["home_water_source"] = state.home_water_source;
             doc["power_show_solar"] = state.power_show_solar;
             doc["power_show_shore"] = state.power_show_shore;
@@ -117,7 +120,7 @@ void web_settings_register_routes(WebServer &server) {
 
             // Metadata: Dimmer Options (fill assist)
             JsonArray dim_arr = doc["dimmers"].to<JsonArray>();
-            for (int i = 0; i < 4; i++) {
+            for (int i = 0; i < 8; i++) {
                 JsonObject d = dim_arr.add<JsonObject>();
                 d["id"] = i;
                 d["name"] = state.dimmer_names[i].length() ? state.dimmer_names[i] : "Dimmer " + String(i + 1);
@@ -148,6 +151,36 @@ void web_settings_register_routes(WebServer &server) {
         server.send(200, "application/json", out);
     });
 
+    server.on("/api/victron", HTTP_GET, [&server]() {
+        VictronSnapshot s=victron_snapshot(); JsonDocument doc;
+        doc["connected"]=s.connected;doc["demo"]=s.demo;doc["stale"]=s.stale;
+        doc["enabled"]=s.enabled;doc["status"]=victron_status(s);doc["portal"]=s.portal;
+        doc["starter_ambiguous"]=s.starter_ambiguous;doc["battery_instance"]=s.battery_instance;
+        if(victron_fresh(s,GX_STARTER))doc["starter_voltage"]=s.values[GX_STARTER].value;
+        doc["instance"]=s.instance;doc["mode_control"]=victron_mode_available(s);
+        if(victron_fresh(s,GX_MODE))doc["mode"]=s.values[GX_MODE].value;
+        else doc["mode"]=nullptr;
+        // Raw control evidence remains inspectable even when writes are disabled.
+        JsonObject evidence=doc["vebus_diagnosis"].to<JsonObject>();
+        const char *paths[]={"Mode","Connected","ModeIsAdjustable"};
+        const GxField fields[]={GX_MODE,GX_DEVICE_CONNECTED,GX_ADJUSTABLE};
+        for(int i=0;i<3;++i) {
+            const auto &v=s.values[fields[i]];JsonObject item=evidence[paths[i]].to<JsonObject>();
+            item["valid"]=v.valid;item["live"]=v.live;
+            if(v.valid)item["value"]=v.value;else item["value"]=nullptr;
+            if(v.at)item["age_ms"]=millis()-v.at;else item["age_ms"]=nullptr;
+            if(s.portal[0]&&s.instance>=0) {
+                char topic[160];snprintf(topic,sizeof(topic),"N/%s/vebus/%d/%s",s.portal,s.instance,paths[i]);
+                item["topic"]=topic;
+            }
+        }
+        JsonArray relays=doc["relays"].to<JsonArray>();
+        for(int i=0;i<2;++i){JsonObject item=relays.add<JsonObject>();item["available"]=victron_relay_available(s,i);
+            if(victron_fresh(s,(GxField)(GX_RELAY0+i)))item["state"]=s.values[GX_RELAY0+i].value==1;
+            else item["state"]=nullptr;}
+        String out;serializeJson(doc,out);server.send(200,"application/json",out);
+    });
+
     // 3. POST /api/settings
     server.on("/api/settings", HTTP_POST, [&server]() {
         if (!server.hasArg("plain")) {
@@ -165,6 +198,35 @@ void web_settings_register_routes(WebServer &server) {
         bool bright_changed = false;
         {
             StateLockGuard lock;
+            String gx_error;
+            if(doc.containsKey("tab_order")) {
+                if(!doc["tab_order"].is<JsonArray>() || doc["tab_order"].size()!=TAB_COUNT)
+                    gx_error="Menueformat veraltet: Websettings neu laden";
+                else {
+                    bool seen[TAB_COUNT]={};
+                    for(int i=0;i<TAB_COUNT;++i) {
+                        JsonVariant v=doc["tab_order"][i];
+                        if(!v.is<int>() || v.as<int>()<0 || v.as<int>()>=TAB_COUNT) {gx_error="Menue-Reihenfolge ungueltig";break;}
+                        int id=v.as<int>();if(seen[id]){gx_error="Menue-Reihenfolge enthaelt doppelte Seiten";break;}seen[id]=true;
+                    }
+                }
+            }
+            if(doc.containsKey("tab_enabled")) {
+                if(!doc["tab_enabled"].is<JsonArray>() || doc["tab_enabled"].size()!=TAB_COUNT)
+                    gx_error="Menueformat veraltet: Websettings neu laden";
+                else for(int i=0;i<TAB_COUNT;++i)if(!doc["tab_enabled"][i].is<bool>()){gx_error="Menue-Sichtbarkeit: EIN/AUS erwartet";break;}
+            }
+            if(doc.containsKey("home_show_victron") && !doc["home_show_victron"].is<bool>())gx_error="MultiPlus-Kachel: EIN/AUS erwartet";
+            if(doc.containsKey("home_favorite")) {
+                if(!doc["home_favorite"].is<JsonArray>() || doc["home_favorite"].size()!=2)gx_error="Zwei Favoriten erwartet";
+                else for(int i=0;i<2;++i)if(!doc["home_favorite"][i].is<int>() || doc["home_favorite"][i].as<int>()<0 || doc["home_favorite"][i].as<int>()>18)
+                    gx_error="Favorit muss zwischen 0 und 18 liegen";
+            }
+            if(doc["home_show_water"].as<bool>() && doc["home_show_victron"].as<bool>())gx_error="Home: Wasser oder MultiPlus auswaehlen";
+            if(gx_error.length() || !victron_apply_settings(doc.as<JsonVariantConst>(),gx_error)) {
+                JsonDocument failure;failure["error"]=gx_error;String out;serializeJson(failure,out);
+                server.send(400,"application/json",out);return;
+            }
             if (doc["wifi_ssid"].is<const char*>()) {
                 String s = doc["wifi_ssid"].as<String>();
                 if (s != state.wifi_ssid) { state.wifi_ssid = s; wifi_changed = true; }
@@ -253,7 +315,15 @@ void web_settings_register_routes(WebServer &server) {
             if (doc["home_show_battery"].is<bool>()) state.home_show_battery = doc["home_show_battery"].as<bool>();
             if (doc["home_show_starter"].is<bool>()) state.home_show_starter = doc["home_show_starter"].as<bool>();
             if (doc["home_show_solar"].is<bool>()) state.home_show_solar = doc["home_show_solar"].as<bool>();
-            if (doc["home_show_water"].is<bool>()) state.home_show_water = doc["home_show_water"].as<bool>();
+            if (doc["home_show_water"].is<bool>()) {
+                state.home_show_water = doc["home_show_water"].as<bool>();
+                if(state.home_show_water)state.home_show_victron=false;
+            }
+            if(doc["home_show_victron"].is<bool>()) {
+                bool next=doc["home_show_victron"].as<bool>();
+                if(next&&!state.home_show_victron)state.tab_enabled[TAB_VICTRON]=true;
+                state.home_show_victron=next;if(next)state.home_show_water=false;
+            }
             if (doc["home_water_source"].is<int>()) state.home_water_source = doc["home_water_source"].as<int>();
             if (doc["power_show_solar"].is<bool>()) state.power_show_solar = doc["power_show_solar"].as<bool>();
             if (doc["power_show_shore"].is<bool>()) state.power_show_shore = doc["power_show_shore"].as<bool>();

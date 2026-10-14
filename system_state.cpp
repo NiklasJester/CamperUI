@@ -1,4 +1,6 @@
 #include "system_state.h"
+#include "victron_client.h"
+#include "settings_migration.h"
 #include "display_sync.h"
 #include <time.h>
 #include <esp_sntp.h>
@@ -117,12 +119,26 @@ state.display_brightness = prefs.getInt("disp_bright", 100);
     }
     for (int i = 0; i < 2; ++i) {
         char key[16]; snprintf(key, sizeof(key), "home_fav%d", i);
-        state.home_favorite[i] = constrain(prefs.getInt(key, i == 0 ? 1 : 3), 0, 16);
+        state.home_favorite[i] = constrain(prefs.getInt(key, i == 0 ? 1 : 3), 0, 18);
     }
     state.home_show_battery = prefs.getBool("home_bat", true);
     state.home_show_starter = prefs.getBool("home_starter", true);
     state.home_show_solar = prefs.getBool("home_solar", true);
     state.home_show_water = prefs.getBool("home_water", true);
+    state.home_show_victron = prefs.getBool("home_gx", false);
+    if (state.home_show_victron) state.home_show_water = false;
+    state.victron_enabled = prefs.getBool("gx_en", false);
+    state.victron_keepalive = prefs.getBool("gx_ka", false);
+    state.victron_starter = prefs.getBool("gx_starter", false);
+    state.victron_battery_instance = constrain(prefs.getInt("gx_bat_inst", -1), -1, 65535);
+    state.victron_host = prefs.getString("gx_host", "");
+    state.victron_portal = prefs.getString("gx_portal", "");
+    state.victron_port = constrain(prefs.getUInt("gx_port", 1883), 1, 65535);
+    state.victron_instance = constrain(prefs.getInt("gx_inst", -1), -1, 65535);
+    state.victron_user = prefs.getString("gx_user", "");
+    state.victron_password = prefs.getString("gx_pass", "");
+    state.victron_relay_names[0] = prefs.getString("gx_r0", "GX Relais 1");
+    state.victron_relay_names[1] = prefs.getString("gx_r1", "GX Relais 2");
     state.home_water_source = constrain(prefs.getInt("home_tank", 0), 0, 3);
 
     // Power Dashboard Producers
@@ -130,8 +146,12 @@ state.display_brightness = prefs.getInt("disp_bright", 100);
     state.power_show_shore = prefs.getBool("pwr_shore", true);
     state.power_show_alt   = prefs.getBool("pwr_alt", true);
 
-    // Tab Order & Visibility
+    // Tab Order & Visibility: preserve legacy RV3D and upstream page identities.
+    const uint8_t rv_cfg_version=prefs.getUChar("rv_cfg_v",0);
+    const bool legacy_rv_tabs=prefs.isKey("gx_en") && rv_cfg_version<2;
     size_t r_order = prefs.getBytes("tab_order", state.tab_order, sizeof(state.tab_order));
+    const size_t saved_order_bytes=r_order;
+    r_order = rv_migrate_tab_order(state.tab_order, r_order, legacy_rv_tabs);
     if (r_order != sizeof(state.tab_order)) {
         for (uint8_t i = 0; i < TAB_COUNT; ++i) state.tab_order[i] = i;
     } else {
@@ -150,8 +170,9 @@ state.display_brightness = prefs.getInt("disp_bright", 100);
     }
 
     size_t r_en = prefs.getBytes("tab_en", state.tab_enabled, sizeof(state.tab_enabled));
+    r_en = rv_migrate_tab_visibility(state.tab_enabled, r_en, legacy_rv_tabs);
     if (r_en != sizeof(state.tab_enabled)) {
-        for (uint8_t i = 0; i < TAB_COUNT; ++i) state.tab_enabled[i] = true;
+        for (uint8_t i = 0; i < TAB_COUNT; ++i) state.tab_enabled[i] = i != TAB_VICTRON;
     }
 
     state.tank_count = prefs.getInt("tank_cnt", 2);
@@ -241,7 +262,8 @@ state.display_brightness = prefs.getInt("disp_bright", 100);
     state.heater_status = "";
     state.heater_error = "no";
     state.fan_on = false;
-    state.heater_type = constrain(prefs.getInt("heater_type", HEATER_TYPE_AUTOTERM), 0, 3);
+    state.heater_type = constrain(rv_migrate_heater_type(prefs.getInt("heater_type", HEATER_TYPE_AUTOTERM),
+        rv_cfg_version<2 && (legacy_rv_tabs || saved_order_bytes<=10)), 0, 3);
 
     // Truma Climate & Boiler defaults
     state.truma_online = false;
@@ -300,6 +322,7 @@ state.display_brightness = prefs.getInt("disp_bright", 100);
 }
 
 void state_save() {
+    victron_settings_changed();
     StateLockGuard lock;
     for (int i = 0; i < 3; ++i) {
         char key[16]; snprintf(key, sizeof(key), "home_tshow%d", i);
@@ -313,6 +336,19 @@ void state_save() {
     prefs.putBool("home_starter", state.home_show_starter);
     prefs.putBool("home_solar", state.home_show_solar);
     prefs.putBool("home_water", state.home_show_water);
+    prefs.putBool("home_gx", state.home_show_victron);
+    prefs.putBool("gx_en", state.victron_enabled);
+    prefs.putBool("gx_ka", state.victron_keepalive);
+    prefs.putBool("gx_starter", state.victron_starter);
+    prefs.putInt("gx_bat_inst", state.victron_battery_instance);
+    prefs.putString("gx_host", state.victron_host);
+    prefs.putString("gx_portal", state.victron_portal);
+    prefs.putUInt("gx_port", state.victron_port);
+    prefs.putInt("gx_inst", state.victron_instance);
+    prefs.putString("gx_user", state.victron_user);
+    prefs.putString("gx_pass", state.victron_password);
+    prefs.putString("gx_r0", state.victron_relay_names[0]);
+    prefs.putString("gx_r1", state.victron_relay_names[1]);
     prefs.putInt("home_tank", state.home_water_source);
     prefs.putBool("pwr_solar", state.power_show_solar);
     prefs.putBool("pwr_shore", state.power_show_shore);
@@ -376,6 +412,7 @@ void state_save() {
     prefs.putInt("pump_relay", state.pump_relay);
     prefs.putInt("drain_relay", state.drain_relay);
     prefs.putInt("heater_type", state.heater_type);
+    prefs.putUChar("rv_cfg_v",2);
 
     prefs.putBool("scrsave_en", state.screensaver_enabled);
 

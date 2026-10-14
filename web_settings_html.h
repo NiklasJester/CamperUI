@@ -584,6 +584,7 @@ static const char SETTINGS_HTML[] PROGMEM = R"rawliteral(
       <div class="cat-pill" onclick="showTab('switches')">⚡ Schalter & Dimmer</div>
       <div class="cat-pill" onclick="showTab('sensors')">🌡️ Sensoren & Klima</div>
       <div class="cat-pill" onclick="showTab('home')">🏠 Home Kacheln</div>
+      <div class="cat-pill" onclick="showTab('victron')">VE Victron GX</div>
     </div>
   </div>
 
@@ -898,8 +899,10 @@ static const char SETTINGS_HTML[] PROGMEM = R"rawliteral(
           </div>
           <div class="toggle-row">
             <div class="toggle-info"><div class="toggle-title">Wasser-Kachel</div></div>
-            <label class="switch"><input type="checkbox" id="home_show_water"><span class="slider"></span></label>
+            <label class="switch"><input type="checkbox" id="home_show_water" onchange="homeEnergyChoice(false)"><span class="slider"></span></label>
           </div>
+          <div class="toggle-row"><div class="toggle-info"><div class="toggle-title">MultiPlus-Kachel statt Wasser</div></div>
+            <label class="switch"><input type="checkbox" id="home_show_victron" onchange="homeEnergyChoice(true)"><span class="slider"></span></label></div>
           <div class="field" style="margin-top:12px;">
             <label class="label">Wasser-Quelle auf Home</label>
             <select id="home_water_source">
@@ -919,6 +922,41 @@ static const char SETTINGS_HTML[] PROGMEM = R"rawliteral(
               <select id="home_favorite_1"></select>
             </div>
           </div>
+        </div>
+      </div>
+
+      <div id="tab-victron" class="tab-section">
+        <div class="card">
+          <div class="card-title">VE Victron GX / MultiPlus-II</div>
+          <div class="toggle-row"><div class="toggle-info"><div class="toggle-title">MQTT-Anbindung</div></div>
+            <label class="switch"><input type="checkbox" id="victron_enabled"><span class="slider"></span></label></div>
+          <div class="toggle-row"><div class="toggle-info"><div class="toggle-title">Eigener Victron-Keepalive</div>
+            <div class="subtext">Aus lassen, wenn VanPi ihn bereits übernimmt.</div></div>
+            <label class="switch"><input type="checkbox" id="victron_keepalive"><span class="slider"></span></label></div>
+          <div class="field"><label class="label">Quelle der Starterbatterie-Spannung</label>
+            <select id="victron_starter"><option value="0">VanPi (bisherige Quelle)</option><option value="1">Cerbo GX – SmartShunt/BMV</option></select></div>
+          <div class="field"><label class="label">Starter: Batteriemonitor-Geräte-ID</label>
+            <input id="victron_battery_instance" type="number" min="0" max="65535" placeholder="Automatisch">
+            <div class="subtext">Starter-Eingang am Batteriemonitor erforderlich. Bei mehreren Monitoren die passende ID wählen. Fehlende GX-Werte erscheinen als --.</div></div>
+          <div class="field"><label class="label">Cerbo-IP / Hostname</label>
+            <input type="text" id="victron_host" maxlength="63" placeholder="z. B. 192.168.1.50" autocomplete="off"></div>
+          <div class="grid-2"><div class="field"><label class="label">MQTT-Port (TCP, ohne TLS)</label>
+            <input id="victron_port" type="number" min="1" max="65535" value="1883"></div>
+            <div class="field"><label class="label">MultiPlus: VRM-/VE.Bus-Instanz</label>
+            <input id="victron_instance" type="number" min="0" max="65535" placeholder="Automatisch"></div></div>
+          <div class="field"><label class="label">Portal-ID</label>
+            <input type="text" id="victron_portal" maxlength="32" placeholder="Automatisch" autocomplete="off"></div>
+          <div class="subtext" id="victron_status" style="white-space:pre-line;margin-bottom:12px;">Status wird geladen…</div>
+          <div class="grid-2"><div class="field"><label class="label">Relais 1: Anzeigename</label>
+            <input type="text" id="victron_relay_0" oninput="refreshGxFavorites()" maxlength="32"></div><div class="field"><label class="label">Relais 2: Anzeigename</label>
+            <input type="text" id="victron_relay_1" oninput="refreshGxFavorites()" maxlength="32"></div></div>
+          <div class="grid-2"><div class="field"><label class="label">MQTT-Benutzer (optional)</label>
+            <input type="text" id="victron_user" maxlength="64" autocomplete="off"></div>
+            <div class="field"><label class="label">MQTT-Passwort (optional)</label>
+            <input id="victron_password" type="password" maxlength="64" autocomplete="new-password"></div></div>
+          <label class="subtext"><input type="checkbox" id="victron_clear_password"> Gespeichertes MQTT-Passwort löschen</label>
+          <div class="subtext" style="margin-top:12px;">MultiPlus-ID: numerische VRM-Instanz, keine Product-ID wie 0x2605. GX-Relais am Cerbo auf „Manuell“ stellen. Den Victron-Tab unter „Menü &amp; Tabs“ aktivieren.
+            Ohne Daten kann eine manuelle Portal-ID nötig sein. Im Dummy-Modus werden keine MQTT-Schaltbefehle gesendet.</div>
         </div>
       </div>
 
@@ -966,7 +1004,8 @@ static const char SETTINGS_HTML[] PROGMEM = R"rawliteral(
       { id: 7, name: "Schalter", icon: "🔘" },
       { id: 8, name: "Level", icon: "⚖️" },
       { id: 9, name: "Einstellungen", icon: "⚙️" },
-      { id: 10, name: "Truma", icon: "🔥" }
+      { id: 10, name: "Truma", icon: "🔥" },
+      { id: 11, name: "Victron", icon: "VE" }
     ];
 
     function showTab(id) {
@@ -976,6 +1015,7 @@ static const char SETTINGS_HTML[] PROGMEM = R"rawliteral(
       if (sec) sec.classList.add('active');
       event.currentTarget.classList.add('active');
       window.scrollTo({ top: 0, behavior: 'smooth' });
+      if(id === 'victron')pollVictronStatus();
     }
 
     function togglePass() {
@@ -994,7 +1034,6 @@ static const char SETTINGS_HTML[] PROGMEM = R"rawliteral(
       fetch('/api/settings')
         .then(r => r.json())
         .then(data => {
-          currentSettings = data;
           document.getElementById('badgeVer').innerText = data.version || 'V1.7.0';
           
           // Network
@@ -1056,12 +1095,24 @@ static const char SETTINGS_HTML[] PROGMEM = R"rawliteral(
           document.getElementById('home_show_starter').checked = !!data.home_show_starter;
           document.getElementById('home_show_solar').checked = !!data.home_show_solar;
           document.getElementById('home_show_water').checked = !!data.home_show_water;
+          document.getElementById('home_show_victron').checked = !!data.home_show_victron;
+          document.getElementById('victron_enabled').checked = !!data.victron_enabled;
+          document.getElementById('victron_keepalive').checked = !!data.victron_keepalive;
+          document.getElementById('victron_starter').value = data.victron_starter ? '1' : '0';
+          document.getElementById('victron_battery_instance').value = data.victron_battery_instance >= 0 ? data.victron_battery_instance : '';
+          for(const key of ['victron_host','victron_portal','victron_user'])document.getElementById(key).value = data[key] || '';
+          document.getElementById('victron_port').value = data.victron_port || 1883;
+          document.getElementById('victron_instance').value = data.victron_instance >= 0 ? data.victron_instance : '';
+          document.getElementById('victron_password').value = '';
+          document.getElementById('victron_password').placeholder = data.victron_password_set ? 'Gespeichert – leer lassen zum Beibehalten' : 'Optional';
+          document.getElementById('victron_clear_password').checked = false;
+          for(let i=0;i<2;++i)document.getElementById('victron_relay_'+i).value = (data.victron_relay_names || [])[i] || ('GX Relais '+(i+1));
           document.getElementById('home_water_source').value = data.home_water_source || 0;
-          populateFavoriteSelect('home_favorite_0', data.relays, data.dimmers, data.home_favorite ? data.home_favorite[0] : 0);
-          populateFavoriteSelect('home_favorite_1', data.relays, data.dimmers, data.home_favorite ? data.home_favorite[1] : 0);
+          populateFavoriteSelect('home_favorite_0', data.relays, data.dimmers, data.home_favorite ? data.home_favorite[0] : 0, data.victron_relays);
+          populateFavoriteSelect('home_favorite_1', data.relays, data.dimmers, data.home_favorite ? data.home_favorite[1] : 0, data.victron_relays);
 
           // Tabs
-          tabOrder = (data.tab_order && data.tab_order.length) ? data.tab_order.slice() : [0,1,2,3,4,5,6,7,8,9,10];
+          tabOrder = (data.tab_order && data.tab_order.length) ? data.tab_order.slice() : tabMeta.map(t => t.id);
           tabMeta.forEach(m => {
             if (!tabOrder.includes(m.id)) tabOrder.push(m.id);
           });
@@ -1157,7 +1208,7 @@ static const char SETTINGS_HTML[] PROGMEM = R"rawliteral(
       };
     }
 
-    function populateFavoriteSelect(elemId, relays, dimmers, selectedVal) {
+    function populateFavoriteSelect(elemId, relays, dimmers, selectedVal, gxRelays) {
       const sel = document.getElementById(elemId);
       if (!sel) return;
       sel.innerHTML = '<option value="0">Aus (Nicht belegt)</option>';
@@ -1181,6 +1232,11 @@ static const char SETTINGS_HTML[] PROGMEM = R"rawliteral(
           sel.appendChild(opt);
         });
       }
+      (gxRelays || []).forEach(r => {
+        const opt = document.createElement('option'); opt.value = r.id; opt.text = 'GX: ' + r.name;
+        if (Number(r.id) === Number(selectedVal)) opt.selected = true;
+        sel.appendChild(opt);
+      });
     }
 
     function updateTankInputs() {
@@ -1346,6 +1402,19 @@ static const char SETTINGS_HTML[] PROGMEM = R"rawliteral(
         home_show_starter: document.getElementById('home_show_starter').checked,
         home_show_solar: document.getElementById('home_show_solar').checked,
         home_show_water: document.getElementById('home_show_water').checked,
+        home_show_victron: document.getElementById('home_show_victron').checked,
+        victron_enabled: document.getElementById('victron_enabled').checked,
+        victron_keepalive: document.getElementById('victron_keepalive').checked,
+        victron_starter: document.getElementById('victron_starter').value === '1',
+        victron_battery_instance: document.getElementById('victron_battery_instance').value === '' ? -1 : Number(document.getElementById('victron_battery_instance').value),
+        victron_host: document.getElementById('victron_host').value.trim(),
+        victron_port: Number(document.getElementById('victron_port').value),
+        victron_portal: document.getElementById('victron_portal').value.trim(),
+        victron_instance: document.getElementById('victron_instance').value === '' ? -1 : Number(document.getElementById('victron_instance').value),
+        victron_user: document.getElementById('victron_user').value,
+        victron_password: document.getElementById('victron_password').value,
+        victron_clear_password: document.getElementById('victron_clear_password').checked,
+        victron_relay_names: [document.getElementById('victron_relay_0').value, document.getElementById('victron_relay_1').value],
         home_water_source: parseInt(document.getElementById('home_water_source').value),
         home_favorite: [
           parseInt(document.getElementById('home_favorite_0').value),
@@ -1366,7 +1435,7 @@ static const char SETTINGS_HTML[] PROGMEM = R"rawliteral(
       }
 
       for (let i = 0; i < tabMeta.length; i++) {
-        payload.tab_enabled.push(tabEnabled[i] !== undefined ? tabEnabled[i] : true);
+        payload.tab_enabled.push(tabEnabled[i] !== undefined ? tabEnabled[i] : i !== 11);
       }
 
       fetch('/api/settings', {
@@ -1374,8 +1443,14 @@ static const char SETTINGS_HTML[] PROGMEM = R"rawliteral(
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       })
-      .then(r => r.json())
+      .then(async r => {
+        const result = await r.json();
+        if (!r.ok || result.error) throw new Error(result.error || 'Speichern fehlgeschlagen');
+        return result;
+      })
       .then(res => {
+        document.getElementById('victron_password').value = '';
+        document.getElementById('victron_clear_password').checked = false;
         btn.innerText = "💾 Gespeichert!";
         showToast("✅ Einstellungen erfolgreich auf Display & NVS gespeichert!");
         setTimeout(() => {
@@ -1439,6 +1514,31 @@ static const char SETTINGS_HTML[] PROGMEM = R"rawliteral(
     }
 
     // Init
+    function refreshGxFavorites() {
+      for(const id of ['home_favorite_0','home_favorite_1']) {
+        const select=document.getElementById(id);
+        for(let i=0;i<2;++i) {
+          const name=document.getElementById('victron_relay_'+i).value.trim() || ('GX Relais '+(i+1));
+          for(const option of select.options)if(Number(option.value)===17+i)option.textContent='GX: '+name;
+        }
+      }
+    }
+    function homeEnergyChoice(multi) {
+      if (multi && document.getElementById('home_show_victron').checked) {
+        document.getElementById('home_show_water').checked = false; tabEnabled[11] = true; renderTabReorderList();
+      } else if (!multi && document.getElementById('home_show_water').checked) {
+        document.getElementById('home_show_victron').checked = false;
+      }
+    }
+    function pollVictronStatus() {
+      if (!document.getElementById('tab-victron').classList.contains('active')) return;
+      fetch('/api/victron').then(r => { if (!r.ok) throw new Error(); return r.json(); }).then(s => {
+        document.getElementById('victron_status').textContent = s.status + '\nPortal: ' + (s.portal || 'Automatisch / warte') +
+          ' | MultiPlus: ' + (s.instance >= 0 ? s.instance : 'Automatisch / warte') +
+          (document.getElementById('victron_starter').value === '1' ? '\nStarter GX: ' + (s.starter_ambiguous ? 'Mehrere Monitore – Geräte-ID wählen' : s.starter_voltage != null ? Number(s.starter_voltage).toFixed(1) + ' V' : 'Keine aktuellen Daten') : '');
+      }).catch(() => { document.getElementById('victron_status').textContent = 'Display nicht erreichbar'; });
+    }
+    setInterval(pollVictronStatus, 3000);
     window.addEventListener('DOMContentLoaded', loadSettings);
   </script>
 </body>

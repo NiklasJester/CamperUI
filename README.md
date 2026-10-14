@@ -362,3 +362,8 @@ vollstaendig behoben bestaetigt. Ein schwarzes/verzoegertes Bild beim PC-Betrieb
 bzw. Schliessen der Arduino IDE bleibt offen; beim Powerbank-Test wurde ein
 anderes Kabel verwendet. Langzeittest, Live-Daten und Live-Schaltbefehle sind
 noch gesondert zu validieren. Dies ist keine Freigabe als fertige stabile Firmware.
+
+
+### Victron GX (RV3D.90 Entwicklungsstand)
+
+Optionale direkte lokale MQTT-Anbindung für Cerbo GX und MultiPlus-II mit eigener Home-Kachel, Victron-Detailseite und zwei GX-Relais als Favoriten. Einstellungen sind auf dem Display und in den Websettings verfügbar; Anbindung und eigener Victron-Keepalive starten deaktiviert. Einrichtung, Protokoll und offene Gerätetests: [Victron GX](docs/VICTRON-GX.md).

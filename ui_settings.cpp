@@ -1,4 +1,5 @@
 #include "ui_main.h"
+#include "victron_settings.h"
 #include "wifi_diagnostics.h"
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
@@ -8,6 +9,8 @@
 #include "upload_qr.h"
 
 static lv_obj_t *sw_debug = NULL, *sw_demo = NULL;
+static lv_obj_t *settings_tabview = nullptr;
+static uint16_t victron_settings_index = 0;
 static lv_obj_t * http_test_win = NULL;
 static lv_obj_t * http_lbl_result = NULL;
 static lv_obj_t *lbl_web_ota_url = NULL;
@@ -215,6 +218,7 @@ void ui_sync_demo_controls() {
     }
 }
 void ui_update_settings_tab() {
+    ui_victron_settings_update();
     ui_sync_demo_controls();
     if (lv_scr_act() == scr_settings && wifi_status_label) {
         String details = wifi_connection_details();
@@ -414,6 +418,12 @@ void ui_open_settings() {
     open_settings_cb(nullptr);
 }
 
+void ui_open_victron_settings() {
+    if (!scr_settings || !settings_tabview) return;
+    lv_tabview_set_act(settings_tabview, victron_settings_index, LV_ANIM_OFF);
+    open_settings_cb(nullptr);
+}
+
 // ==========================================
 // 5th Tab on Main Screen
 // ==========================================
@@ -495,6 +505,9 @@ void ui_build_settings(lv_obj_t *parent) {
 // The Dedicated Settings Screen
 // ==========================================
 void ui_settings_reset() {
+    settings_tabview = nullptr;
+    victron_settings_index = 0;
+    ui_victron_settings_reset();
     dd_pump = nullptr;
     dd_drain = nullptr;
     dd_tank_count = nullptr;
@@ -548,6 +561,7 @@ void ui_settings_screen_init() {
     // Create Top Tabview
     // Create Top Tabview (54px header for comfortable touch targets and icons)
     lv_obj_t *tv = lv_tabview_create(scr_settings, LV_DIR_TOP, 54);
+    settings_tabview = tv;
     lv_obj_set_size(tv, 480, 416); // Leaves space at bottom for the Save button
     lv_obj_align(tv, LV_ALIGN_TOP_MID, 0, 0);
     lv_obj_clear_flag(tv, LV_OBJ_FLAG_SCROLLABLE);
@@ -557,12 +571,20 @@ void ui_settings_screen_init() {
     lv_obj_t *t_vis  = lv_tabview_add_tab(tv, MDI_EYE);
     lv_obj_t *t_val  = lv_tabview_add_tab(tv, MDI_SLIDERS);
     lv_obj_t *t_alm  = lv_tabview_add_tab(tv, MDI_BELL);
+    victron_settings_index = lv_obj_get_child_cnt(lv_tabview_get_content(tv));
+    lv_obj_t *t_gx = lv_tabview_add_tab(tv, "VE");
+    ui_victron_settings_build(t_gx, ta_event_cb);
 
     lv_obj_t *tab_btns = lv_tabview_get_tab_btns(tv);
     if (tab_btns) {
         lv_obj_set_style_pad_left(tab_btns, 0, 0);
         lv_obj_set_style_pad_right(tab_btns, 0, 0);
         lv_obj_set_style_text_font(tab_btns, &ui_font_mdi_24, 0);
+        lv_obj_add_event_cb(tab_btns, [](lv_event_t *event) {
+            lv_obj_draw_part_dsc_t *part=lv_event_get_draw_part_dsc(event);
+            if(part && part->part==LV_PART_ITEMS && part->label_dsc)
+                part->label_dsc->font=part->id==victron_settings_index?&lv_font_montserrat_24:&ui_font_mdi_24;
+        }, LV_EVENT_DRAW_PART_BEGIN, nullptr);
     }
     
     // ==========================================
@@ -1423,6 +1445,12 @@ void ui_settings_screen_init() {
             !strlen(lv_textarea_get_text(ta_warn_bat)) || !strlen(lv_textarea_get_text(ta_warn_bat_yellow))) {
             lv_obj_t *error = lv_msgbox_create(nullptr, "Batterie-Schwellen",
                 "Bitte 0 <= Rot < Gelb <= 100 eingeben.", nullptr, true);
+            if (error) lv_obj_center(error);
+            return;
+        }
+        String victron_error;
+        if (!ui_victron_settings_apply(victron_error)) {
+            lv_obj_t *error = lv_msgbox_create(nullptr, "Victron GX", victron_error.c_str(), nullptr, true);
             if (error) lv_obj_center(error);
             return;
         }
