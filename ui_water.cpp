@@ -25,10 +25,16 @@ static bool get_water_relay_state(int relay) {
 
 static void toggle_water_relay(int relay) {
     if (relay >= 0 && relay < 8) {
+        if (state.switch_locked[relay]) {
+            return;
+        }
         state.switch_state[relay] = !state.switch_state[relay];
         http_publish_switch(relay, state.switch_state[relay]);
     } else if (relay >= 8 && relay < 16) {
         int idx = relay - 8;
+        if (state.wrelay_locked[idx]) {
+            return;
+        }
         state.wrelay_state[idx] = !state.wrelay_state[idx];
         http_publish_wrelay(idx, state.wrelay_state[idx]);
     }

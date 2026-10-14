@@ -1,5 +1,6 @@
 #include "ui_main.h"
 #include "http_handler.h"
+#include "buzzer.h"
 #include <math.h>
 namespace {
 lv_obj_t *root;
@@ -54,8 +55,12 @@ bool favorite_ready(int selection) {
 void favorite_click(lv_event_t *event) {
     int slot = (int)(uintptr_t)lv_event_get_user_data(event), selection = state.home_favorite[slot];
     if (!favorite_ready(selection)) return;
-    if (selection <= 8) http_publish_switch(selection - 1, !state.switch_state[selection - 1]);
-    else {
+    if (selection <= 8) {
+        if (state.switch_locked[selection - 1]) {
+            return;
+        }
+        http_publish_switch(selection - 1, !state.switch_state[selection - 1]);
+    } else {
         int index = selection - 9, value = state.dimmer_val[index];
         if (value > 0) remembered_dimmer[index] = value;
         int target = value > 0 ? 0 : remembered_dimmer[index] ? remembered_dimmer[index] : 100;
@@ -84,7 +89,12 @@ void ui_update_home() {
         bool valid = favorite_ready(selection);
         bool on = selection <= 8 ? state.switch_state[selection - 1] : state.dimmer_val[selection - 9] > 0;
         const String &name = selection <= 8 ? state.switch_names[selection - 1] : state.dimmer_names[selection - 9];
-        snprintf(text, sizeof(text), "%s %s", name.c_str(), !valid ? "--" : on ? "EIN" : "AUS");
+        bool locked = (selection <= 8 && state.switch_locked[selection - 1]);
+        if (locked) {
+            snprintf(text, sizeof(text), MDI_LOCK " %s %s", name.c_str(), !valid ? "--" : on ? "EIN" : "AUS");
+        } else {
+            snprintf(text, sizeof(text), "%s %s", name.c_str(), !valid ? "--" : on ? "EIN" : "AUS");
+        }
         ui_label_set_text_if_changed(favorite_text[i], text);
         if (valid) lv_obj_clear_state(favorites[i], LV_STATE_DISABLED); else lv_obj_add_state(favorites[i], LV_STATE_DISABLED);
         if (valid && on) lv_obj_add_state(favorites[i], LV_STATE_CHECKED); else lv_obj_clear_state(favorites[i], LV_STATE_CHECKED);

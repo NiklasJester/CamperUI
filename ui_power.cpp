@@ -8,14 +8,20 @@
 // =========================================================================
 
 // 1. Produzenten (Top Row, Höhe 74px)
+static lv_obj_t *arc_solar = nullptr;
+static lv_obj_t *lbl_solar_pct = nullptr;
 static lv_obj_t *lbl_solar_w = nullptr;
 static lv_obj_t *lbl_solar_sub = nullptr;
+
+static lv_obj_t *arc_shore = nullptr;
+static lv_obj_t *lbl_shore_pct = nullptr;
 static lv_obj_t *lbl_shore_w = nullptr;
 static lv_obj_t *lbl_shore_sub = nullptr;
-static lv_obj_t *badge_shore = nullptr;
+
+static lv_obj_t *arc_alt = nullptr;
+static lv_obj_t *lbl_alt_pct = nullptr;
 static lv_obj_t *lbl_alt_w = nullptr;
 static lv_obj_t *lbl_alt_sub = nullptr;
-static lv_obj_t *badge_alt = nullptr;
 
 // 2. Fluss-Linien (Top -> Center)
 static lv_obj_t *line_solar = nullptr;
@@ -56,6 +62,9 @@ void ui_trigger_power_anim() {
     last_soc = -1;
     last_shunt_dir = -99;
     if (arc_battery) lv_arc_set_value(arc_battery, 0);
+    if (arc_solar) lv_arc_set_value(arc_solar, 0);
+    if (arc_shore) lv_arc_set_value(arc_shore, 0);
+    if (arc_alt) lv_arc_set_value(arc_alt, 0);
 }
 
 void ui_power_reset() {
@@ -67,14 +76,20 @@ void ui_power_reset() {
     lbl_bat_amp = nullptr;
     card_bat_hub = nullptr;
 
+    arc_solar = nullptr;
+    lbl_solar_pct = nullptr;
     lbl_solar_w = nullptr;
     lbl_solar_sub = nullptr;
+
+    arc_shore = nullptr;
+    lbl_shore_pct = nullptr;
     lbl_shore_w = nullptr;
     lbl_shore_sub = nullptr;
-    badge_shore = nullptr;
+
+    arc_alt = nullptr;
+    lbl_alt_pct = nullptr;
     lbl_alt_w = nullptr;
     lbl_alt_sub = nullptr;
-    badge_alt = nullptr;
 
     line_solar = nullptr;
     line_shore = nullptr;
@@ -139,6 +154,15 @@ void ui_update_power_tab() {
         ui_label_set_text_if_changed(lbl_solar_w, buf);
         snprintf(buf, sizeof(buf), "%.1fV  %.1fA", v_solar, i_solar);
         ui_label_set_text_if_changed(lbl_solar_sub, buf);
+
+        float max_s = (state.solar_max_w > 10.0f) ? state.solar_max_w : 200.0f;
+        int pct_s = constrain((int)lroundf((p_solar / max_s) * 100.0f), 0, 100);
+        if (arc_solar) lv_arc_set_value(arc_solar, pct_s);
+        if (lbl_solar_pct) {
+            snprintf(buf, sizeof(buf), "%d%%", pct_s);
+            ui_label_set_text_if_changed(lbl_solar_pct, buf);
+            ui_text_color_if_changed(lbl_solar_pct, p_solar > 5.0f ? lv_color_hex(UI_COLOR_WARNING) : ui_theme_muted());
+        }
     }
 
     if (lbl_shore_w) {
@@ -147,9 +171,14 @@ void ui_update_power_tab() {
         ui_label_set_text_if_changed(lbl_shore_w, buf);
         snprintf(buf, sizeof(buf), "%.0fV  %.1fA", v_shore, i_shore);
         ui_label_set_text_if_changed(lbl_shore_sub, buf);
-        if (badge_shore) {
-            ui_label_set_text_if_changed(badge_shore, shore_active ? "230V" : "OFF");
-            lv_obj_set_style_text_color(badge_shore, shore_active ? lv_color_hex(UI_COLOR_PRIMARY) : ui_theme_muted(), 0);
+
+        float max_sh = (state.shore_max_w > 10.0f) ? state.shore_max_w : 500.0f;
+        int pct_sh = constrain((int)lroundf((p_shore / max_sh) * 100.0f), 0, 100);
+        if (arc_shore) lv_arc_set_value(arc_shore, pct_sh);
+        if (lbl_shore_pct) {
+            snprintf(buf, sizeof(buf), "%d%%", pct_sh);
+            ui_label_set_text_if_changed(lbl_shore_pct, buf);
+            ui_text_color_if_changed(lbl_shore_pct, (shore_active || p_shore > 5.0f) ? lv_color_hex(UI_COLOR_PRIMARY) : ui_theme_muted());
         }
     }
 
@@ -159,9 +188,14 @@ void ui_update_power_tab() {
         ui_label_set_text_if_changed(lbl_alt_w, buf);
         snprintf(buf, sizeof(buf), "%.1fV Lima", v_starter);
         ui_label_set_text_if_changed(lbl_alt_sub, buf);
-        if (badge_alt) {
-            ui_label_set_text_if_changed(badge_alt, alt_active ? "AKTIV" : "STANDBY");
-            lv_obj_set_style_text_color(badge_alt, alt_active ? lv_color_hex(0xa855f7) : ui_theme_muted(), 0);
+
+        float max_a = (state.alt_max_w > 10.0f) ? state.alt_max_w : 300.0f;
+        int pct_a = constrain((int)lroundf((p_alt / max_a) * 100.0f), 0, 100);
+        if (arc_alt) lv_arc_set_value(arc_alt, pct_a);
+        if (lbl_alt_pct) {
+            snprintf(buf, sizeof(buf), "%d%%", pct_a);
+            ui_label_set_text_if_changed(lbl_alt_pct, buf);
+            ui_text_color_if_changed(lbl_alt_pct, (alt_active || p_alt > 5.0f) ? lv_color_hex(0xa855f7) : ui_theme_muted());
         }
     }
 
@@ -319,7 +353,7 @@ void ui_build_power(lv_obj_t *parent) {
         // 1. Kachel erstellen
         lv_obj_t *card = ui_create_card(parent, w, 74);
         lv_obj_set_pos(card, x, 0);
-        lv_obj_set_style_pad_all(card, 8, 0);
+        lv_obj_set_style_pad_all(card, 6, 0);
 
         // 2. Fluss-Linie erstellen & symmetrisch an Batterie anbinden
         lv_obj_t **line_ptr = nullptr;
@@ -361,9 +395,32 @@ void ui_build_power(lv_obj_t *parent) {
         lv_obj_set_style_line_rounded(*line_ptr, true, 0);
         lv_obj_set_style_line_color(*line_ptr, ui_theme_border(), 0);
 
-        // 3. Inhalt der Kachel
+        // 3. Mini Arc Gauge (Rechts): Visuelle Auslastung relativ zur Maximalleistung
+        lv_obj_t *arc = lv_arc_create(card);
+        lv_obj_set_size(arc, 48, 48);
+        lv_arc_set_rotation(arc, 135);
+        lv_arc_set_bg_angles(arc, 0, 270);
+        lv_arc_set_value(arc, 0);
+        lv_obj_clear_flag(arc, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_align(arc, LV_ALIGN_RIGHT_MID, 0, 0);
+        lv_obj_set_style_arc_width(arc, 5, LV_PART_INDICATOR);
+        lv_obj_set_style_arc_color(arc, ui_theme_track(), LV_PART_MAIN);
+        lv_obj_set_style_arc_width(arc, 5, LV_PART_MAIN);
+        lv_obj_remove_style(arc, NULL, LV_PART_KNOB);
+
+        lv_obj_t *lbl_pct = lv_label_create(arc);
+        lv_obj_set_style_text_font(lbl_pct, &lv_font_montserrat_12, 0);
+        lv_obj_set_style_text_color(lbl_pct, ui_theme_muted(), 0);
+        lv_label_set_text(lbl_pct, "0%");
+        lv_obj_align(lbl_pct, LV_ALIGN_CENTER, 0, 0);
+
+        // 4. Inhalt der Kachel
         if (t == 0) {
             // Solar Card
+            arc_solar = arc;
+            lbl_solar_pct = lbl_pct;
+            lv_obj_set_style_arc_color(arc_solar, lv_color_hex(UI_COLOR_WARNING), LV_PART_INDICATOR);
+
             lv_obj_t *l_sol_title = lv_label_create(card);
             lv_label_set_text_fmt(l_sol_title, "%s Solar", LV_SYMBOL_CHARGE);
             lv_obj_set_style_text_font(l_sol_title, &lv_font_montserrat_12, 0);
@@ -371,13 +428,13 @@ void ui_build_power(lv_obj_t *parent) {
             lv_obj_align(l_sol_title, LV_ALIGN_TOP_LEFT, 0, 0);
 
             lbl_solar_w = lv_label_create(card);
-            lv_obj_set_style_text_font(lbl_solar_w, &lv_font_montserrat_20, 0);
+            lv_obj_set_style_text_font(lbl_solar_w, &lv_font_montserrat_18, 0);
             lv_obj_set_style_text_color(lbl_solar_w, lv_color_hex(UI_COLOR_WARNING), 0);
             lv_label_set_text(lbl_solar_w, "0 W");
-            lv_obj_align(lbl_solar_w, LV_ALIGN_TOP_LEFT, 0, 18);
+            lv_obj_align(lbl_solar_w, LV_ALIGN_TOP_LEFT, 0, 16);
 
             lbl_solar_sub = lv_label_create(card);
-            lv_obj_set_style_text_font(lbl_solar_sub, &lv_font_montserrat_12, 0);
+            lv_obj_set_style_text_font(lbl_solar_sub, &lv_font_montserrat_10, 0);
             lv_obj_set_style_text_color(lbl_solar_sub, ui_theme_muted(), 0);
             lv_label_set_text(lbl_solar_sub, "--V  --A");
             lv_obj_align(lbl_solar_sub, LV_ALIGN_BOTTOM_LEFT, 0, 0);
@@ -397,51 +454,47 @@ void ui_build_power(lv_obj_t *parent) {
             }
         } else if (t == 1) {
             // Landstrom Card
+            arc_shore = arc;
+            lbl_shore_pct = lbl_pct;
+            lv_obj_set_style_arc_color(arc_shore, lv_color_hex(UI_COLOR_PRIMARY), LV_PART_INDICATOR);
+
             lv_obj_t *l_shore_title = lv_label_create(card);
             lv_label_set_text(l_shore_title, "Landstrom");
             lv_obj_set_style_text_font(l_shore_title, &lv_font_montserrat_12, 0);
             lv_obj_set_style_text_color(l_shore_title, lv_color_hex(UI_COLOR_PRIMARY), 0);
             lv_obj_align(l_shore_title, LV_ALIGN_TOP_LEFT, 0, 0);
 
-            badge_shore = lv_label_create(card);
-            lv_label_set_text(badge_shore, "230V");
-            lv_obj_set_style_text_font(badge_shore, &lv_font_montserrat_10, 0);
-            lv_obj_set_style_text_color(badge_shore, ui_theme_muted(), 0);
-            lv_obj_align(badge_shore, LV_ALIGN_TOP_RIGHT, 0, 0);
-
             lbl_shore_w = lv_label_create(card);
-            lv_obj_set_style_text_font(lbl_shore_w, &lv_font_montserrat_20, 0);
+            lv_obj_set_style_text_font(lbl_shore_w, &lv_font_montserrat_18, 0);
             lv_obj_set_style_text_color(lbl_shore_w, lv_color_hex(UI_COLOR_PRIMARY), 0);
             lv_label_set_text(lbl_shore_w, "0 W");
-            lv_obj_align(lbl_shore_w, LV_ALIGN_TOP_LEFT, 0, 18);
+            lv_obj_align(lbl_shore_w, LV_ALIGN_TOP_LEFT, 0, 16);
 
             lbl_shore_sub = lv_label_create(card);
-            lv_obj_set_style_text_font(lbl_shore_sub, &lv_font_montserrat_12, 0);
+            lv_obj_set_style_text_font(lbl_shore_sub, &lv_font_montserrat_10, 0);
             lv_obj_set_style_text_color(lbl_shore_sub, ui_theme_muted(), 0);
             lv_label_set_text(lbl_shore_sub, "230V  0.0A");
             lv_obj_align(lbl_shore_sub, LV_ALIGN_BOTTOM_LEFT, 0, 0);
         } else if (t == 2) {
             // Lichtmaschine Card
+            arc_alt = arc;
+            lbl_alt_pct = lbl_pct;
+            lv_obj_set_style_arc_color(arc_alt, lv_color_hex(0xa855f7), LV_PART_INDICATOR);
+
             lv_obj_t *l_alt_title = lv_label_create(card);
             lv_label_set_text(l_alt_title, "Lichtmasch.");
             lv_obj_set_style_text_font(l_alt_title, &lv_font_montserrat_12, 0);
             lv_obj_set_style_text_color(l_alt_title, lv_color_hex(0xa855f7), 0);
             lv_obj_align(l_alt_title, LV_ALIGN_TOP_LEFT, 0, 0);
 
-            badge_alt = lv_label_create(card);
-            lv_label_set_text(badge_alt, "B2B");
-            lv_obj_set_style_text_font(badge_alt, &lv_font_montserrat_10, 0);
-            lv_obj_set_style_text_color(badge_alt, ui_theme_muted(), 0);
-            lv_obj_align(badge_alt, LV_ALIGN_TOP_RIGHT, 0, 0);
-
             lbl_alt_w = lv_label_create(card);
-            lv_obj_set_style_text_font(lbl_alt_w, &lv_font_montserrat_20, 0);
+            lv_obj_set_style_text_font(lbl_alt_w, &lv_font_montserrat_18, 0);
             lv_obj_set_style_text_color(lbl_alt_w, lv_color_hex(0xa855f7), 0);
             lv_label_set_text(lbl_alt_w, "0 W");
-            lv_obj_align(lbl_alt_w, LV_ALIGN_TOP_LEFT, 0, 18);
+            lv_obj_align(lbl_alt_w, LV_ALIGN_TOP_LEFT, 0, 16);
 
             lbl_alt_sub = lv_label_create(card);
-            lv_obj_set_style_text_font(lbl_alt_sub, &lv_font_montserrat_12, 0);
+            lv_obj_set_style_text_font(lbl_alt_sub, &lv_font_montserrat_10, 0);
             lv_obj_set_style_text_color(lbl_alt_sub, ui_theme_muted(), 0);
             lv_label_set_text(lbl_alt_sub, "12.6V Lima");
             lv_obj_align(lbl_alt_sub, LV_ALIGN_BOTTOM_LEFT, 0, 0);

@@ -6,26 +6,24 @@
 // ============================================================================
 
 // --- Header / Diagnostic Widgets ---
+static lv_obj_t *card_info = nullptr;
 static lv_obj_t *lbl_model = nullptr;
-static lv_obj_t *lbl_indoor_temp = nullptr;
-static lv_obj_t *badge_online = nullptr;
-static lv_obj_t *lbl_online = nullptr;
+static lv_obj_t *lbl_outdoor = nullptr;
 static lv_obj_t *badge_230v = nullptr;
 static lv_obj_t *lbl_230v = nullptr;
-static lv_obj_t *badge_error = nullptr;
-static lv_obj_t *lbl_error = nullptr;
+static lv_obj_t *dd_energy = nullptr;
+static lv_obj_t *dot_online = nullptr;
 
-// --- Room Heating Widgets ---
-static lv_obj_t *btn_heat_toggle = nullptr;
-static lv_obj_t *lbl_heat_toggle = nullptr;
-static lv_obj_t *lbl_target_temp = nullptr;
-static lv_obj_t *btn_temp_minus = nullptr;
-static lv_obj_t *btn_temp_plus = nullptr;
-static lv_obj_t *btn_preset[4] = {nullptr, nullptr, nullptr, nullptr};
-static const int PRESET_TEMPS[4] = {18, 20, 22, 24};
+// --- Thermostat Arc Widgets ---
+static lv_obj_t *arc_target = nullptr;
+static lv_obj_t *lbl_indoor = nullptr;
+static lv_obj_t *lbl_target = nullptr;
+static lv_obj_t *lbl_heater_status = nullptr;
 
-// --- Hot Water Boiler Widgets ---
-static lv_obj_t *lbl_water_status = nullptr;
+// --- Bottom Controls: Start/Stop & Warmwasser ---
+static lv_obj_t *btn_start_stop = nullptr;
+static lv_obj_t *lbl_btn_start_stop = nullptr;
+static lv_obj_t *cont_water = nullptr;
 static lv_obj_t *btn_water_off = nullptr;
 static lv_obj_t *lbl_btn_water_off = nullptr;
 static lv_obj_t *btn_water_eco = nullptr;
@@ -33,22 +31,7 @@ static lv_obj_t *lbl_btn_water_eco = nullptr;
 static lv_obj_t *btn_water_hot = nullptr;
 static lv_obj_t *lbl_btn_water_hot = nullptr;
 
-// --- Energy Mix Widgets ---
-static lv_obj_t *card_energy = nullptr;
-static lv_obj_t *mix_row = nullptr;
-static lv_obj_t *el_row = nullptr;
-static lv_obj_t *lbl_energy_status = nullptr;
-static lv_obj_t *lbl_230v_hint = nullptr;
-static lv_obj_t *btn_energy_fuel = nullptr;
-static lv_obj_t *lbl_btn_energy_fuel = nullptr;
-static lv_obj_t *btn_energy_mix1 = nullptr;
-static lv_obj_t *lbl_btn_energy_mix1 = nullptr;
-static lv_obj_t *btn_energy_mix2 = nullptr;
-static lv_obj_t *lbl_btn_energy_mix2 = nullptr;
-static lv_obj_t *btn_energy_el1 = nullptr;
-static lv_obj_t *lbl_btn_energy_el1 = nullptr;
-static lv_obj_t *btn_energy_el2 = nullptr;
-static lv_obj_t *lbl_btn_energy_el2 = nullptr;
+static int last_heating_state = -1;
 
 // Helper: Button styling for active / inactive states
 static void style_segmented_button(lv_obj_t *btn, lv_obj_t *lbl, bool active, uint32_t active_color_hex = UI_COLOR_PRIMARY) {
@@ -64,11 +47,27 @@ static void style_segmented_button(lv_obj_t *btn, lv_obj_t *lbl, bool active, ui
     }
 }
 
+// Update arc indicator color: Blue (5 C) -> Red (30 C)
+static void update_arc_color(lv_obj_t *arc) {
+    if (!arc) return;
+    int val = lv_arc_get_value(arc);
+    int pct = ((val - 5) * 255) / 25; // 5 C to 30 C range
+    if (pct < 0) pct = 0;
+    if (pct > 255) pct = 255;
+
+    lv_color_t color = lv_color_mix(lv_color_hex(UI_COLOR_DANGER), lv_color_hex(UI_COLOR_PRIMARY), pct);
+
+    lv_obj_set_style_arc_color(arc, color, LV_PART_INDICATOR);
+    lv_obj_set_style_bg_color(arc, lv_color_hex(0xffffff), LV_PART_KNOB);
+    lv_obj_set_style_border_color(arc, color, LV_PART_KNOB);
+    lv_obj_set_style_border_width(arc, 4, LV_PART_KNOB);
+}
+
 // ----------------------------------------------------------------------------
 // Event Handlers
 // ----------------------------------------------------------------------------
 
-static void heat_toggle_event_cb(lv_event_t *e) {
+static void btn_start_stop_event_cb(lv_event_t *e) {
     (void)e;
     state.truma_hold_until = millis() + 4000;
     if (state.truma_heating_on) {
@@ -84,30 +83,22 @@ static void heat_toggle_event_cb(lv_event_t *e) {
     ui_update_truma_tab();
 }
 
-static void temp_adjust_event_cb(lv_event_t *e) {
-    int delta = (int)(intptr_t)lv_event_get_user_data(e);
+static void arc_target_event_cb(lv_event_t *e) {
+    lv_obj_t *arc = lv_event_get_target(e);
+    int val = lv_arc_get_value(arc);
     state.truma_hold_until = millis() + 4000;
-    
-    float new_t = state.truma_target_temp + delta;
-    if (new_t < 5.0f) new_t = 5.0f;
-    if (new_t > 30.0f) new_t = 30.0f;
-    state.truma_target_temp = new_t;
 
-    if (state.truma_heating_on) {
-        http_publish_truma_air((int)(state.truma_target_temp + 0.5f));
+    state.truma_target_temp = (float)val;
+    if (lbl_target) {
+        lv_label_set_text_fmt(lbl_target, "Ziel: %d C", val);
     }
-    ui_update_truma_tab();
-}
+    update_arc_color(arc);
 
-static void preset_event_cb(lv_event_t *e) {
-    int t = (int)(intptr_t)lv_event_get_user_data(e);
-    state.truma_hold_until = millis() + 4000;
-    state.truma_target_temp = (float)t;
-
-    if (state.truma_heating_on) {
-        http_publish_truma_air(t);
+    if (lv_event_get_code(e) == LV_EVENT_RELEASED) {
+        if (state.truma_heating_on) {
+            http_publish_truma_air(val);
+        }
     }
-    ui_update_truma_tab();
 }
 
 static void water_btn_event_cb(lv_event_t *e) {
@@ -118,11 +109,22 @@ static void water_btn_event_cb(lv_event_t *e) {
     ui_update_truma_tab();
 }
 
-static void energy_btn_event_cb(lv_event_t *e) {
-    const char *mode = (const char *)lv_event_get_user_data(e);
+static void dd_energy_event_cb(lv_event_t *e) {
+    lv_obj_t *dd = lv_event_get_target(e);
+    int sel = lv_dropdown_get_selected(dd);
     state.truma_hold_until = millis() + 4000;
-    state.truma_energy_mode = mode ? mode : "fuel";
-    http_publish_truma_energy(state.truma_energy_mode.c_str());
+
+    const char *mode = "fuel";
+    switch (sel) {
+        case 0: mode = "fuel"; break;
+        case 1: mode = "mix1"; break;
+        case 2: mode = "mix2"; break;
+        case 3: mode = "el1"; break;
+        case 4: mode = "el2"; break;
+        default: mode = "fuel"; break;
+    }
+    state.truma_energy_mode = mode;
+    http_publish_truma_energy(mode);
     ui_update_truma_tab();
 }
 
@@ -131,23 +133,22 @@ static void energy_btn_event_cb(lv_event_t *e) {
 // ----------------------------------------------------------------------------
 
 void ui_truma_reset() {
+    card_info = nullptr;
     lbl_model = nullptr;
-    lbl_indoor_temp = nullptr;
-    badge_online = nullptr;
-    lbl_online = nullptr;
+    lbl_outdoor = nullptr;
     badge_230v = nullptr;
     lbl_230v = nullptr;
-    badge_error = nullptr;
-    lbl_error = nullptr;
+    dd_energy = nullptr;
+    dot_online = nullptr;
 
-    btn_heat_toggle = nullptr;
-    lbl_heat_toggle = nullptr;
-    lbl_target_temp = nullptr;
-    btn_temp_minus = nullptr;
-    btn_temp_plus = nullptr;
-    for (int i = 0; i < 4; i++) btn_preset[i] = nullptr;
+    arc_target = nullptr;
+    lbl_indoor = nullptr;
+    lbl_target = nullptr;
+    lbl_heater_status = nullptr;
 
-    lbl_water_status = nullptr;
+    btn_start_stop = nullptr;
+    lbl_btn_start_stop = nullptr;
+    cont_water = nullptr;
     btn_water_off = nullptr;
     lbl_btn_water_off = nullptr;
     btn_water_eco = nullptr;
@@ -155,21 +156,7 @@ void ui_truma_reset() {
     btn_water_hot = nullptr;
     lbl_btn_water_hot = nullptr;
 
-    card_energy = nullptr;
-    mix_row = nullptr;
-    el_row = nullptr;
-    lbl_energy_status = nullptr;
-    lbl_230v_hint = nullptr;
-    btn_energy_fuel = nullptr;
-    lbl_btn_energy_fuel = nullptr;
-    btn_energy_mix1 = nullptr;
-    lbl_btn_energy_mix1 = nullptr;
-    btn_energy_mix2 = nullptr;
-    lbl_btn_energy_mix2 = nullptr;
-    btn_energy_el1 = nullptr;
-    lbl_btn_energy_el1 = nullptr;
-    btn_energy_el2 = nullptr;
-    lbl_btn_energy_el2 = nullptr;
+    last_heating_state = -1;
 }
 
 // ----------------------------------------------------------------------------
@@ -179,228 +166,158 @@ void ui_truma_reset() {
 void ui_build_truma(lv_obj_t *parent) {
     ui_truma_reset();
     ui_setup_tab_page(parent);
+    lv_obj_clear_flag(parent, LV_OBJ_FLAG_SCROLLABLE);
 
-    lv_obj_set_scroll_dir(parent, LV_DIR_VER);
-    lv_obj_add_flag(parent, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_set_scrollbar_mode(parent, LV_SCROLLBAR_MODE_AUTO);
-    lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_flex_align(parent, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_row(parent, 10, 0);
+    bool has_electric = truma_has_electric(state.heater_type);
 
     // ========================================================================
-    // 1. Header Card (Model, Room Temp, Badges)
+    // 1. Top Row: Info Card (Left), 230V Badge, Energy Dropdown (Right), Online Dot
     // ========================================================================
-    lv_obj_t *card_hdr = ui_create_card(parent, 440, 56);
-    lv_obj_set_style_pad_all(card_hdr, 10, 0);
 
-    lbl_model = lv_label_create(card_hdr);
-    lv_label_set_text(lbl_model, state.truma_model.length() > 0 ? state.truma_model.c_str() : "Truma Combi");
-    lv_obj_set_style_text_font(lbl_model, &lv_font_montserrat_16, 0);
-    lv_obj_set_style_text_color(lbl_model, ui_theme_text(), 0);
-    lv_obj_align(lbl_model, LV_ALIGN_TOP_LEFT, 2, 0);
+    // Left: Model & Outdoor Temp Card
+    card_info = ui_create_card(parent, has_electric ? 150 : 180, 50);
+    lv_obj_align(card_info, LV_ALIGN_TOP_LEFT, 0, 0);
+    lv_obj_set_style_pad_all(card_info, 6, 0);
 
-    lbl_indoor_temp = lv_label_create(card_hdr);
-    lv_label_set_text_fmt(lbl_indoor_temp, "Innen: %.1f C", state.indoor_temp);
-    lv_obj_set_style_text_font(lbl_indoor_temp, &lv_font_montserrat_12, 0);
-    lv_obj_set_style_text_color(lbl_indoor_temp, ui_theme_muted(), 0);
-    lv_obj_align(lbl_indoor_temp, LV_ALIGN_BOTTOM_LEFT, 2, 0);
+    lbl_model = lv_label_create(card_info);
+    lv_label_set_text(lbl_model, state.truma_model.length() > 0 ? state.truma_model.c_str() : (has_electric ? "Truma Combi E" : "Truma Combi"));
+    lv_obj_set_style_text_font(lbl_model, &lv_font_montserrat_12, 0);
+    lv_obj_set_style_text_color(lbl_model, ui_theme_muted(), 0);
+    lv_obj_align(lbl_model, LV_ALIGN_TOP_LEFT, 4, 1);
 
-    // Badges Container (right side)
-    lv_obj_t *badges_cont = lv_obj_create(card_hdr);
-    lv_obj_set_size(badges_cont, LV_SIZE_CONTENT, 36);
-    lv_obj_align(badges_cont, LV_ALIGN_RIGHT_MID, 0, 0);
-    lv_obj_set_style_bg_opa(badges_cont, 0, 0);
-    lv_obj_set_style_border_width(badges_cont, 0, 0);
-    lv_obj_set_style_pad_all(badges_cont, 0, 0);
-    lv_obj_set_flex_flow(badges_cont, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(badges_cont, LV_FLEX_ALIGN_END, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_column(badges_cont, 6, 0);
+    lbl_outdoor = lv_label_create(card_info);
+    lv_label_set_text(lbl_outdoor, "Außen --.- C");
+    lv_obj_set_style_text_font(lbl_outdoor, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_color(lbl_outdoor, ui_theme_text(), 0);
+    lv_obj_align(lbl_outdoor, LV_ALIGN_BOTTOM_LEFT, 4, -1);
 
-    // 230V Badge
-    badge_230v = lv_obj_create(badges_cont);
-    lv_obj_set_size(badge_230v, LV_SIZE_CONTENT, 28);
-    lv_obj_set_style_radius(badge_230v, 8, 0);
-    lv_obj_set_style_pad_hor(badge_230v, 8, 0);
-    lv_obj_set_style_pad_ver(badge_230v, 4, 0);
-    lv_obj_set_style_border_width(badge_230v, 1, 0);
-    lbl_230v = lv_label_create(badge_230v);
-    lv_label_set_text(lbl_230v, "230V");
-    lv_obj_set_style_text_font(lbl_230v, &lv_font_montserrat_12, 0);
-    lv_obj_center(lbl_230v);
+    // Online Status Dot: Oben rechts in der Ecke als grüner oder roter Punkt
+    dot_online = lv_obj_create(parent);
+    lv_obj_set_size(dot_online, 14, 14);
+    lv_obj_align(dot_online, LV_ALIGN_TOP_RIGHT, 0, 18);
+    lv_obj_set_style_radius(dot_online, LV_RADIUS_CIRCLE, 0);
+    lv_obj_set_style_border_width(dot_online, 2, 0);
+    lv_obj_set_style_shadow_width(dot_online, 0, 0);
+    lv_obj_clear_flag(dot_online, LV_OBJ_FLAG_SCROLLABLE);
 
-    // Online Status Badge
-    badge_online = lv_obj_create(badges_cont);
-    lv_obj_set_size(badge_online, LV_SIZE_CONTENT, 28);
-    lv_obj_set_style_radius(badge_online, 8, 0);
-    lv_obj_set_style_pad_hor(badge_online, 8, 0);
-    lv_obj_set_style_pad_ver(badge_online, 4, 0);
-    lv_obj_set_style_border_width(badge_online, 1, 0);
-    lbl_online = lv_label_create(badge_online);
-    lv_label_set_text(lbl_online, "Online");
-    lv_obj_set_style_text_font(lbl_online, &lv_font_montserrat_12, 0);
-    lv_obj_center(lbl_online);
+    if (has_electric) {
+        // 230V Badge (between info card and energy dropdown)
+        badge_230v = ui_create_card(parent, 60, 50);
+        lv_obj_align(badge_230v, LV_ALIGN_TOP_LEFT, 156, 0);
+        lv_obj_set_style_pad_all(badge_230v, 0, 0);
+        lv_obj_set_style_radius(badge_230v, 14, 0);
 
-    // Error Badge
-    badge_error = lv_obj_create(badges_cont);
-    lv_obj_set_size(badge_error, LV_SIZE_CONTENT, 28);
-    lv_obj_set_style_radius(badge_error, 8, 0);
-    lv_obj_set_style_pad_hor(badge_error, 8, 0);
-    lv_obj_set_style_pad_ver(badge_error, 4, 0);
-    lv_obj_set_style_bg_color(badge_error, lv_color_hex(UI_COLOR_DANGER), 0);
-    lv_obj_set_style_border_color(badge_error, lv_color_hex(0xf87171), 0);
-    lv_obj_set_style_border_width(badge_error, 1, 0);
-    lbl_error = lv_label_create(badge_error);
-    lv_label_set_text(lbl_error, "Fehler");
-    lv_obj_set_style_text_font(lbl_error, &lv_font_montserrat_12, 0);
-    lv_obj_set_style_text_color(lbl_error, lv_color_hex(0xffffff), 0);
-    lv_obj_center(lbl_error);
-    lv_obj_add_flag(badge_error, LV_OBJ_FLAG_HIDDEN);
+        lbl_230v = lv_label_create(badge_230v);
+        lv_label_set_text(lbl_230v, "230V");
+        lv_obj_set_style_text_font(lbl_230v, &lv_font_montserrat_12, 0);
+        lv_obj_set_style_text_align(lbl_230v, LV_TEXT_ALIGN_CENTER, 0);
+        lv_obj_center(lbl_230v);
 
-    // ========================================================================
-    // 2. Raumheizung Card
-    // ========================================================================
-    lv_obj_t *card_heat = ui_create_card(parent, 440, 185);
-    lv_obj_set_style_pad_all(card_heat, 12, 0);
+        // Energy Source Dropdown
+        dd_energy = lv_dropdown_create(parent);
+        lv_dropdown_set_options(dd_energy, "Gas / Diesel\nMix 1 (900W)\nMix 2 (1800W)\nElektro 1 (900W)\nElektro 2 (1800W)");
+        lv_obj_set_size(dd_energy, 190, 50);
+        lv_obj_align(dd_energy, LV_ALIGN_TOP_RIGHT, -24, 0);
+        lv_obj_set_style_radius(dd_energy, 14, 0);
+        lv_obj_set_style_bg_color(dd_energy, ui_theme_card(), 0);
+        lv_obj_set_style_border_color(dd_energy, ui_theme_border(), 0);
+        lv_obj_set_style_border_width(dd_energy, 1, 0);
+        lv_obj_set_style_text_color(dd_energy, ui_theme_text(), 0);
+        lv_obj_set_style_text_font(dd_energy, &lv_font_montserrat_14, 0);
+        lv_obj_set_style_pad_top(dd_energy, 15, LV_PART_MAIN);
+        lv_obj_set_style_pad_bottom(dd_energy, 15, LV_PART_MAIN);
+        lv_obj_set_style_pad_left(dd_energy, 12, LV_PART_MAIN);
+        lv_obj_set_style_pad_right(dd_energy, 30, LV_PART_MAIN);
+        lv_obj_set_style_shadow_width(dd_energy, 0, 0);
 
-    // Title Row
-    lv_obj_t *lbl_heat_title = lv_label_create(card_heat);
-    lv_label_set_text(lbl_heat_title, "Raumheizung");
-    lv_obj_set_style_text_font(lbl_heat_title, &lv_font_montserrat_16, 0);
-    lv_obj_set_style_text_color(lbl_heat_title, ui_theme_text(), 0);
-    lv_obj_align(lbl_heat_title, LV_ALIGN_TOP_LEFT, 2, 4);
-
-    // On / Off Toggle Button
-    btn_heat_toggle = lv_btn_create(card_heat);
-    lv_obj_set_size(btn_heat_toggle, 92, 34);
-    lv_obj_align(btn_heat_toggle, LV_ALIGN_TOP_RIGHT, 0, 0);
-    lv_obj_set_style_radius(btn_heat_toggle, 10, 0);
-    lv_obj_set_style_border_width(btn_heat_toggle, 1, 0);
-    lv_obj_set_style_shadow_width(btn_heat_toggle, 0, 0);
-    lv_obj_add_event_cb(btn_heat_toggle, heat_toggle_event_cb, LV_EVENT_CLICKED, nullptr);
-
-    lbl_heat_toggle = lv_label_create(btn_heat_toggle);
-    lv_label_set_text(lbl_heat_toggle, "Start");
-    lv_obj_set_style_text_font(lbl_heat_toggle, &lv_font_montserrat_14, 0);
-    lv_obj_center(lbl_heat_toggle);
-
-    // Stepper Row: [-]  [  22 C  ]  [+]
-    lv_obj_t *stepper_row = lv_obj_create(card_heat);
-    lv_obj_set_size(stepper_row, 416, 68);
-    lv_obj_align(stepper_row, LV_ALIGN_TOP_MID, 0, 44);
-    lv_obj_set_style_bg_opa(stepper_row, 0, 0);
-    lv_obj_set_style_border_width(stepper_row, 0, 0);
-    lv_obj_set_style_pad_all(stepper_row, 0, 0);
-    lv_obj_set_flex_flow(stepper_row, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(stepper_row, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-
-    // Minus Button
-    btn_temp_minus = lv_btn_create(stepper_row);
-    lv_obj_set_size(btn_temp_minus, 72, 54);
-    lv_obj_set_style_radius(btn_temp_minus, 14, 0);
-    lv_obj_set_style_bg_color(btn_temp_minus, ui_theme_card(), 0);
-    lv_obj_set_style_border_color(btn_temp_minus, ui_theme_border(), 0);
-    lv_obj_set_style_border_width(btn_temp_minus, 1, 0);
-    lv_obj_set_style_shadow_width(btn_temp_minus, 0, 0);
-    lv_obj_add_event_cb(btn_temp_minus, temp_adjust_event_cb, LV_EVENT_CLICKED, (void *)(intptr_t)-1);
-    lv_obj_t *lbl_minus = lv_label_create(btn_temp_minus);
-    lv_label_set_text(lbl_minus, "-");
-    lv_obj_set_style_text_font(lbl_minus, &lv_font_montserrat_26, 0);
-    lv_obj_set_style_text_color(lbl_minus, ui_theme_text(), 0);
-    lv_obj_center(lbl_minus);
-
-    // Target Temp Display Container
-    lv_obj_t *temp_disp = lv_obj_create(stepper_row);
-    lv_obj_set_size(temp_disp, 220, 64);
-    lv_obj_set_style_bg_opa(temp_disp, 0, 0);
-    lv_obj_set_style_border_width(temp_disp, 0, 0);
-    lv_obj_set_style_pad_all(temp_disp, 0, 0);
-    lv_obj_set_flex_flow(temp_disp, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_flex_align(temp_disp, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-
-    lbl_target_temp = lv_label_create(temp_disp);
-    lv_label_set_text_fmt(lbl_target_temp, "%.0f C", state.truma_target_temp);
-    lv_obj_set_style_text_font(lbl_target_temp, &lv_font_montserrat_32, 0);
-    lv_obj_set_style_text_color(lbl_target_temp, ui_theme_text(), 0);
-
-    lv_obj_t *lbl_target_sub = lv_label_create(temp_disp);
-    lv_label_set_text(lbl_target_sub, "Zieltemperatur (5 - 30 C)");
-    lv_obj_set_style_text_font(lbl_target_sub, &lv_font_montserrat_12, 0);
-    lv_obj_set_style_text_color(lbl_target_sub, ui_theme_muted(), 0);
-
-    // Plus Button
-    btn_temp_plus = lv_btn_create(stepper_row);
-    lv_obj_set_size(btn_temp_plus, 72, 54);
-    lv_obj_set_style_radius(btn_temp_plus, 14, 0);
-    lv_obj_set_style_bg_color(btn_temp_plus, ui_theme_card(), 0);
-    lv_obj_set_style_border_color(btn_temp_plus, ui_theme_border(), 0);
-    lv_obj_set_style_border_width(btn_temp_plus, 1, 0);
-    lv_obj_set_style_shadow_width(btn_temp_plus, 0, 0);
-    lv_obj_add_event_cb(btn_temp_plus, temp_adjust_event_cb, LV_EVENT_CLICKED, (void *)(intptr_t)+1);
-    lv_obj_t *lbl_plus = lv_label_create(btn_temp_plus);
-    lv_label_set_text(lbl_plus, "+");
-    lv_obj_set_style_text_font(lbl_plus, &lv_font_montserrat_26, 0);
-    lv_obj_set_style_text_color(lbl_plus, ui_theme_text(), 0);
-    lv_obj_center(lbl_plus);
-
-    // Bottom Preset Row: [18] [20] [22] [24]
-    lv_obj_t *preset_row = lv_obj_create(card_heat);
-    lv_obj_set_size(preset_row, 416, 40);
-    lv_obj_align(preset_row, LV_ALIGN_BOTTOM_MID, 0, 0);
-    lv_obj_set_style_bg_opa(preset_row, 0, 0);
-    lv_obj_set_style_border_width(preset_row, 0, 0);
-    lv_obj_set_style_pad_all(preset_row, 0, 0);
-    lv_obj_set_flex_flow(preset_row, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(preset_row, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-
-    for (int i = 0; i < 4; i++) {
-        btn_preset[i] = lv_btn_create(preset_row);
-        lv_obj_set_size(btn_preset[i], 94, 34);
-        lv_obj_set_style_radius(btn_preset[i], 8, 0);
-        lv_obj_set_style_bg_color(btn_preset[i], ui_theme_track(), 0);
-        lv_obj_set_style_border_color(btn_preset[i], ui_theme_border(), 0);
-        lv_obj_set_style_border_width(btn_preset[i], 1, 0);
-        lv_obj_set_style_shadow_width(btn_preset[i], 0, 0);
-        lv_obj_add_event_cb(btn_preset[i], preset_event_cb, LV_EVENT_CLICKED, (void *)(intptr_t)PRESET_TEMPS[i]);
-
-        lv_obj_t *lbl_p = lv_label_create(btn_preset[i]);
-        lv_label_set_text_fmt(lbl_p, "%d C", PRESET_TEMPS[i]);
-        lv_obj_set_style_text_font(lbl_p, &lv_font_montserrat_14, 0);
-        lv_obj_set_style_text_color(lbl_p, ui_theme_text(), 0);
-        lv_obj_center(lbl_p);
+        lv_obj_t *list = lv_dropdown_get_list(dd_energy);
+        lv_obj_set_style_text_font(list, &lv_font_montserrat_16, 0);
+        lv_obj_set_style_pad_all(list, 10, 0);
+        lv_obj_set_style_bg_color(list, ui_theme_card(), 0);
+        lv_obj_set_style_border_color(list, ui_theme_border(), 0);
+        lv_obj_add_event_cb(dd_energy, dd_energy_event_cb, LV_EVENT_VALUE_CHANGED, NULL);
     }
 
     // ========================================================================
-    // 3. Warmwasser Boiler Card
+    // 2. Thermostat Arc Gauge (analog zur Autoterm)
     // ========================================================================
-    lv_obj_t *card_water = ui_create_card(parent, 440, 110);
-    lv_obj_set_style_pad_all(card_water, 12, 0);
+    arc_target = lv_arc_create(parent);
+    lv_obj_set_size(arc_target, 230, 230);
+    lv_obj_align(arc_target, LV_ALIGN_TOP_MID, 0, 56);
+    lv_arc_set_range(arc_target, 5, 30);
 
-    lv_obj_t *lbl_w_title = lv_label_create(card_water);
-    lv_label_set_text(lbl_w_title, "Warmwasser Boiler");
-    lv_obj_set_style_text_font(lbl_w_title, &lv_font_montserrat_16, 0);
-    lv_obj_set_style_text_color(lbl_w_title, ui_theme_text(), 0);
-    lv_obj_align(lbl_w_title, LV_ALIGN_TOP_LEFT, 2, 2);
+    lv_obj_set_style_arc_width(arc_target, 16, LV_PART_MAIN);
+    lv_obj_set_style_arc_color(arc_target, ui_theme_track(), LV_PART_MAIN);
+    lv_obj_set_style_arc_width(arc_target, 16, LV_PART_INDICATOR);
 
-    lbl_water_status = lv_label_create(card_water);
-    lv_label_set_text(lbl_water_status, "Aus");
-    lv_obj_set_style_text_font(lbl_water_status, &lv_font_montserrat_14, 0);
-    lv_obj_set_style_text_color(lbl_water_status, ui_theme_muted(), 0);
-    lv_obj_align(lbl_water_status, LV_ALIGN_TOP_RIGHT, -2, 2);
+    // Tactile knob with clear distinct white background
+    lv_obj_set_style_radius(arc_target, LV_RADIUS_CIRCLE, LV_PART_KNOB);
+    lv_obj_set_style_pad_all(arc_target, 7, LV_PART_KNOB);
+    lv_obj_set_style_shadow_width(arc_target, 0, LV_PART_KNOB);
 
-    // 3 Segmented Buttons: [Aus]  [Eco 40C]  [Hot 60C]
-    lv_obj_t *water_btn_row = lv_obj_create(card_water);
-    lv_obj_set_size(water_btn_row, 416, 46);
-    lv_obj_align(water_btn_row, LV_ALIGN_BOTTOM_MID, 0, 0);
-    lv_obj_set_style_bg_opa(water_btn_row, 0, 0);
-    lv_obj_set_style_border_width(water_btn_row, 0, 0);
-    lv_obj_set_style_pad_all(water_btn_row, 0, 0);
-    lv_obj_set_flex_flow(water_btn_row, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(water_btn_row, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_add_event_cb(arc_target, arc_target_event_cb, LV_EVENT_VALUE_CHANGED, NULL);
+    lv_obj_add_event_cb(arc_target, arc_target_event_cb, LV_EVENT_RELEASED, NULL);
 
-    // Button 1: Off
-    btn_water_off = lv_btn_create(water_btn_row);
-    lv_obj_set_size(btn_water_off, 130, 44);
-    lv_obj_set_style_radius(btn_water_off, 10, 0);
+    // Indoor Temp Label (Ist-Temperatur, dead-centered in arc)
+    lbl_indoor = lv_label_create(parent);
+    lv_obj_set_width(lbl_indoor, 200);
+    lv_obj_set_style_text_align(lbl_indoor, LV_TEXT_ALIGN_CENTER, 0);
+    lv_label_set_text(lbl_indoor, "--.- C");
+    lv_obj_set_style_text_font(lbl_indoor, &lv_font_montserrat_42, 0);
+    lv_obj_set_style_text_color(lbl_indoor, ui_theme_text(), 0);
+    lv_obj_align_to(lbl_indoor, arc_target, LV_ALIGN_CENTER, 0, -14);
+
+    // Target Temp Label (Zieltemperatur in arc)
+    lbl_target = lv_label_create(parent);
+    lv_obj_set_width(lbl_target, 200);
+    lv_obj_set_style_text_align(lbl_target, LV_TEXT_ALIGN_CENTER, 0);
+    lv_label_set_text(lbl_target, "Ziel: -- C");
+    lv_obj_set_style_text_font(lbl_target, &lv_font_montserrat_18, 0);
+    lv_obj_set_style_text_color(lbl_target, ui_theme_muted(), 0);
+    lv_obj_align_to(lbl_target, arc_target, LV_ALIGN_CENTER, 0, 26);
+
+    // Truma Heater Status Text (below the arc)
+    lbl_heater_status = lv_label_create(parent);
+    lv_obj_set_width(lbl_heater_status, 420);
+    lv_label_set_long_mode(lbl_heater_status, LV_LABEL_LONG_DOT);
+    lv_obj_set_style_text_align(lbl_heater_status, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_style_text_font(lbl_heater_status, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_color(lbl_heater_status, ui_theme_muted(), 0);
+    lv_label_set_text(lbl_heater_status, "");
+    lv_obj_align_to(lbl_heater_status, arc_target, LV_ALIGN_OUT_BOTTOM_MID, 0, -18);
+
+    // ========================================================================
+    // 3. Bottom Controls: Start/Stop Button (Left) & Warmwasser Selection (Right)
+    // ========================================================================
+
+    // Start/Stop Button (links)
+    btn_start_stop = lv_btn_create(parent);
+    lv_obj_set_size(btn_start_stop, 176, 54);
+    lv_obj_align(btn_start_stop, LV_ALIGN_BOTTOM_LEFT, 0, 0);
+    lv_obj_set_style_radius(btn_start_stop, 14, 0);
+    lv_obj_set_style_border_width(btn_start_stop, 1, 0);
+    lv_obj_set_style_shadow_width(btn_start_stop, 0, 0);
+    lv_obj_add_event_cb(btn_start_stop, btn_start_stop_event_cb, LV_EVENT_CLICKED, NULL);
+
+    lbl_btn_start_stop = lv_label_create(btn_start_stop);
+    lv_label_set_text(lbl_btn_start_stop, "Start");
+    lv_obj_set_style_text_font(lbl_btn_start_stop, &lv_font_montserrat_20, 0);
+    lv_obj_center(lbl_btn_start_stop);
+
+    // Warmwasser Auswahl (rechts in klein)
+    cont_water = lv_obj_create(parent);
+    lv_obj_set_size(cont_water, 252, 54);
+    lv_obj_align(cont_water, LV_ALIGN_BOTTOM_RIGHT, 0, 0);
+    lv_obj_set_style_bg_opa(cont_water, 0, 0);
+    lv_obj_set_style_border_width(cont_water, 0, 0);
+    lv_obj_set_style_pad_all(cont_water, 0, 0);
+    lv_obj_set_flex_flow(cont_water, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(cont_water, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+
+    // Button 1: Aus
+    btn_water_off = lv_btn_create(cont_water);
+    lv_obj_set_size(btn_water_off, 78, 54);
+    lv_obj_set_style_radius(btn_water_off, 12, 0);
     lv_obj_set_style_border_width(btn_water_off, 1, 0);
     lv_obj_set_style_shadow_width(btn_water_off, 0, 0);
     lv_obj_add_event_cb(btn_water_off, water_btn_event_cb, LV_EVENT_CLICKED, (void *)"off");
@@ -409,132 +326,41 @@ void ui_build_truma(lv_obj_t *parent) {
     lv_obj_set_style_text_font(lbl_btn_water_off, &lv_font_montserrat_14, 0);
     lv_obj_center(lbl_btn_water_off);
 
-    // Button 2: Eco 40C
-    btn_water_eco = lv_btn_create(water_btn_row);
-    lv_obj_set_size(btn_water_eco, 130, 44);
-    lv_obj_set_style_radius(btn_water_eco, 10, 0);
+    // Button 2: Eco (40 C)
+    btn_water_eco = lv_btn_create(cont_water);
+    lv_obj_set_size(btn_water_eco, 83, 54);
+    lv_obj_set_style_radius(btn_water_eco, 12, 0);
     lv_obj_set_style_border_width(btn_water_eco, 1, 0);
     lv_obj_set_style_shadow_width(btn_water_eco, 0, 0);
     lv_obj_add_event_cb(btn_water_eco, water_btn_event_cb, LV_EVENT_CLICKED, (void *)"eco");
     lbl_btn_water_eco = lv_label_create(btn_water_eco);
-    lv_label_set_text(lbl_btn_water_eco, "Eco (40 C)");
-    lv_obj_set_style_text_font(lbl_btn_water_eco, &lv_font_montserrat_14, 0);
+    lv_label_set_text(lbl_btn_water_eco, "Eco\n40 C");
+    lv_obj_set_style_text_font(lbl_btn_water_eco, &lv_font_montserrat_12, 0);
+    lv_obj_set_style_text_align(lbl_btn_water_eco, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_center(lbl_btn_water_eco);
 
-    // Button 3: Hot 60C
-    btn_water_hot = lv_btn_create(water_btn_row);
-    lv_obj_set_size(btn_water_hot, 130, 44);
-    lv_obj_set_style_radius(btn_water_hot, 10, 0);
+    // Button 3: Hot (60 C)
+    btn_water_hot = lv_btn_create(cont_water);
+    lv_obj_set_size(btn_water_hot, 83, 54);
+    lv_obj_set_style_radius(btn_water_hot, 12, 0);
     lv_obj_set_style_border_width(btn_water_hot, 1, 0);
     lv_obj_set_style_shadow_width(btn_water_hot, 0, 0);
     lv_obj_add_event_cb(btn_water_hot, water_btn_event_cb, LV_EVENT_CLICKED, (void *)"hot");
     lbl_btn_water_hot = lv_label_create(btn_water_hot);
-    lv_label_set_text(lbl_btn_water_hot, "Hot (60 C)");
-    lv_obj_set_style_text_font(lbl_btn_water_hot, &lv_font_montserrat_14, 0);
+    lv_label_set_text(lbl_btn_water_hot, "Hot\n60 C");
+    lv_obj_set_style_text_font(lbl_btn_water_hot, &lv_font_montserrat_12, 0);
+    lv_obj_set_style_text_align(lbl_btn_water_hot, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_center(lbl_btn_water_hot);
 
-    // ========================================================================
-    // 4. Energiequelle Card
-    // ========================================================================
-    card_energy = ui_create_card(parent, 440, truma_has_electric(state.heater_type) ? 185 : 88);
-    lv_obj_set_style_pad_all(card_energy, 12, 0);
+    // Initial value setup
+    int init_t = (int)(state.truma_target_temp + 0.5f);
+    if (init_t < 5) init_t = 22;
+    if (init_t > 30) init_t = 30;
+    lv_arc_set_value(arc_target, init_t);
+    lv_label_set_text_fmt(lbl_target, "Ziel: %d C", init_t);
+    update_arc_color(arc_target);
 
-    lv_obj_t *lbl_e_title = lv_label_create(card_energy);
-    lv_label_set_text(lbl_e_title, "Energiequelle");
-    lv_obj_set_style_text_font(lbl_e_title, &lv_font_montserrat_16, 0);
-    lv_obj_set_style_text_color(lbl_e_title, ui_theme_text(), 0);
-    lv_obj_align(lbl_e_title, LV_ALIGN_TOP_LEFT, 2, 2);
-
-    lbl_energy_status = lv_label_create(card_energy);
-    lv_label_set_text(lbl_energy_status, "Brennstoff");
-    lv_obj_set_style_text_font(lbl_energy_status, &lv_font_montserrat_14, 0);
-    lv_obj_set_style_text_color(lbl_energy_status, ui_theme_muted(), 0);
-    lv_obj_align(lbl_energy_status, LV_ALIGN_TOP_RIGHT, -2, 2);
-
-    lbl_230v_hint = lv_label_create(card_energy);
-    lv_label_set_text(lbl_230v_hint, "Kein 230V Landstrom");
-    lv_obj_set_style_text_font(lbl_230v_hint, &lv_font_montserrat_12, 0);
-    lv_obj_set_style_text_color(lbl_230v_hint, lv_color_hex(UI_COLOR_WARNING), 0);
-    lv_obj_align(lbl_230v_hint, LV_ALIGN_TOP_RIGHT, -2, 20);
-    lv_obj_add_flag(lbl_230v_hint, LV_OBJ_FLAG_HIDDEN);
-
-    // Row 1: Fuel / Gas (Full width)
-    btn_energy_fuel = lv_btn_create(card_energy);
-    lv_obj_set_size(btn_energy_fuel, 416, 40);
-    lv_obj_align(btn_energy_fuel, LV_ALIGN_TOP_MID, 0, 36);
-    lv_obj_set_style_radius(btn_energy_fuel, 10, 0);
-    lv_obj_set_style_border_width(btn_energy_fuel, 1, 0);
-    lv_obj_set_style_shadow_width(btn_energy_fuel, 0, 0);
-    lv_obj_add_event_cb(btn_energy_fuel, energy_btn_event_cb, LV_EVENT_CLICKED, (void *)"fuel");
-    lbl_btn_energy_fuel = lv_label_create(btn_energy_fuel);
-    lv_label_set_text(lbl_btn_energy_fuel, "Brennstoff (Gas / Diesel)");
-    lv_obj_set_style_text_font(lbl_btn_energy_fuel, &lv_font_montserrat_14, 0);
-    lv_obj_center(lbl_btn_energy_fuel);
-
-    // Row 2: Mix 1 & Mix 2
-    mix_row = lv_obj_create(card_energy);
-    lv_obj_set_size(mix_row, 416, 42);
-    lv_obj_align(mix_row, LV_ALIGN_TOP_MID, 0, 84);
-    lv_obj_set_style_bg_opa(mix_row, 0, 0);
-    lv_obj_set_style_border_width(mix_row, 0, 0);
-    lv_obj_set_style_pad_all(mix_row, 0, 0);
-    lv_obj_set_flex_flow(mix_row, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(mix_row, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-
-    btn_energy_mix1 = lv_btn_create(mix_row);
-    lv_obj_set_size(btn_energy_mix1, 202, 40);
-    lv_obj_set_style_radius(btn_energy_mix1, 10, 0);
-    lv_obj_set_style_border_width(btn_energy_mix1, 1, 0);
-    lv_obj_set_style_shadow_width(btn_energy_mix1, 0, 0);
-    lv_obj_add_event_cb(btn_energy_mix1, energy_btn_event_cb, LV_EVENT_CLICKED, (void *)"mix1");
-    lbl_btn_energy_mix1 = lv_label_create(btn_energy_mix1);
-    lv_label_set_text(lbl_btn_energy_mix1, "Mix 1 (900W)");
-    lv_obj_set_style_text_font(lbl_btn_energy_mix1, &lv_font_montserrat_14, 0);
-    lv_obj_center(lbl_btn_energy_mix1);
-
-    btn_energy_mix2 = lv_btn_create(mix_row);
-    lv_obj_set_size(btn_energy_mix2, 202, 40);
-    lv_obj_set_style_radius(btn_energy_mix2, 10, 0);
-    lv_obj_set_style_border_width(btn_energy_mix2, 1, 0);
-    lv_obj_set_style_shadow_width(btn_energy_mix2, 0, 0);
-    lv_obj_add_event_cb(btn_energy_mix2, energy_btn_event_cb, LV_EVENT_CLICKED, (void *)"mix2");
-    lbl_btn_energy_mix2 = lv_label_create(btn_energy_mix2);
-    lv_label_set_text(lbl_btn_energy_mix2, "Mix 2 (1800W)");
-    lv_obj_set_style_text_font(lbl_btn_energy_mix2, &lv_font_montserrat_14, 0);
-    lv_obj_center(lbl_btn_energy_mix2);
-
-    // Row 3: Elektro 1 & Elektro 2
-    el_row = lv_obj_create(card_energy);
-    lv_obj_set_size(el_row, 416, 42);
-    lv_obj_align(el_row, LV_ALIGN_TOP_MID, 0, 132);
-    lv_obj_set_style_bg_opa(el_row, 0, 0);
-    lv_obj_set_style_border_width(el_row, 0, 0);
-    lv_obj_set_style_pad_all(el_row, 0, 0);
-    lv_obj_set_flex_flow(el_row, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(el_row, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-
-    btn_energy_el1 = lv_btn_create(el_row);
-    lv_obj_set_size(btn_energy_el1, 202, 40);
-    lv_obj_set_style_radius(btn_energy_el1, 10, 0);
-    lv_obj_set_style_border_width(btn_energy_el1, 1, 0);
-    lv_obj_set_style_shadow_width(btn_energy_el1, 0, 0);
-    lv_obj_add_event_cb(btn_energy_el1, energy_btn_event_cb, LV_EVENT_CLICKED, (void *)"el1");
-    lbl_btn_energy_el1 = lv_label_create(btn_energy_el1);
-    lv_label_set_text(lbl_btn_energy_el1, "Elektro 1 (900W)");
-    lv_obj_set_style_text_font(lbl_btn_energy_el1, &lv_font_montserrat_14, 0);
-    lv_obj_center(lbl_btn_energy_el1);
-
-    btn_energy_el2 = lv_btn_create(el_row);
-    lv_obj_set_size(btn_energy_el2, 202, 40);
-    lv_obj_set_style_radius(btn_energy_el2, 10, 0);
-    lv_obj_set_style_border_width(btn_energy_el2, 1, 0);
-    lv_obj_set_style_shadow_width(btn_energy_el2, 0, 0);
-    lv_obj_add_event_cb(btn_energy_el2, energy_btn_event_cb, LV_EVENT_CLICKED, (void *)"el2");
-    lbl_btn_energy_el2 = lv_label_create(btn_energy_el2);
-    lv_label_set_text(lbl_btn_energy_el2, "Elektro 2 (1800W)");
-    lv_obj_set_style_text_font(lbl_btn_energy_el2, &lv_font_montserrat_14, 0);
-    lv_obj_center(lbl_btn_energy_el2);
-
+    last_heating_state = -1;
     ui_update_truma_tab();
 }
 
@@ -543,154 +369,160 @@ void ui_build_truma(lv_obj_t *parent) {
 // ----------------------------------------------------------------------------
 
 void ui_update_truma_tab() {
-    if (!lbl_model) return;
+    if (!arc_target) return;
 
     // 1. Header Updates
-    if (state.truma_model.length() > 0) {
-        ui_label_set_text_if_changed(lbl_model, state.truma_model.c_str());
-    } else {
-        ui_label_set_text_if_changed(lbl_model, "Truma Combi");
+    if (lbl_model) {
+        if (state.truma_model.length() > 0) {
+            ui_label_set_text_if_changed(lbl_model, state.truma_model.c_str());
+        } else {
+            ui_label_set_text_if_changed(lbl_model, truma_has_electric(state.heater_type) ? "Truma Combi E" : "Truma Combi");
+        }
     }
-    ui_label_set_float(lbl_indoor_temp, "Innen: %.1f C", state.indoor_temp);
 
-    // Online Status Badge
-    if (state.truma_online) {
-        ui_label_set_text_if_changed(lbl_online, "Online");
-        lv_obj_set_style_bg_color(badge_online, lv_color_hex(UI_COLOR_SUCCESS), 0);
-        lv_obj_set_style_border_color(badge_online, lv_color_hex(0x34d399), 0);
-        lv_obj_set_style_text_color(lbl_online, lv_color_hex(0xffffff), 0);
-    } else {
-        ui_label_set_text_if_changed(lbl_online, "Offline");
-        lv_obj_set_style_bg_color(badge_online, ui_theme_card(), 0);
-        lv_obj_set_style_border_color(badge_online, ui_theme_border(), 0);
-        lv_obj_set_style_text_color(lbl_online, ui_theme_muted(), 0);
+    if (lbl_outdoor) {
+        if (isnan(state.outdoor_temp) || state.outdoor_temp < -40.0f) {
+            ui_label_set_text_if_changed(lbl_outdoor, "Außen --.- C");
+        } else {
+            char buf[32];
+            snprintf(buf, sizeof(buf), "Außen %.1f C", state.outdoor_temp);
+            ui_label_set_text_if_changed(lbl_outdoor, buf);
+        }
+    }
+
+    // Online Status Dot: Oben rechts in der Ecke als grüner oder roter Punkt
+    if (dot_online) {
+        if (state.truma_online) {
+            lv_obj_set_style_bg_color(dot_online, lv_color_hex(UI_COLOR_SUCCESS), 0);
+            lv_obj_set_style_border_color(dot_online, lv_color_hex(0x34d399), 0);
+        } else {
+            lv_obj_set_style_bg_color(dot_online, lv_color_hex(UI_COLOR_DANGER), 0);
+            lv_obj_set_style_border_color(dot_online, lv_color_hex(0xf87171), 0);
+        }
     }
 
     // 230V Badge
-    if (!truma_has_electric(state.heater_type)) {
-        if (badge_230v) lv_obj_add_flag(badge_230v, LV_OBJ_FLAG_HIDDEN);
-    } else if (badge_230v) {
-        lv_obj_clear_flag(badge_230v, LV_OBJ_FLAG_HIDDEN);
+    if (badge_230v && lbl_230v) {
         if (state.truma_230v) {
             ui_label_set_text_if_changed(lbl_230v, "230V");
             lv_obj_set_style_bg_color(badge_230v, lv_color_hex(UI_COLOR_PRIMARY), 0);
             lv_obj_set_style_border_color(badge_230v, lv_color_hex(0x38bdf8), 0);
             lv_obj_set_style_text_color(lbl_230v, lv_color_hex(0xffffff), 0);
         } else {
-            ui_label_set_text_if_changed(lbl_230v, "Kein 230V");
+            ui_label_set_text_if_changed(lbl_230v, "Kein\n230V");
             lv_obj_set_style_bg_color(badge_230v, ui_theme_card(), 0);
             lv_obj_set_style_border_color(badge_230v, ui_theme_border(), 0);
             lv_obj_set_style_text_color(lbl_230v, ui_theme_muted(), 0);
         }
     }
 
-    // Error Badge
+    // Status Label Text & Error Handling
     bool has_err = (state.truma_error.length() > 0 && 
                     state.truma_error != "none" && 
                     state.truma_error != "no" && 
                     state.truma_error != "0");
+
+    String status_txt = "";
+    lv_color_t status_col = ui_theme_muted();
+
     if (has_err) {
-        char err_buf[32];
-        snprintf(err_buf, sizeof(err_buf), "Fehler: %s", state.truma_error.c_str());
-        ui_label_set_text_if_changed(lbl_error, err_buf);
-        lv_obj_clear_flag(badge_error, LV_OBJ_FLAG_HIDDEN);
+        status_txt = "Fehler: " + state.truma_error;
+        status_col = lv_color_hex(UI_COLOR_DANGER);
+    } else if (!state.truma_online) {
+        status_txt = "Truma Offline";
+        status_col = lv_color_hex(UI_COLOR_DANGER);
     } else {
-        lv_obj_add_flag(badge_error, LV_OBJ_FLAG_HIDDEN);
-    }
-
-    // 2. Room Heating Card Updates
-    if (btn_heat_toggle && lbl_heat_toggle) {
-        if (state.truma_heating_on) {
-            lv_obj_set_style_bg_color(btn_heat_toggle, lv_color_hex(UI_COLOR_DANGER), 0);
-            lv_obj_set_style_border_color(btn_heat_toggle, lv_color_hex(0xf87171), 0);
-            ui_label_set_text_if_changed(lbl_heat_toggle, "Stop");
-            lv_obj_set_style_text_color(lbl_heat_toggle, lv_color_hex(0xffffff), 0);
+        bool has_el = truma_has_electric(state.heater_type);
+        String em = state.truma_energy_mode; em.toLowerCase();
+        bool needs_230v = has_el && (em == "mix1" || em == "mix2" || em == "el1" || em == "el2");
+        if (needs_230v && !state.truma_230v) {
+            status_txt = "Kein 230V Landstrom!";
+            status_col = lv_color_hex(UI_COLOR_WARNING);
+        } else if (state.truma_heating_on) {
+            if (state.truma_water_mode == "eco") status_txt = "Heizt | Boiler Eco (40 C)";
+            else if (state.truma_water_mode == "hot") status_txt = "Heizt | Boiler Hot (60 C)";
+            else status_txt = "Heizt";
+            status_col = lv_color_hex(UI_COLOR_WARNING);
+        } else if (state.truma_water_mode != "off" && state.truma_water_mode.length() > 0) {
+            if (state.truma_water_mode == "eco") status_txt = "Warmwasser Eco (40 C)";
+            else if (state.truma_water_mode == "hot") status_txt = "Warmwasser Hot (60 C)";
+            else status_txt = "Warmwasser Aktiv";
+            status_col = lv_color_hex(UI_COLOR_SUCCESS);
         } else {
-            lv_obj_set_style_bg_color(btn_heat_toggle, lv_color_hex(UI_COLOR_SUCCESS), 0);
-            lv_obj_set_style_border_color(btn_heat_toggle, lv_color_hex(0x34d399), 0);
-            ui_label_set_text_if_changed(lbl_heat_toggle, "Start");
-            lv_obj_set_style_text_color(lbl_heat_toggle, lv_color_hex(0xffffff), 0);
+            status_txt = "Standby";
+            status_col = ui_theme_muted();
         }
     }
 
-    if (lbl_target_temp) {
-        ui_label_set_float(lbl_target_temp, "%.0f C", state.truma_target_temp);
+    if (lbl_heater_status) {
+        ui_label_set_text_if_changed(lbl_heater_status, status_txt.c_str());
+        lv_obj_set_style_text_color(lbl_heater_status, status_col, 0);
     }
 
-    // Preset button highlights
-    for (int i = 0; i < 4; i++) {
-        if (btn_preset[i]) {
-            bool is_cur = ((int)(state.truma_target_temp + 0.5f) == PRESET_TEMPS[i]);
-            lv_color_t bg = is_cur ? lv_color_hex(UI_COLOR_PRIMARY) : ui_theme_track();
-            lv_obj_set_style_bg_color(btn_preset[i], bg, 0);
-            lv_obj_t *lbl = lv_obj_get_child(btn_preset[i], 0);
-            if (lbl) {
-                lv_obj_set_style_text_color(lbl, is_cur ? lv_color_hex(0xffffff) : ui_theme_text(), 0);
-            }
+    // 2. Indoor Temp (Ist-Temperatur inside Arc)
+    if (lbl_indoor) {
+        if (isnan(state.indoor_temp) || state.indoor_temp < -40.0f) {
+            ui_label_set_text_if_changed(lbl_indoor, "--.- C");
+        } else {
+            ui_label_set_float(lbl_indoor, "%.1f C", state.indoor_temp);
         }
     }
 
-    // 3. Water Boiler Updates
+    // 3. Water Boiler Selection
     String wm = state.truma_water_mode; wm.toLowerCase();
     bool w_off = (wm == "off" || wm.length() == 0);
     bool w_eco = (wm == "eco");
     bool w_hot = (wm == "hot" || wm == "boost");
 
-    if (lbl_water_status) {
-        if (w_eco) ui_label_set_text_if_changed(lbl_water_status, "Eco (40 C)");
-        else if (w_hot) ui_label_set_text_if_changed(lbl_water_status, "Hot (60 C)");
-        else ui_label_set_text_if_changed(lbl_water_status, "Aus");
-
-        lv_color_t sc = (w_eco || w_hot) ? lv_color_hex(UI_COLOR_SUCCESS) : ui_theme_muted();
-        lv_obj_set_style_text_color(lbl_water_status, sc, 0);
-    }
-
     style_segmented_button(btn_water_off, lbl_btn_water_off, w_off, UI_COLOR_TRACK_DARK);
     style_segmented_button(btn_water_eco, lbl_btn_water_eco, w_eco, UI_COLOR_SUCCESS);
     style_segmented_button(btn_water_hot, lbl_btn_water_hot, w_hot, UI_COLOR_WARNING);
 
-    // 4. Energy Mix Updates
-    bool has_el = truma_has_electric(state.heater_type);
-    if (!has_el) {
-        if (mix_row) lv_obj_add_flag(mix_row, LV_OBJ_FLAG_HIDDEN);
-        if (el_row)  lv_obj_add_flag(el_row, LV_OBJ_FLAG_HIDDEN);
-        if (lbl_230v_hint) lv_obj_add_flag(lbl_230v_hint, LV_OBJ_FLAG_HIDDEN);
-        if (card_energy) lv_obj_set_height(card_energy, 88);
-    } else {
-        if (mix_row) lv_obj_clear_flag(mix_row, LV_OBJ_FLAG_HIDDEN);
-        if (el_row)  lv_obj_clear_flag(el_row, LV_OBJ_FLAG_HIDDEN);
-        if (card_energy) lv_obj_set_height(card_energy, 185);
-    }
+    // 4. Energy Dropdown Selection (if active)
+    if (dd_energy && !lv_dropdown_is_open(dd_energy)) {
+        String em = state.truma_energy_mode; em.toLowerCase();
+        int expected_sel = 0;
+        if (em == "fuel" || em == "gas") expected_sel = 0;
+        else if (em == "mix1") expected_sel = 1;
+        else if (em == "mix2") expected_sel = 2;
+        else if (em == "el1") expected_sel = 3;
+        else if (em == "el2") expected_sel = 4;
 
-    String em = state.truma_energy_mode; em.toLowerCase();
-    bool e_fuel = (em == "fuel" || em == "gas");
-    bool e_mix1 = (em == "mix1");
-    bool e_mix2 = (em == "mix2");
-    bool e_el1  = (em == "el1");
-    bool e_el2  = (em == "el2");
-
-    if (lbl_energy_status) {
-        if (!has_el || e_fuel) ui_label_set_text_if_changed(lbl_energy_status, "Brennstoff");
-        else if (e_mix1) ui_label_set_text_if_changed(lbl_energy_status, "Mix 1 (900W)");
-        else if (e_mix2) ui_label_set_text_if_changed(lbl_energy_status, "Mix 2 (1800W)");
-        else if (e_el1)  ui_label_set_text_if_changed(lbl_energy_status, "Elektro 1 (900W)");
-        else if (e_el2)  ui_label_set_text_if_changed(lbl_energy_status, "Elektro 2 (1800W)");
-        else ui_label_set_text_if_changed(lbl_energy_status, em.c_str());
-    }
-
-    if (lbl_230v_hint) {
-        if (has_el && !state.truma_230v && (e_mix1 || e_mix2 || e_el1 || e_el2)) {
-            lv_obj_clear_flag(lbl_230v_hint, LV_OBJ_FLAG_HIDDEN);
-        } else {
-            lv_obj_add_flag(lbl_230v_hint, LV_OBJ_FLAG_HIDDEN);
+        if ((int)lv_dropdown_get_selected(dd_energy) != expected_sel) {
+            lv_dropdown_set_selected(dd_energy, expected_sel);
         }
     }
 
-    style_segmented_button(btn_energy_fuel, lbl_btn_energy_fuel, (!has_el || e_fuel), UI_COLOR_PRIMARY);
-    if (has_el) {
-        style_segmented_button(btn_energy_mix1, lbl_btn_energy_mix1, e_mix1, UI_COLOR_WARNING);
-        style_segmented_button(btn_energy_mix2, lbl_btn_energy_mix2, e_mix2, UI_COLOR_WARNING);
-        style_segmented_button(btn_energy_el1,  lbl_btn_energy_el1,  e_el1,  UI_COLOR_PRIMARY);
-        style_segmented_button(btn_energy_el2,  lbl_btn_energy_el2,  e_el2,  UI_COLOR_PRIMARY);
+    // Do not touch controls while user is interacting with them
+    if (lv_obj_has_state(arc_target, LV_STATE_PRESSED) || 
+        (dd_energy && lv_dropdown_is_open(dd_energy))) return;
+
+    // 5. Arc Target Temp Sync
+    int expected_t = (int)(state.truma_target_temp + 0.5f);
+    if (expected_t < 5) expected_t = 22;
+    if (expected_t > 30) expected_t = 30;
+
+    if (lv_arc_get_value(arc_target) != expected_t) {
+        lv_arc_set_value(arc_target, expected_t);
+        if (lbl_target) {
+            lv_label_set_text_fmt(lbl_target, "Ziel: %d C", expected_t);
+        }
+        update_arc_color(arc_target);
+    }
+
+    // 6. Start/Stop Button Sync
+    if ((int)state.truma_heating_on != last_heating_state) {
+        last_heating_state = (int)state.truma_heating_on;
+        if (btn_start_stop && lbl_btn_start_stop) {
+            if (state.truma_heating_on) {
+                lv_obj_set_style_bg_color(btn_start_stop, lv_color_hex(UI_COLOR_DANGER), 0);
+                lv_obj_set_style_border_color(btn_start_stop, lv_color_hex(0xf87171), 0);
+                ui_label_set_text_if_changed(lbl_btn_start_stop, "Stop");
+            } else {
+                lv_obj_set_style_bg_color(btn_start_stop, lv_color_hex(UI_COLOR_SUCCESS), 0);
+                lv_obj_set_style_border_color(btn_start_stop, lv_color_hex(0x34d399), 0);
+                ui_label_set_text_if_changed(lbl_btn_start_stop, "Start");
+            }
+        }
     }
 }

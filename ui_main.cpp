@@ -156,9 +156,6 @@ static void select_page(uint8_t index) {
 bool ui_page_available(TabId page) { return page < TAB_COUNT && pages[page] && state.tab_enabled[page]; }
 void ui_navigate_to(TabId page) { if (ui_page_available(page)) select_page(page); }
 
-static lv_point_t nav_press_point = {0, 0};
-static lv_coord_t nav_press_scroll_x = 0;
-static bool nav_touch_active = false;
 static lv_timer_t *nav_hold_timer = nullptr;
 static uint32_t nav_hold_start = 0;
 static bool nav_hold_triggered = false;
@@ -180,7 +177,6 @@ static void nav_hold_check_cb(lv_timer_t *timer) {
             } else if (millis() - nav_hold_start >= 5000) {
                 nav_hold_start = 0;
                 nav_hold_triggered = true;
-                nav_touch_active = false;
                 ignore_touch_until_release = true;
                 buzzer_beep_force(120);
                 ui_open_settings();
@@ -197,50 +193,22 @@ static void nav_hold_check_cb(lv_timer_t *timer) {
 
 static void home_nav_button_cb(lv_event_t *event) {
     lv_event_code_t code = lv_event_get_code(event);
-    lv_indev_t *indev = lv_indev_get_act();
 
-    if (code == LV_EVENT_PRESSED) {
-        nav_touch_active = true;
-        nav_press_scroll_x = home_nav ? lv_obj_get_scroll_x(home_nav) : 0;
-        if (indev) {
-            lv_indev_get_point(indev, &nav_press_point);
-        }
-    } else if (code == LV_EVENT_CLICKED) {
+    if (code == LV_EVENT_CLICKED) {
         if (nav_hold_triggered) {
-            nav_touch_active = false;
             return;
         }
-        if (!nav_touch_active) return;
-        nav_touch_active = false;
 
-        // 1. Guard: Check if the navigation bar moved/scrolled while touched
-        if (home_nav) {
-            lv_coord_t cur_scroll_x = lv_obj_get_scroll_x(home_nav);
-            if (abs((int)(cur_scroll_x - nav_press_scroll_x)) > 3) {
+        // Guard against click if user was actively dragging/scrolling a scrollable navigation bar
+        if (home_nav && lv_obj_has_flag(home_nav, LV_OBJ_FLAG_SCROLLABLE)) {
+            lv_indev_t *indev = lv_indev_get_act();
+            if (indev && lv_indev_get_scroll_obj(indev) != nullptr) {
                 return;
             }
         }
 
-        // 2. Guard: Check if input device is actively scrolling
-        if (indev && lv_indev_get_type(indev) == LV_INDEV_TYPE_POINTER) {
-            if (lv_indev_get_scroll_obj(indev) != nullptr) {
-                return;
-            }
-
-            // 3. Guard: Check physical finger movement between press and release
-            lv_point_t release_point;
-            lv_indev_get_point(indev, &release_point);
-            int dx = abs((int)(release_point.x - nav_press_point.x));
-            int dy = abs((int)(release_point.y - nav_press_point.y));
-            if (dx > 6 || dy > 6) {
-                return;
-            }
-        }
-
-        // Valid stationary tap -> switch page
-        select_page((uint8_t)(uintptr_t)lv_event_get_user_data(event));
-    } else if (code == LV_EVENT_PRESS_LOST || code == LV_EVENT_DEFOCUSED) {
-        nav_touch_active = false;
+        uint8_t target_tab = (uint8_t)(uintptr_t)lv_event_get_user_data(event);
+        select_page(target_tab);
     }
 }
 
@@ -562,8 +530,13 @@ void ui_init() {
         lv_obj_set_style_radius(button, 10, 0);
         lv_obj_set_style_outline_width(button, 2, LV_STATE_FOCUS_KEY);
         lv_obj_set_style_outline_color(button, lv_color_hex(UI_COLOR_PRIMARY), LV_STATE_FOCUS_KEY);
-        lv_obj_add_event_cb(button, home_nav_button_cb, LV_EVENT_ALL, (void *)(uintptr_t)tab_id);
+        // Extend touch hit area into the margins so touches near borders cleanly register
+        lv_obj_set_ext_click_area(button, (NAV_HEIGHT - NAV_BUTTON_HEIGHT) / 2);
+
+        lv_obj_add_event_cb(button, home_nav_button_cb, LV_EVENT_CLICKED, (void *)(uintptr_t)tab_id);
         lv_obj_t *icon = lv_label_create(button);
+        lv_obj_clear_flag(icon, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_add_flag(icon, LV_OBJ_FLAG_EVENT_BUBBLE);
         lv_label_set_text(icon, TAB_METAS[tab_id].icon);
         lv_obj_set_style_text_font(icon, &ui_font_mdi_32, 0);
         lv_obj_center(icon);
@@ -638,7 +611,7 @@ void ui_update_data() {
     if (lbl_time) {
         time_t now = time(nullptr);
         struct tm timeinfo;
-        bool valid_time = (!state.time_auto_ntp && now > 100000) || (state.time_auto_ntp && now > 1700000000);
+        bool valid_time = (now > 100000);
         if (valid_time && localtime_r(&now, &timeinfo)) {
             char time_str[16];
             snprintf(time_str, sizeof(time_str), "%02d:%02d", timeinfo.tm_hour, timeinfo.tm_min);

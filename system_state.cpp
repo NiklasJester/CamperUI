@@ -32,130 +32,6 @@ const volatile PreFlashingConfig PRE_FLASH_CONFIG = {
     {0}
 };
 
-const TimezoneInfo TIMEZONES[TIMEZONE_COUNT] = {
-    // UTC-11
-    {"UTC-11: Midway, Pago Pago (Samoa)", "SST11"},
-    // UTC-10
-    {"UTC-10: Hawaii, Honolulu (HST)", "HST10"},
-    // UTC-9
-    {"UTC-09: Alaska, Anchorage (AKST/AKDT)", "AKST9AKDT,M3.2.0,M11.1.0"},
-    // UTC-8
-    {"UTC-08: Los Angeles, Vancouver (PST/PDT)", "PST8PDT,M3.2.0,M11.1.0"},
-    // UTC-7
-    {"UTC-07: Denver, Salt Lake City, Calgary (MST/MDT)", "MST7MDT,M3.2.0,M11.1.0"},
-    {"UTC-07: Phoenix, Arizona (MST, kein DST)", "MST7"},
-    // UTC-6
-    {"UTC-06: Chicago, Dallas, Winnipeg (CST/CDT)", "CST6CDT,M3.2.0,M11.1.0"},
-    {"UTC-06: Mexiko-Stadt, Costa Rica (CST)", "CST6"},
-    // UTC-5
-    {"UTC-05: New York, Miami, Toronto (EST/EDT)", "EST5EDT,M3.2.0,M11.1.0"},
-    {"UTC-05: Bogota, Lima, Quito (COT/PET)", "COT5"},
-    // UTC-4
-    {"UTC-04: Halifax (AST/ADT)", "AST4ADT,M3.2.0,M11.1.0"},
-    {"UTC-04: Santiago de Chile (CLT/CLST)", "CLT4CLST,M9.1.0/0,M4.1.0/0"},
-    {"UTC-04: La Paz, Manaus, Caracas (BOT/VET)", "VET4"},
-    // UTC-3:30
-    {"UTC-03:30: Neufundland (St. John's, NST/NDT)", "NST3:30NDT,M3.2.0,M11.1.0"},
-    // UTC-3
-    {"UTC-03: Buenos Aires, Sao Paulo, Montevideo", "<-03>3"},
-    // UTC-2
-    {"UTC-02: Fernando de Noronha, Suedgeorgien", "<-02>2"},
-    // UTC-1
-    {"UTC-01: Azoren (AZOT/AZOST)", "AZOT1AZOST,M3.5.0/0,M10.5.0/1"},
-    {"UTC-01: Kap Verde (CVT)", "CVT1"},
-    // UTC+0
-    {"UTC+00: London, Dublin, Lissabon (WET/GMT/BST)", "GMT0BST,M3.5.0/1,M10.5.0"},
-    {"UTC+00: UTC (Koordinierte Weltzeit)", "UTC0"},
-    // UTC+1
-    {"UTC+01: Berlin, Wien, Zuerich, Rom, Paris (MEZ/MESZ)", "CET-1CEST,M3.5.0,M10.5.0/3"},
-    {"UTC+01: Algier, Tunis, Lagos (WAT)", "WAT-1"},
-    // UTC+2
-    {"UTC+02: Athen, Helsinki, Kiew, Bukarest (OEZ/EEST)", "EET-2EEST,M3.5.0/3,M10.5.0/4"},
-    {"UTC+02: Kairo (EET/EEST)", "EET-2EEST,M4.5.5/0,M10.5.5/0"},
-    {"UTC+02: Johannesburg, Kapstadt (SAST)", "SAST-2"},
-    {"UTC+02: Jerusalem, Tel Aviv (IST/IDT)", "IST-2IDT,M3.4.4/26,M10.5.0"},
-    // UTC+3
-    {"UTC+03: Moskau, St. Petersburg (MSK)", "MSK-3"},
-    {"UTC+03: Istanbul (TRT)", "TRT-3"},
-    {"UTC+03: Riad, Doha, Kuwait, Nairobi (AST/EAT)", "AST-3"},
-    // UTC+3:30
-    {"UTC+03:30: Teheran (IRST)", "<+0330>-3:30"},
-    // UTC+4
-    {"UTC+04: Dubai, Abu Dhabi, Maskat (GST)", "GST-4"},
-    {"UTC+04: Baku, Tiflis, Jerewan (AZT/GET)", "<+04>-4"},
-    // UTC+4:30
-    {"UTC+04:30: Kabul (AFT)", "<+0430>-4:30"},
-    // UTC+5
-    {"UTC+05: Taschkent, Karatschi, Male (PKT/UZT)", "PKT-5"},
-    // UTC+5:30
-    {"UTC+05:30: Neu-Delhi, Mumbai, Kalkutta (IST)", "IST-5:30"},
-    // UTC+5:45
-    {"UTC+05:45: Kathmandu (NPT)", "<+0545>-5:45"},
-    // UTC+6
-    {"UTC+06: Dhaka, Almaty, Astana (BST/ALMT)", "<+06>-6"},
-    // UTC+6:30
-    {"UTC+06:30: Rangun / Yangon (MMT)", "<+0630>-6:30"},
-    // UTC+7
-    {"UTC+07: Bangkok, Jakarta, Hanoi (ICT/WIB)", "ICT-7"},
-    // UTC+8
-    {"UTC+08: Peking, Singapur, Hongkong, Taipeh (CST/HKT)", "CST-8"},
-    {"UTC+08: Perth (AWST)", "AWST-8"},
-    // UTC+9
-    {"UTC+09: Tokio, Seoul (JST/KST)", "JST-9"},
-    // UTC+9:30
-    {"UTC+09:30: Adelaide (ACST/ACDT)", "ACST-9:30ACDT,M10.1.0,M4.1.0/3"},
-    {"UTC+09:30: Darwin (ACST, kein DST)", "ACST-9:30"},
-    // UTC+10
-    {"UTC+10: Sydney, Melbourne, Canberra (AEST/AEDT)", "AEST-10AEDT,M10.1.0,M4.1.0/3"},
-    {"UTC+10: Brisbane (Queensland, AEST, kein DST)", "AEST-10"},
-    // UTC+11
-    {"UTC+11: Noumea, Salomonen, Magadan", "<+11>-11"},
-    // UTC+12
-    {"UTC+12: Auckland, Wellington (NZST/NZDT)", "NZST-12NZDT,M9.5.0,M4.1.0/3"},
-    {"UTC+12: Fidschi (FJT)", "<+12>-12"},
-    // UTC+13
-    {"UTC+13: Samoa (Apia), Tonga (Nuku'alofa)", "<+13>-13"},
-    // UTC+14
-    {"UTC+14: Kiritimati (Line Islands)", "<+14>-14"}
-};
-
-void time_apply_configuration() {
-    int idx = constrain(state.time_zone_idx, 0, TIMEZONE_COUNT - 1);
-    if (state.time_auto_ntp) {
-        configTzTime(TIMEZONES[idx].tz_str, "pool.ntp.org", "time.google.com", "time.cloudflare.com");
-    } else {
-        setenv("TZ", TIMEZONES[idx].tz_str, 1);
-        tzset();
-    }
-}
-
-void time_set_manual(int hour, int min) {
-    state.manual_hour = constrain(hour, 0, 23);
-    state.manual_min = constrain(min, 0, 59);
-
-    int idx = constrain(state.time_zone_idx, 0, TIMEZONE_COUNT - 1);
-    setenv("TZ", TIMEZONES[idx].tz_str, 1);
-    tzset();
-
-    time_t now = time(nullptr);
-    struct tm tm_now;
-    if (now > 1700000000) {
-        localtime_r(&now, &tm_now);
-    } else {
-        tm_now.tm_year = 2026 - 1900;
-        tm_now.tm_mon = 9; // Oct
-        tm_now.tm_mday = 8;
-        tm_now.tm_isdst = -1;
-    }
-    tm_now.tm_hour = state.manual_hour;
-    tm_now.tm_min = state.manual_min;
-    tm_now.tm_sec = 0;
-
-    time_t new_time = mktime(&tm_now);
-    struct timeval tv = { .tv_sec = new_time, .tv_usec = 0 };
-    settimeofday(&tv, NULL);
-}
-
 void state_init() {
     if (!state_mutex) {
         state_mutex = xSemaphoreCreateRecursiveMutex();
@@ -210,10 +86,13 @@ state.display_brightness = prefs.getInt("disp_bright", 100);
     state.dark_mode = prefs.getBool("dark_mode", true);
     state.battery_icon_mode = prefs.getBool("bat_icn_md", true);
     state.buzzer_enabled = prefs.getBool("buzzer_en", true);
+    state.screensaver_enabled = prefs.getBool("scrsave_en", false);
     state.debug_mode = prefs.getBool("dbg_sim", true);
     
     state.bat_capacity_ah = prefs.getFloat("bat_cap_ah", 100.0f);
     state.solar_max_w = prefs.getFloat("solar_max_w", 200.0f);
+    state.shore_max_w = prefs.getFloat("shore_max_w", 500.0f);
+    state.alt_max_w = prefs.getFloat("alt_max_w", 300.0f);
 
     state.warn_frost_temp = prefs.getFloat("w_frost", 3.0f);
     state.warn_bat_soc = constrain(prefs.getInt("w_bat", 20), 0, 99);
@@ -300,14 +179,19 @@ state.display_brightness = prefs.getInt("disp_bright", 100);
     for (int i = 0; i < 8; i++) {
         char key_sw[16], key_dim[16];
         char key_sw_vis[16], key_dim_vis[16];
+        char key_sw_lock[16], key_wr_lock[16];
         sprintf(key_sw, "sw%d_nm", i);
         sprintf(key_dim, "dim%d_nm", i);
         sprintf(key_sw_vis, "sw%d_vis", i);
         sprintf(key_dim_vis, "dim%d_vis", i);
+        sprintf(key_sw_lock, "sw%d_lock", i);
+        sprintf(key_wr_lock, "wr%d_lock", i);
         state.switch_names[i] = prefs.getString(key_sw, "CH " + String(i + 1));
         state.dimmer_names[i] = prefs.getString(key_dim, "PWM " + String(i + 1));
         state.switch_visible[i] = prefs.getBool(key_sw_vis, true);
         state.dimmer_visible[i] = prefs.getBool(key_dim_vis, true);
+        state.switch_locked[i] = prefs.getBool(key_sw_lock, false);
+        state.wrelay_locked[i] = prefs.getBool(key_wr_lock, false);
     }
     state.pump_relay = prefs.getInt("pump_relay", -1);
     state.drain_relay = prefs.getInt("drain_relay", -1);
@@ -395,26 +279,8 @@ state.display_brightness = prefs.getInt("disp_bright", 100);
     }
     state.heater_hold_until = 0;
 
-    state.time_auto_ntp = prefs.getBool("time_auto", true);
-    int saved_tz = prefs.getInt("time_tz_v2", -1);
-    if (saved_tz >= 0 && saved_tz < TIMEZONE_COUNT) {
-        state.time_zone_idx = saved_tz;
-    } else {
-        int old_tz = prefs.getInt("time_tz", 0);
-        switch (old_tz) {
-            case 0: state.time_zone_idx = 20; break; // Berlin
-            case 1: state.time_zone_idx = 18; break; // London
-            case 2: state.time_zone_idx = 22; break; // Athen
-            case 3: state.time_zone_idx = 27; break; // Istanbul
-            case 4: state.time_zone_idx = 19; break; // UTC
-            case 5: state.time_zone_idx = 8;  break; // New York
-            case 6: state.time_zone_idx = 3;  break; // Los Angeles
-            default: state.time_zone_idx = TIMEZONE_DEFAULT_INDEX; break;
-        }
-        prefs.putInt("time_tz_v2", state.time_zone_idx);
-    }
-    state.manual_hour = prefs.getInt("man_hour", 12);
-    state.manual_min = prefs.getInt("man_min", 0);
+    state.vanpi_current_date = "";
+    state.time_to_go = "";
 
     state.show_wrelay = prefs.getBool("show_wrelay", false);
     for (int i = 0; i < 8; i++) {
@@ -431,8 +297,6 @@ state.display_brightness = prefs.getInt("disp_bright", 100);
     state.web_ota_active = false;
     state.web_ota_progress = 0;
     state.web_ota_msg = "Bereit";
-
-    time_apply_configuration();
 }
 
 void state_save() {
@@ -466,6 +330,8 @@ void state_save() {
     
     prefs.putFloat("bat_cap_ah", state.bat_capacity_ah);
     prefs.putFloat("solar_max_w", state.solar_max_w);
+    prefs.putFloat("shore_max_w", state.shore_max_w);
+    prefs.putFloat("alt_max_w", state.alt_max_w);
 
     prefs.putFloat("w_frost", state.warn_frost_temp);
     prefs.putInt("w_bat", state.warn_bat_soc);
@@ -511,11 +377,7 @@ void state_save() {
     prefs.putInt("drain_relay", state.drain_relay);
     prefs.putInt("heater_type", state.heater_type);
 
-    prefs.putBool("time_auto", state.time_auto_ntp);
-    prefs.putInt("time_tz_v2", state.time_zone_idx);
-    prefs.putInt("time_tz", state.time_zone_idx);
-    prefs.putInt("man_hour", state.manual_hour);
-    prefs.putInt("man_min", state.manual_min);
+    prefs.putBool("scrsave_en", state.screensaver_enabled);
 
     prefs.putBool("show_wrelay", state.show_wrelay);
     for (int i = 0; i < 8; i++) {
@@ -528,5 +390,23 @@ void state_save() {
 
 
     display_request_resync();
+}
+
+void state_set_switch_locked(int idx, bool locked) {
+    if (idx < 0 || idx >= 8) return;
+    StateLockGuard lock;
+    state.switch_locked[idx] = locked;
+    char key[16];
+    snprintf(key, sizeof(key), "sw%d_lock", idx);
+    prefs.putBool(key, locked);
+}
+
+void state_set_wrelay_locked(int idx, bool locked) {
+    if (idx < 0 || idx >= 8) return;
+    StateLockGuard lock;
+    state.wrelay_locked[idx] = locked;
+    char key[16];
+    snprintf(key, sizeof(key), "wr%d_lock", idx);
+    prefs.putBool(key, locked);
 }
 

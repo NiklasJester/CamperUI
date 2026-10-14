@@ -31,6 +31,7 @@ void web_settings_register_routes(WebServer &server) {
             doc["debug_mode"] = state.debug_mode;
             doc["display_brightness"] = state.display_brightness;
             doc["display_timeout"] = state.display_timeout;
+            doc["screensaver_enabled"] = state.screensaver_enabled;
 
             doc["tank_count"] = state.tank_count;
             doc["tank_show_liters"] = state.tank_show_liters;
@@ -75,12 +76,10 @@ void web_settings_register_routes(WebServer &server) {
             doc["warn_fresh_min"] = state.warn_fresh_min;
             doc["warn_waste_max"] = state.warn_waste_max;
             doc["solar_max_w"] = state.solar_max_w;
+            doc["shore_max_w"] = state.shore_max_w;
+            doc["alt_max_w"] = state.alt_max_w;
             doc["bat_capacity_ah"] = state.bat_capacity_ah;
 
-            doc["time_auto_ntp"] = state.time_auto_ntp;
-            doc["time_zone_idx"] = state.time_zone_idx;
-            doc["manual_hour"] = state.manual_hour;
-            doc["manual_min"] = state.manual_min;
 
             doc["home_show_battery"] = state.home_show_battery;
             doc["home_show_starter"] = state.home_show_starter;
@@ -137,14 +136,6 @@ void web_settings_register_routes(WebServer &server) {
                 s["val"] = state.temp_sensors[i];
             }
 
-            // Metadata: Timezones
-            JsonArray tz_arr = doc["timezones"].to<JsonArray>();
-            for (int i = 0; i < TIMEZONE_COUNT; i++) {
-                JsonObject z = tz_arr.add<JsonObject>();
-                z["idx"] = i;
-                z["name"] = TIMEZONES[i].name;
-            }
-
             // Metadata: Heater Types
             JsonArray ht_arr = doc["heater_types"].to<JsonArray>();
             JsonObject ht0 = ht_arr.add<JsonObject>(); ht0["id"] = 0; ht0["name"] = "Autoterm (Air 2D/4D)";
@@ -192,6 +183,7 @@ void web_settings_register_routes(WebServer &server) {
                 if (b != state.display_brightness) { state.display_brightness = b; bright_changed = true; }
             }
             if (doc["display_timeout"].is<int>()) state.display_timeout = doc["display_timeout"].as<int>();
+            if (doc["screensaver_enabled"].is<bool>()) state.screensaver_enabled = doc["screensaver_enabled"].as<bool>();
 
             if (doc["tank_count"].is<int>()) state.tank_count = constrain(doc["tank_count"].as<int>(), 1, 4);
             if (doc["tank_show_liters"].is<bool>()) state.tank_show_liters = doc["tank_show_liters"].as<bool>();
@@ -253,12 +245,10 @@ void web_settings_register_routes(WebServer &server) {
             if (doc["warn_fresh_min"].is<int>()) state.warn_fresh_min = doc["warn_fresh_min"].as<int>();
             if (doc["warn_waste_max"].is<int>()) state.warn_waste_max = doc["warn_waste_max"].as<int>();
             if (doc["solar_max_w"].is<float>()) state.solar_max_w = doc["solar_max_w"].as<float>();
+            if (doc["shore_max_w"].is<float>()) state.shore_max_w = doc["shore_max_w"].as<float>();
+            if (doc["alt_max_w"].is<float>()) state.alt_max_w = doc["alt_max_w"].as<float>();
             if (doc["bat_capacity_ah"].is<float>()) state.bat_capacity_ah = doc["bat_capacity_ah"].as<float>();
 
-            if (doc["time_auto_ntp"].is<bool>()) state.time_auto_ntp = doc["time_auto_ntp"].as<bool>();
-            if (doc["time_zone_idx"].is<int>()) state.time_zone_idx = constrain(doc["time_zone_idx"].as<int>(), 0, TIMEZONE_COUNT - 1);
-            if (doc["manual_hour"].is<int>()) state.manual_hour = constrain(doc["manual_hour"].as<int>(), 0, 23);
-            if (doc["manual_min"].is<int>()) state.manual_min = constrain(doc["manual_min"].as<int>(), 0, 59);
 
             if (doc["home_show_battery"].is<bool>()) state.home_show_battery = doc["home_show_battery"].as<bool>();
             if (doc["home_show_starter"].is<bool>()) state.home_show_starter = doc["home_show_starter"].as<bool>();
@@ -288,7 +278,6 @@ void web_settings_register_routes(WebServer &server) {
             uint8_t pwm = 255 - (state.display_brightness * 255 / 100);
             WS_CH32_IO::setPwm(Wire, pwm);
         }
-        time_apply_configuration();
         state_save();
 
         if (wifi_changed) {

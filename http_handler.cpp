@@ -529,6 +529,43 @@ static void parse_position_json(const char *payload) {
     if (doc.containsKey("y_angle")) state.pitch_angle = jsonFloat(doc["y_angle"]);
 }
 
+// GET /info -> {"VanPi_Ctrl":"v2.1.0","install_date":"07/28/2026, 17:31:01","current_date":"14/10/2026, 18:30:35","uptime":"...","ttgo":"7d, 14h"}
+static void parse_info_json(const char *payload) {
+    StaticJsonDocument<768> doc;
+    if (deserializeJson(doc, payload)) return;
+
+    StateLockGuard lock;
+    if (doc.containsKey("current_date")) {
+        const char *cd = doc["current_date"];
+        if (cd && strlen(cd) >= 19) {
+            state.vanpi_current_date = cd;
+            int d = 0, mo = 0, y = 0, h = 0, mi = 0, s = 0;
+            // Format: "14/10/2026, 18:30:35" (DD/MM/YYYY, HH:MM:SS)
+            if (sscanf(cd, "%d/%d/%d, %d:%d:%d", &d, &mo, &y, &h, &mi, &s) == 6) {
+                struct tm t = {};
+                t.tm_year = y - 1900;
+                t.tm_mon  = mo - 1;
+                t.tm_mday = d;
+                t.tm_hour = h;
+                t.tm_min  = mi;
+                t.tm_sec  = s;
+                t.tm_isdst = -1;
+                time_t epoch = mktime(&t);
+                if (epoch > 100000) {
+                    struct timeval tv = { .tv_sec = epoch, .tv_usec = 0 };
+                    settimeofday(&tv, NULL);
+                }
+            }
+        }
+    }
+    if (doc.containsKey("ttgo")) {
+        const char *tt = doc["ttgo"];
+        if (tt) {
+            state.time_to_go = tt;
+        }
+    }
+}
+
 
 static unsigned long vanpi_fail_backoff_until = 0;
 
@@ -671,6 +708,19 @@ void http_loop() {
                     }
                     break;
                 }
+                case 9: {
+                    time_t rawtime;
+                    time(&rawtime);
+                    struct tm ti;
+                    bool valid = (rawtime > 100000) && localtime_r(&rawtime, &ti);
+                    char dummy[256];
+                    snprintf(dummy, sizeof(dummy),
+                        "{\"VanPi_Ctrl\":\"v2.1.0\",\"current_date\":\"%02d/%02d/%04d, %02d:%02d:%02d\",\"ttgo\":\"7d, 14h\"}",
+                        valid ? ti.tm_mday : 14, valid ? (ti.tm_mon + 1) : 10, valid ? (ti.tm_year + 1900) : 2026,
+                        valid ? ti.tm_hour : 18, valid ? ti.tm_min : 30, valid ? ti.tm_sec : 35);
+                    parse_info_json(dummy);
+                    break;
+                }
             }
 
             // Print UART diagnostic line on every full cycle for validation
@@ -683,7 +733,7 @@ void http_loop() {
             }
 
             poll_step++;
-            if (poll_step > 8) poll_step = 0;
+            if (poll_step > 9) poll_step = 0;
             last_http_poll = millis();
         }
         return;
@@ -724,6 +774,9 @@ void http_loop() {
             case 8:
                 fetch_endpoint("/wrelay", parse_wrelay_json);
                 break;
+            case 9:
+                fetch_endpoint("/info", parse_info_json);
+                break;
         }
 
         if (poll_step == 7) {
@@ -742,7 +795,7 @@ void http_loop() {
         }
 
         poll_step++;
-        if (poll_step > 8) poll_step = 0;
+        if (poll_step > 9) poll_step = 0;
         last_http_poll = millis();
     }
 }
@@ -758,7 +811,8 @@ static void http_put(String endpoint) {
     http.begin(get_url() + endpoint);
     http.setConnectTimeout(400);
     http.setTimeout(1500);
-    int code = http.PUT("");
+    http.addHeader("Content-Type", "application/json");
+    int code = http.PUT("{}");
     if (code != 200) {
         Serial.printf("[HTTP] PUT %s -> %d\n", endpoint.c_str(), code);
     }

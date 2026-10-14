@@ -1,5 +1,6 @@
 #include "ui_main.h"
 #include "http_handler.h"
+#include "buzzer.h"
 
 static lv_obj_t *switches[8];
 static lv_obj_t *lbl_switch_name[8];
@@ -9,26 +10,33 @@ static lv_obj_t *dimmers[8];
 static lv_obj_t *lbl_dim_name[8];
 static lv_obj_t *lbl_dim_pct[8];
 
+// Dynamic dimmer bar color:
+// At 0%: very low saturation (~12%), muted soft warm tone
+// At 100%: vibrant, full-saturation incandescent orange (Hue 28 deg, Sat 100%, Val 100%)
+static lv_color_t dimmer_color_for_val(int val) {
+    int v = val;
+    if (v < 0) v = 0;
+    else if (v > 100) v = 100;
+    uint8_t s = (uint8_t)(12 + (v * 88) / 100);
+    uint8_t b = (uint8_t)(60 + (v * 40) / 100);
+    return lv_color_hsv_to_rgb(28, s, b);
+}
+
 static void update_dimmer_visuals(int idx) {
     if (!dimmers[idx]) return;
     int val = state.dimmer_val[idx];
     
+    lv_color_t color = dimmer_color_for_val(val);
+    lv_obj_set_style_bg_color(dimmers[idx], color, LV_PART_INDICATOR);
+    
     if (lbl_dim_pct[idx]) {
         if (val > 0) {
             lv_label_set_text_fmt(lbl_dim_pct[idx], "%d%%", val);
-            lv_obj_set_style_text_color(lbl_dim_pct[idx], lv_color_hex(UI_COLOR_WARNING), 0);
+            lv_obj_set_style_text_color(lbl_dim_pct[idx], color, 0);
         } else {
             lv_label_set_text(lbl_dim_pct[idx], "Aus");
             lv_obj_set_style_text_color(lbl_dim_pct[idx], ui_theme_muted(), 0);
         }
-    }
-    
-    if (val > 0) {
-        lv_color_t color = lv_color_hex(UI_COLOR_WARNING);
-        lv_obj_set_style_bg_color(dimmers[idx], color, LV_PART_INDICATOR);
-    } else {
-        lv_color_t off_color = ui_theme_track();
-        lv_obj_set_style_bg_color(dimmers[idx], off_color, LV_PART_INDICATOR);
     }
 }
 
@@ -80,24 +88,86 @@ static void update_wswitch_visual(int idx, bool force = false) {
 static bool switches_animating = false;
 static void switches_anim_cb(void *var, int32_t ratio);
 
+static const uint32_t SWITCH_LOCK_HOLD_MS = 2000;
+static uint32_t sw_press_start[8] = {0};
+static bool sw_hold_triggered[8] = {false};
+static uint32_t wr_press_start[8] = {0};
+static bool wr_hold_triggered[8] = {false};
+
 static void relay_btn_event_cb(lv_event_t * e) {
-    if (switches_animating) {
-        lv_anim_del(NULL, switches_anim_cb);
-        switches_animating = false;
-    }
     int idx = (int)(intptr_t)lv_event_get_user_data(e);
-    http_publish_switch(idx, !state.switch_state[idx]);
-    update_switch_visual(idx);
+    if (idx < 0 || idx >= 8) return;
+    lv_event_code_t code = lv_event_get_code(e);
+
+    if (code == LV_EVENT_PRESSED) {
+        sw_press_start[idx] = millis();
+        sw_hold_triggered[idx] = false;
+    } else if (code == LV_EVENT_PRESSING) {
+        if (sw_press_start[idx] != 0 && !sw_hold_triggered[idx]) {
+            if (millis() - sw_press_start[idx] >= SWITCH_LOCK_HOLD_MS) {
+                sw_hold_triggered[idx] = true;
+                sw_press_start[idx] = 0;
+                bool new_locked = !state.switch_locked[idx];
+                state_set_switch_locked(idx, new_locked);
+                ui_update_switches_tab();
+            }
+        }
+    } else if (code == LV_EVENT_CLICKED) {
+        if (sw_hold_triggered[idx]) {
+            sw_hold_triggered[idx] = false;
+            return;
+        }
+        if (state.switch_locked[idx]) {
+            return; // Locked! Do not toggle
+        }
+        if (switches_animating) {
+            lv_anim_del(NULL, switches_anim_cb);
+            switches_animating = false;
+        }
+        http_publish_switch(idx, !state.switch_state[idx]);
+        update_switch_visual(idx);
+    } else if (code == LV_EVENT_RELEASED || code == LV_EVENT_PRESS_LOST) {
+        sw_press_start[idx] = 0;
+        if (code == LV_EVENT_PRESS_LOST) sw_hold_triggered[idx] = false;
+    }
 }
 
 static void wrelay_btn_event_cb(lv_event_t * e) {
-    if (switches_animating) {
-        lv_anim_del(NULL, switches_anim_cb);
-        switches_animating = false;
-    }
     int idx = (int)(intptr_t)lv_event_get_user_data(e);
-    http_publish_wrelay(idx, !state.wrelay_state[idx]);
-    update_wswitch_visual(idx);
+    if (idx < 0 || idx >= 8) return;
+    lv_event_code_t code = lv_event_get_code(e);
+
+    if (code == LV_EVENT_PRESSED) {
+        wr_press_start[idx] = millis();
+        wr_hold_triggered[idx] = false;
+    } else if (code == LV_EVENT_PRESSING) {
+        if (wr_press_start[idx] != 0 && !wr_hold_triggered[idx]) {
+            if (millis() - wr_press_start[idx] >= SWITCH_LOCK_HOLD_MS) {
+                wr_hold_triggered[idx] = true;
+                wr_press_start[idx] = 0;
+                bool new_locked = !state.wrelay_locked[idx];
+                state_set_wrelay_locked(idx, new_locked);
+                ui_update_switches_tab();
+            }
+        }
+    } else if (code == LV_EVENT_CLICKED) {
+        if (wr_hold_triggered[idx]) {
+            wr_hold_triggered[idx] = false;
+            return;
+        }
+        if (state.wrelay_locked[idx]) {
+            return; // Locked! Do not toggle
+        }
+        if (switches_animating) {
+            lv_anim_del(NULL, switches_anim_cb);
+            switches_animating = false;
+        }
+        http_publish_wrelay(idx, !state.wrelay_state[idx]);
+        update_wswitch_visual(idx);
+    } else if (code == LV_EVENT_RELEASED || code == LV_EVENT_PRESS_LOST) {
+        wr_press_start[idx] = 0;
+        if (code == LV_EVENT_PRESS_LOST) wr_hold_triggered[idx] = false;
+    }
 }
 
 // ==========================================
@@ -109,10 +179,12 @@ static void dimmer_anim_cb(void *var, int32_t val) {
     int idx = (int)(intptr_t)var;
     if (idx < 0 || idx >= 8 || !dimmers[idx]) return;
     lv_slider_set_value(dimmers[idx], val, LV_ANIM_OFF);
+    lv_color_t color = dimmer_color_for_val(val);
+    lv_obj_set_style_bg_color(dimmers[idx], color, LV_PART_INDICATOR);
     if (lbl_dim_pct[idx]) {
         if (val > 0) {
             lv_label_set_text_fmt(lbl_dim_pct[idx], "%d%%", (int)val);
-            lv_obj_set_style_text_color(lbl_dim_pct[idx], lv_color_hex(UI_COLOR_WARNING), 0);
+            lv_obj_set_style_text_color(lbl_dim_pct[idx], color, 0);
         } else {
             lv_label_set_text(lbl_dim_pct[idx], "Aus");
             lv_obj_set_style_text_color(lbl_dim_pct[idx], ui_theme_muted(), 0);
@@ -135,10 +207,11 @@ void ui_trigger_dimmers_anim() {
         if (state.dimmer_val[i] > 0) {
             dimmer_animating[i] = true;
             lv_slider_set_value(dimmers[i], 0, LV_ANIM_OFF);
-            lv_obj_set_style_bg_color(dimmers[i], lv_color_hex(UI_COLOR_WARNING), LV_PART_INDICATOR);
+            lv_color_t start_col = dimmer_color_for_val(0);
+            lv_obj_set_style_bg_color(dimmers[i], start_col, LV_PART_INDICATOR);
             if (lbl_dim_pct[i]) {
                 lv_label_set_text(lbl_dim_pct[i], "0%");
-                lv_obj_set_style_text_color(lbl_dim_pct[i], lv_color_hex(UI_COLOR_WARNING), 0);
+                lv_obj_set_style_text_color(lbl_dim_pct[i], start_col, 0);
             }
             lv_anim_t a;
             lv_anim_init(&a);
@@ -273,14 +346,24 @@ void ui_update_switches_tab() {
         if (state.switch_visible[i] && switches[i]) {
             if (!switches_animating) update_switch_visual(i);
             if (lbl_switch_name[i]) {
-                ui_label_set_text_if_changed(lbl_switch_name[i], state.switch_names[i].c_str());
+                char buf[96];
+                if (state.switch_locked[i]) {
+                    snprintf(buf, sizeof(buf), MDI_LOCK " %s", state.switch_names[i].c_str());
+                } else {
+                    snprintf(buf, sizeof(buf), "%s", state.switch_names[i].c_str());
+                }
+                ui_label_set_text_if_changed(lbl_switch_name[i], buf);
             }
         }
         if (state.show_wrelay && state.wrelay_visible[i] && w_switches[i]) {
             if (!switches_animating) update_wswitch_visual(i);
             if (lbl_wswitch_name[i]) {
-                char wlabel[64];
-                snprintf(wlabel, sizeof(wlabel), LV_SYMBOL_WIFI " %s", state.wrelay_names[i].c_str());
+                char wlabel[96];
+                if (state.wrelay_locked[i]) {
+                    snprintf(wlabel, sizeof(wlabel), MDI_LOCK " " LV_SYMBOL_WIFI " %s", state.wrelay_names[i].c_str());
+                } else {
+                    snprintf(wlabel, sizeof(wlabel), LV_SYMBOL_WIFI " %s", state.wrelay_names[i].c_str());
+                }
                 ui_label_set_text_if_changed(lbl_wswitch_name[i], wlabel);
             }
         }
@@ -315,6 +398,10 @@ void ui_switches_reset() {
         lbl_dim_pct[i] = nullptr;
         last_switch_state[i] = -1;
         last_wswitch_state[i] = -1;
+        sw_press_start[i] = 0;
+        sw_hold_triggered[i] = false;
+        wr_press_start[i] = 0;
+        wr_hold_triggered[i] = false;
     }
 }
 
@@ -322,6 +409,10 @@ void ui_build_switches(lv_obj_t *parent) {
     for (int i = 0; i < 8; i++) {
         last_switch_state[i] = -1;
         last_wswitch_state[i] = -1;
+        sw_press_start[i] = 0;
+        sw_hold_triggered[i] = false;
+        wr_press_start[i] = 0;
+        wr_hold_triggered[i] = false;
     }
 
     ui_setup_tab_page(parent);
@@ -351,10 +442,18 @@ void ui_build_switches(lv_obj_t *parent) {
         lv_obj_set_style_radius(switches[i], 14, 0);
         lv_obj_set_style_border_width(switches[i], 1, 0);
         lv_obj_set_style_shadow_width(switches[i], 0, 0);
-        lv_obj_add_event_cb(switches[i], relay_btn_event_cb, LV_EVENT_CLICKED, (void*)(intptr_t)i);
+        lv_obj_add_event_cb(switches[i], relay_btn_event_cb, LV_EVENT_ALL, (void*)(intptr_t)i);
 
         lbl_switch_name[i] = lv_label_create(switches[i]);
-        lv_label_set_text(lbl_switch_name[i], state.switch_names[i].c_str());
+        lv_obj_clear_flag(lbl_switch_name[i], LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_add_flag(lbl_switch_name[i], LV_OBJ_FLAG_EVENT_BUBBLE);
+        char sname[96];
+        if (state.switch_locked[i]) {
+            snprintf(sname, sizeof(sname), MDI_LOCK " %s", state.switch_names[i].c_str());
+        } else {
+            snprintf(sname, sizeof(sname), "%s", state.switch_names[i].c_str());
+        }
+        lv_label_set_text(lbl_switch_name[i], sname);
         lv_label_set_long_mode(lbl_switch_name[i], LV_LABEL_LONG_WRAP);
         lv_obj_set_width(lbl_switch_name[i], 190);
         lv_obj_set_style_text_font(lbl_switch_name[i], &lv_font_montserrat_18, 0);
@@ -375,11 +474,17 @@ void ui_build_switches(lv_obj_t *parent) {
         lv_obj_set_style_radius(w_switches[i], 14, 0);
         lv_obj_set_style_border_width(w_switches[i], 1, 0);
         lv_obj_set_style_shadow_width(w_switches[i], 0, 0);
-        lv_obj_add_event_cb(w_switches[i], wrelay_btn_event_cb, LV_EVENT_CLICKED, (void*)(intptr_t)i);
+        lv_obj_add_event_cb(w_switches[i], wrelay_btn_event_cb, LV_EVENT_ALL, (void*)(intptr_t)i);
 
         lbl_wswitch_name[i] = lv_label_create(w_switches[i]);
-        char wlabel[64];
-        snprintf(wlabel, sizeof(wlabel), LV_SYMBOL_WIFI " %s", state.wrelay_names[i].c_str());
+        lv_obj_clear_flag(lbl_wswitch_name[i], LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_add_flag(lbl_wswitch_name[i], LV_OBJ_FLAG_EVENT_BUBBLE);
+        char wlabel[96];
+        if (state.wrelay_locked[i]) {
+            snprintf(wlabel, sizeof(wlabel), MDI_LOCK " " LV_SYMBOL_WIFI " %s", state.wrelay_names[i].c_str());
+        } else {
+            snprintf(wlabel, sizeof(wlabel), LV_SYMBOL_WIFI " %s", state.wrelay_names[i].c_str());
+        }
         lv_label_set_text(lbl_wswitch_name[i], wlabel);
         lv_label_set_long_mode(lbl_wswitch_name[i], LV_LABEL_LONG_WRAP);
         lv_obj_set_width(lbl_wswitch_name[i], 190);
@@ -433,7 +538,7 @@ void ui_build_dimmers(lv_obj_t *parent) {
         
         // Indicator styling
         lv_obj_set_style_radius(dimmers[i], 16, LV_PART_INDICATOR);
-        lv_obj_set_style_bg_color(dimmers[i], lv_color_hex(UI_COLOR_WARNING), LV_PART_INDICATOR);
+        lv_obj_set_style_bg_color(dimmers[i], dimmer_color_for_val(state.dimmer_val[i]), LV_PART_INDICATOR);
         
         // Completely remove knob (no ball at the start or anywhere)
         lv_obj_remove_style(dimmers[i], NULL, (lv_style_selector_t)LV_PART_KNOB | (lv_style_selector_t)LV_STATE_ANY);

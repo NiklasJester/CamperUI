@@ -583,7 +583,6 @@ static const char SETTINGS_HTML[] PROGMEM = R"rawliteral(
       <div class="cat-pill" onclick="showTab('water')">💧 Wassertanks</div>
       <div class="cat-pill" onclick="showTab('switches')">⚡ Schalter & Dimmer</div>
       <div class="cat-pill" onclick="showTab('sensors')">🌡️ Sensoren & Klima</div>
-      <div class="cat-pill" onclick="showTab('time')">🕒 Zeit & Zone</div>
       <div class="cat-pill" onclick="showTab('home')">🏠 Home Kacheln</div>
     </div>
   </div>
@@ -672,6 +671,16 @@ static const char SETTINGS_HTML[] PROGMEM = R"rawliteral(
               <option value="120">2 Minuten</option>
               <option value="300">5 Minuten</option>
             </select>
+          </div>
+          <div class="toggle-row" style="margin-top:12px;">
+            <div class="toggle-info">
+              <div class="toggle-title">Screensaver</div>
+              <div class="toggle-desc">Zeigt Uhrzeit &amp; Restlaufzeit in Dunkelrot bei 1% Helligkeit nach Timeout</div>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="screensaver_enabled">
+              <span class="slider"></span>
+            </label>
           </div>
         </div>
       </div>
@@ -871,34 +880,6 @@ static const char SETTINGS_HTML[] PROGMEM = R"rawliteral(
         </div>
       </div>
 
-      <!-- ================= TAB: ZEIT & ZONE ================= -->
-      <div id="tab-time" class="tab-section">
-        <div class="card">
-          <div class="card-title">🕒 Uhrzeit & Synchronisation</div>
-          <div class="toggle-row">
-            <div class="toggle-info">
-              <div class="toggle-title">Automatische Zeit per NTP</div>
-              <div class="toggle-desc">Synchronisiert Uhrzeit aus dem Internet</div>
-            </div>
-            <label class="switch">
-              <input type="checkbox" id="time_auto_ntp" onchange="toggleManualTimeUI()">
-              <span class="slider"></span>
-            </label>
-          </div>
-          <div class="field" style="margin-top:12px;">
-            <label class="label">Zeitzone</label>
-            <select id="time_zone_idx"></select>
-          </div>
-          <div id="man_time_wrap" style="margin-top:12px;">
-            <label class="label">Manuelle Systemzeit setzen</label>
-            <div class="grid-2">
-              <input type="number" id="manual_hour" min="0" max="23" placeholder="Stunde (0-23)">
-              <input type="number" id="manual_min" min="0" max="59" placeholder="Minute (0-59)">
-            </div>
-          </div>
-        </div>
-      </div>
-
       <!-- ================= TAB: HOME KACHELN ================= -->
       <div id="tab-home" class="tab-section">
         <div class="card">
@@ -1014,7 +995,7 @@ static const char SETTINGS_HTML[] PROGMEM = R"rawliteral(
         .then(r => r.json())
         .then(data => {
           currentSettings = data;
-          document.getElementById('badgeVer').innerText = data.version || 'V1.6.1';
+          document.getElementById('badgeVer').innerText = data.version || 'V1.7.0';
           
           // Network
           document.getElementById('wifi_ssid').value = data.wifi_ssid || '';
@@ -1028,6 +1009,7 @@ static const char SETTINGS_HTML[] PROGMEM = R"rawliteral(
           document.getElementById('display_brightness').value = data.display_brightness || 80;
           document.getElementById('val_bright').innerText = (data.display_brightness || 80) + '%';
           document.getElementById('display_timeout').value = data.display_timeout !== undefined ? data.display_timeout : 60;
+          document.getElementById('screensaver_enabled').checked = !!data.screensaver_enabled;
 
           // Water
           document.getElementById('tank_count').value = data.tank_count || 1;
@@ -1068,13 +1050,6 @@ static const char SETTINGS_HTML[] PROGMEM = R"rawliteral(
           document.getElementById('warn_waste_max').value = data.warn_waste_max !== undefined ? data.warn_waste_max : 85;
           document.getElementById('solar_max_w').value = data.solar_max_w || 200;
           document.getElementById('bat_capacity_ah').value = data.bat_capacity_ah || 100;
-
-          // Timezones
-          populateTimezones(data.timezones, data.time_zone_idx);
-          document.getElementById('time_auto_ntp').checked = !!data.time_auto_ntp;
-          document.getElementById('manual_hour').value = data.manual_hour || 12;
-          document.getElementById('manual_min').value = data.manual_min || 0;
-          toggleManualTimeUI();
 
           // Home Widgets
           document.getElementById('home_show_battery').checked = !!data.home_show_battery;
@@ -1149,19 +1124,6 @@ static const char SETTINGS_HTML[] PROGMEM = R"rawliteral(
       }
     }
 
-    function populateTimezones(timezones, selectedIdx) {
-      const sel = document.getElementById('time_zone_idx');
-      if (!sel || !timezones) return;
-      sel.innerHTML = '';
-      timezones.forEach(tz => {
-        const opt = document.createElement('option');
-        opt.value = tz.idx;
-        opt.text = tz.name;
-        if (tz.idx === selectedIdx) opt.selected = true;
-        sel.appendChild(opt);
-      });
-    }
-
     function populateHeaterTypes(heaterTypes, selectedType) {
       const sel = document.getElementById('heater_type');
       if (!sel) return;
@@ -1227,11 +1189,6 @@ static const char SETTINGS_HTML[] PROGMEM = R"rawliteral(
         const w = document.getElementById('wrap_tank' + i);
         if (w) w.style.display = (i < cnt) ? 'block' : 'none';
       }
-    }
-
-    function toggleManualTimeUI() {
-      const auto = document.getElementById('time_auto_ntp').checked;
-      document.getElementById('man_time_wrap').style.display = auto ? 'none' : 'block';
     }
 
     function buildRelaysList(names, visible) {
@@ -1344,6 +1301,7 @@ static const char SETTINGS_HTML[] PROGMEM = R"rawliteral(
         debug_mode: document.getElementById('debug_mode').checked,
         display_brightness: parseInt(document.getElementById('display_brightness').value),
         display_timeout: parseInt(document.getElementById('display_timeout').value),
+        screensaver_enabled: document.getElementById('screensaver_enabled').checked,
 
         tank_count: parseInt(document.getElementById('tank_count').value),
         tank_show_liters: document.getElementById('tank_show_liters').checked,
@@ -1383,11 +1341,6 @@ static const char SETTINGS_HTML[] PROGMEM = R"rawliteral(
         warn_waste_max: parseInt(document.getElementById('warn_waste_max').value),
         solar_max_w: parseFloat(document.getElementById('solar_max_w').value),
         bat_capacity_ah: parseFloat(document.getElementById('bat_capacity_ah').value),
-
-        time_auto_ntp: document.getElementById('time_auto_ntp').checked,
-        time_zone_idx: parseInt(document.getElementById('time_zone_idx').value),
-        manual_hour: parseInt(document.getElementById('manual_hour').value),
-        manual_min: parseInt(document.getElementById('manual_min').value),
 
         home_show_battery: document.getElementById('home_show_battery').checked,
         home_show_starter: document.getElementById('home_show_starter').checked,

@@ -12,6 +12,7 @@
 #include "ui_main.h"
 #include "http_handler.h"
 #include "system_state.h"
+#include "ui_screensaver.h"
 #include "web_ota.h"
 #include "buzzer.h"
 #include "debug_log.h"
@@ -124,7 +125,12 @@ void my_touchpad_read(lv_indev_drv_t *, lv_indev_data_t *data) {
             last_valid_point = {tx, ty}; data->point = last_valid_point;
             touch_last_point = last_valid_point;
             pressed = true;
-            if (!display_is_on) {
+            if (ui_screensaver_is_active()) {
+                ui_screensaver_exit();
+                display_is_on = true;
+                ignore_touch_until_release = true;
+                lv_disp_trig_activity(nullptr);
+            } else if (!display_is_on) {
                 display_is_on = true;
                 ignore_touch_until_release = true;
                 WS_CH32_IO::setPwm(Wire, 255 - (state.display_brightness * 255 / 100));
@@ -322,6 +328,7 @@ void setup() {
 
 
     ui_init();
+    ui_screensaver_init();
     web_ota_init();
     display_request_resync();
 
@@ -362,9 +369,15 @@ void loop() {
     }
     uint32_t wait_ms = lv_timer_handler();
 
-    if (display_is_on && state.display_timeout > 0 && lv_disp_get_inactive_time(NULL) > (uint32_t)(state.display_timeout * 1000)) {
-        display_is_on = false;
-        WS_CH32_IO::setPwm(Wire, 255); // 255 is OFF for inverted PWM
+    if (state.display_timeout > 0 && lv_disp_get_inactive_time(NULL) > (uint32_t)(state.display_timeout * 1000)) {
+        if (state.screensaver_enabled) {
+            if (!ui_screensaver_is_active()) {
+                ui_screensaver_enter();
+            }
+        } else if (display_is_on) {
+            display_is_on = false;
+            WS_CH32_IO::setPwm(Wire, 255); // 255 is OFF for inverted PWM
+        }
     }
 
     while (USBSerial.available()) {
@@ -430,10 +443,14 @@ void loop() {
         last_ui_ms = millis();
         {
             StateLockGuard lock;
-            ui_update_data();
-            ui_update_visible_page();
-            // Complete asynchronous WLAN scans even after leaving Settings.
-            ui_update_settings_tab();
+            if (ui_screensaver_is_active()) {
+                ui_screensaver_update();
+            } else {
+                ui_update_data();
+                ui_update_visible_page();
+                // Complete asynchronous WLAN scans even after leaving Settings.
+                ui_update_settings_tab();
+            }
         }
     }
     

@@ -67,10 +67,13 @@ struct SystemState {
     bool dark_mode;
     bool battery_icon_mode; // true = icon, false = percent
     bool buzzer_enabled;    // Touch-tone / haptic buzzer feedback
+    bool screensaver_enabled; // true = display screensaver with 1% brightness on timeout
     
     // Limits & Capacities
     float bat_capacity_ah;
     float solar_max_w;
+    float shore_max_w;
+    float alt_max_w;
 
     // Smart Header Alarm Thresholds (Persisted)
     float warn_frost_temp;
@@ -110,12 +113,6 @@ struct SystemState {
     String switch_names[8];
     String dimmer_names[8];
 
-    // Time & Zone Settings (Persisted)
-    bool time_auto_ntp;     // true: Internet (NTP), false: Manual (Offline)
-    int time_zone_idx;      // Index in TIMEZONES
-    int manual_hour;        // 0..23
-    int manual_min;         // 0..59
-
     // WiFi Relays (Persisted)
     bool show_wrelay;
     bool wrelay_visible[8];
@@ -131,6 +128,8 @@ struct SystemState {
     bool wifi_connected;
     int wifi_rssi;
     bool vanpi_connected;
+    String vanpi_current_date; // "14/10/2026, 18:30:35"
+    String time_to_go;         // "7d, 14h" from /info ttgo
     
 
     // Power
@@ -197,6 +196,7 @@ struct SystemState {
 
     // Switches & Dimmers
     bool switch_state[8];
+    bool switch_locked[8];
     int dimmer_val[8]; // 0-100%
 
     // Local-interaction hold-off (millis timestamps, not persisted):
@@ -214,21 +214,10 @@ struct SystemState {
 
     // WiFi Relays (Volatile State)
     bool wrelay_state[8];
+    bool wrelay_locked[8];
     uint32_t wrelay_hold_until[8];
     uint8_t wrelay_fields;
 };
-
-struct TimezoneInfo {
-    const char *name;
-    const char *tz_str;
-};
-
-#define TIMEZONE_COUNT 51
-#define TIMEZONE_DEFAULT_INDEX 20
-extern const TimezoneInfo TIMEZONES[TIMEZONE_COUNT];
-
-void time_apply_configuration();
-void time_set_manual(int hour, int min);
 
 extern SystemState state;
 extern Preferences prefs;
@@ -250,5 +239,7 @@ public:
 
 void state_init();
 void state_save();
+void state_set_switch_locked(int idx, bool locked);
+void state_set_wrelay_locked(int idx, bool locked);
 
 #endif // SYSTEM_STATE_H

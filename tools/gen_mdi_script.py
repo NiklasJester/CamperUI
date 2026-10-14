@@ -27,6 +27,7 @@ icons = [
     ('MDI_SLIDERS',          0xf0a49, 'sliders'),
     ('MDI_BELL',             0xf009a, 'bell'),
     ('MDI_CLOCK',            0xf0150, 'clock'),
+    ('MDI_LOCK',             0xf033e, 'lock'),
 ]
 
 def generate_font_c(font_name, size, ttf_path):
@@ -171,6 +172,7 @@ extern "C" {
 #define MDI_SLIDERS            "\\xEE\\x80\\x94" // 0xE014: Werte / Parameter
 #define MDI_BELL               "\\xEE\\x80\\x95" // 0xE015: Alarme
 #define MDI_CLOCK              "\\xEE\\x80\\x96" // 0xE016: Zeit / Uhr
+#define MDI_LOCK               "\\xEE\\x80\\x97" // 0xE017: Lock / Sperre
 
 LV_FONT_DECLARE(ui_font_mdi_32);
 LV_FONT_DECLARE(ui_font_mdi_24);

@@ -32,22 +32,45 @@ def create_release():
     title = f"CamperUI_{version}"
     body = f"""# 🚐 CamperUI Release {version}
 
-Mit Version **{version}** wird die Truma Combi Integration um die Unterscheidung von Modellen mit und ohne elektrischen 230V-Zusatzheizstab erweitert.
+Mit Version **{version}** erhält CamperUI ein umfassendes Upgrade des Energie-Dashboards mit Mini-Arcs und dynamischer Flussanzeige, automatische Uhrzeitsynchronisation über VanPi `/info`, einen energiesparenden Nacht-Screensaver mit 1% Dimmung sowie Schaltersperren.
 
 ---
 
 ### 🚀 Highlights & Neuerungen
 
-#### 🔥 1. Unterscheidung Truma vs. Truma + Elektro
-* **Auswahl in den Einstellungen:** 
-  Unter *Heizungstyp* kann nun präzise gewählt werden zwischen:
-  * `Truma (Gas/Diesel)`: Für Modelle ohne 230V-Heizstab (z. B. Combi 4, Combi 6, Combi D 4, VarioHeat).
-  * `Truma + Elektro (Combi E)`: Für E-Modelle mit integriertem 230V-Heizstab (z. B. Combi 4E, Combi 6E, Combi D 6E).
-* **Dynamische Energiequellen-Optionen:**
-  * Ist **Truma (Gas/Diesel)** gewählt, werden die elektrischen Optionen (`Mix 1`, `Mix 2`, `Elektro 1`, `Elektro 2`) sowie der 230V-Landstrom-Hinweis komplett ausgeblendet. Die Energiequellen-Karte zeigt kompakt die reine Brennstoffnutzung.
-  * Ist **Truma + Elektro (Combi E)** gewählt, stehen alle 5 Energie- und Mischstufen inkl. 230V-Statusbadge zur Verfügung.
-* **Synchronisation im Webinterface:**
-  * Das Web-Dashboard (`/settings`) unterstützt die neuen Optionen direkt im Dropdown und schaltet die Tab-Zuweisung synchron um.
+#### ⚡ 1. Überarbeitetes Energie-Dashboard & Produzenten-Arcs
+* **Zentrales Batterie-Element:**
+  * Großformatige Watt-Anzeige mit direkt danebenliegender Ampere-Anzeige (Lade-/Entladestrom) und Spannung.
+  * Vergrößerter Ladezustands-Arc (SoC %) mit zentrierter Prozentanzeige.
+  * Dynamische Flusslinien: Sämtliche Verbindungslinien und der Batterierahmen färben sich bei positivem Gesamtladestrom grün ein.
+* **Visuelle Leistungs-Arcs für Produzenten:**
+  * Solar, Landstrom (Shore) und Lichtmaschine (Alternator) verfügen nun über eigene farbige Mini-Arcs, die die aktuelle Leistung relativ zur konfigurierten Maximalleistung visualisieren.
+  * Konfigurierbare Maximalwerte in den Einstellungen: `Solar Max Watt`, `Landstrom Max Watt`, `Lichtmaschine Max Watt`.
+* **Flexible Produzentenauswahl:**
+  * Nicht vorhandene Erzeuger können in den Display- und Web-Einstellungen deaktiviert werden. Die verbleibenden Karten zentrieren sich automatisch sauber auf dem Bildschirm.
+* **Direkter Verlaufsaufruf (History Modal):**
+  * Ein Fingertipp auf die Batterie- oder Solarkarte öffnet sofort das 24h-Verlaufsdiagramm.
+
+#### 🕒 2. Automatische Uhrzeitsynchronisation via VanPi `/info`
+* **Kein manuelles Einstellen mehr:**
+  * Die Uhrzeit im Header oben links synchronisiert sich automatisch über den VanPi Endpoint `/info` (`current_date`).
+  * Übernahme der Restlaufzeit (`ttgo` - Time-to-go) direkt aus der VanPi-Telemetrie.
+  * Manuelle Zeiteinstellungen und NTP-Routinen wurden komplett entfernt, was wertvollen Flash-Speicher und RAM freigibt.
+
+#### 🌙 3. Nacht-Screensaver (Ruhemodus mit 1% Helligkeit)
+* **Augenschonende Nachtansicht:**
+  * Nach konfigurierbarem Inaktivitäts-Timeout schaltet das Display auf einen schwarzen Bildschirm mit dunkelroter Digitaluhr (`#dc2626`) und dezenter Time-to-go Anzeige (`#b91c1c`).
+  * Automatische Dimmung der Display-Hintergrundbeleuchtung auf minimal sichtbare 1% Helligkeit.
+  * Sicheres Aufwecken bei Touch-Berührung ohne versehentliches Auslösen darunterliegender Schaltflächen.
+  * Aktivierbar in den Display-Einstellungen sowie über das Webinterface.
+
+#### 🔒 4. Schalter- & Relais-Sperre (Switch Locks)
+* **Schutz vor versehentlichem Schalten:**
+  * Einzelne Schalter und Relais können mit einer Sperrfunktion versehen werden (sichtbar durch Schloss-Symbol), um versehentliches Deaktivieren wichtiger Verbraucher wie Kühlschrank oder Wasserpumpe zu verhindern.
+
+#### 🔥 5. Truma Combi Integration
+* **Modellunterscheidung:**
+  * Saubere Trennung zwischen `Truma (Gas/Diesel)` und `Truma + Elektro (Combi E)`. Elektrische Heizstufen und Landstrom-Hinweise werden bei reinen Gas/Diesel-Modellen automatisch ausgeblendet.
 
 ---
 
