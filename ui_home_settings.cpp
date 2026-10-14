@@ -1,6 +1,6 @@
 #include "ui_main.h"
 namespace {
-lv_obj_t *favorite_select[2], *tank_select;
+lv_obj_t *favorite_select[2], *tank_select, *water_toggle, *victron_toggle;
 bool updating = false;
 lv_obj_t *home_settings_screen = nullptr;
 void set_options(lv_obj_t *dropdown, const String &options, int selected) {
@@ -20,9 +20,13 @@ void choice_changed(lv_event_t *event) {
 void visibility_changed(lv_event_t *event) {
     bool *setting = (bool *)lv_event_get_user_data(event);
     *setting = lv_obj_has_state(lv_event_get_target(event), LV_STATE_CHECKED);
-    state_save(); ui_home_layout_changed();
+    if(setting==&state.home_show_water && *setting) state.home_show_victron=false;
+    if(setting==&state.home_show_victron && *setting) {
+        state.home_show_water=false;state.tab_enabled[TAB_VICTRON]=true;
+    }
+    state_save(); ui_home_layout_changed(); ui_home_settings_refresh();
 }
-void toggle_card(lv_obj_t *parent, const char *text, int x, int y, bool *setting) {
+lv_obj_t *toggle_card(lv_obj_t *parent, const char *text, int x, int y, bool *setting) {
     lv_obj_t *card = lv_obj_create(parent);
     lv_obj_set_pos(card, x, y);
     lv_obj_set_size(card, 212, 44);
@@ -53,6 +57,7 @@ void toggle_card(lv_obj_t *parent, const char *text, int x, int y, bool *setting
         else lv_obj_add_state(s, LV_STATE_CHECKED);
         lv_event_send(s, LV_EVENT_VALUE_CHANGED, NULL);
     }, LV_EVENT_CLICKED, sw);
+    return sw;
 }
 lv_obj_t *choice(lv_obj_t *parent, const char *title, int y, int field) {
     lv_obj_t *label = lv_label_create(parent);
@@ -72,9 +77,12 @@ void ui_home_settings_refresh() {
     for (auto obj : favorite_select) if (obj && lv_dropdown_is_open(obj)) return;
     if (tank_select && lv_dropdown_is_open(tank_select)) return;
     updating = true;
+    if(water_toggle){if(state.home_show_water)lv_obj_add_state(water_toggle,LV_STATE_CHECKED);else lv_obj_clear_state(water_toggle,LV_STATE_CHECKED);}
+    if(victron_toggle){if(state.home_show_victron)lv_obj_add_state(victron_toggle,LV_STATE_CHECKED);else lv_obj_clear_state(victron_toggle,LV_STATE_CHECKED);}
     String options = "Nicht anzeigen";
     for (int i = 0; i < 8; ++i) options += "\nRelais " + String(i + 1) + ": " + state.switch_names[i];
     for (int i = 0; i < 8; ++i) options += "\nDimmer " + String(i + 1) + ": " + state.dimmer_names[i];
+    for(int i=0;i<2;++i)options += "\nGX: " + state.victron_relay_names[i];
     for (int i = 0; i < 2; ++i) set_options(favorite_select[i], options, state.home_favorite[i]);
     options = "";
     for (int i = 0; i < 4; ++i) {
@@ -95,19 +103,20 @@ void ui_build_home_settings(lv_obj_t *parent) {
     lv_obj_set_style_text_color(title, lv_color_hex(UI_COLOR_PRIMARY), 0);
     toggle_card(parent, "Batterie", 0, 36, &state.home_show_battery);
     toggle_card(parent, "Solar", 220, 36, &state.home_show_solar);
-    toggle_card(parent, "Wassertank", 0, 88, &state.home_show_water);
+    water_toggle=toggle_card(parent, "Wassertank", 0, 88, &state.home_show_water);
+    victron_toggle=toggle_card(parent, "MultiPlus", 0, 140, &state.home_show_victron);
     toggle_card(parent, "Starterspannung", 220, 88, &state.home_show_starter);
     lv_obj_t *note = lv_label_create(parent);
-    lv_obj_set_pos(note, 0, 138);
+    lv_obj_set_pos(note, 0, 194);
     lv_obj_set_width(note, 426);
     lv_label_set_text(note, "Sofort gespeichert. Dummy/Live gilt für alle Seiten.\nTemperaturzuordnung: System-Einstellungen → Temperaturen.");
     lv_obj_set_style_text_font(note, &lv_font_montserrat_12, 0);
     lv_obj_set_style_text_color(note, ui_theme_muted(), 0);
-    toggle_card(parent, "Innen", 0, 194, &state.home_show_temp[0]);
-    toggle_card(parent, "Außen", 220, 194, &state.home_show_temp[1]);
-    toggle_card(parent, "Zusatz 1", 0, 246, &state.home_show_temp[2]);
-    for (int i = 0; i < 2; ++i) favorite_select[i] = choice(parent, i ? "Favorit 2" : "Favorit 1", 354 + i * 50, 3 + i);
-    tank_select = choice(parent, "Tankquelle", 464, 5);
+    toggle_card(parent, "Innen", 0, 254, &state.home_show_temp[0]);
+    toggle_card(parent, "Außen", 220, 254, &state.home_show_temp[1]);
+    toggle_card(parent, "Zusatz 1", 0, 306, &state.home_show_temp[2]);
+    for (int i = 0; i < 2; ++i) favorite_select[i] = choice(parent, i ? "Favorit 2" : "Favorit 1", 414 + i * 50, 3 + i);
+    tank_select = choice(parent, "Tankquelle", 524, 5);
     ui_home_settings_refresh();
 }
 bool ui_home_settings_is_active() {
@@ -117,7 +126,7 @@ void ui_home_settings_destroy() {
     if (home_settings_screen) lv_obj_del(home_settings_screen);
     home_settings_screen = nullptr;
     for (auto &obj : favorite_select) obj = nullptr;
-    tank_select = nullptr;
+    tank_select = water_toggle = victron_toggle = nullptr;
 }
 void ui_open_home_settings() {
     if (!home_settings_screen) {
@@ -131,6 +140,7 @@ void ui_open_home_settings() {
         lv_obj_add_event_cb(back, [](lv_event_t *) {
             lv_scr_load(scr_main);
             ui_home_settings_destroy();
+            ui_init(); // reflect optional Victron-tab activation after leaving settings
         }, LV_EVENT_CLICKED, nullptr);
         lv_obj_t *back_label = lv_label_create(back);
         lv_label_set_text(back_label, LV_SYMBOL_LEFT " Zurück");

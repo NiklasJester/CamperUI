@@ -26,6 +26,7 @@ static void update_row_display() {
 
         if (rows[i].lbl_icon) {
             lv_label_set_text(rows[i].lbl_icon, TAB_METAS[tab_id].icon);
+            lv_obj_set_style_text_font(rows[i].lbl_icon, tab_id == TAB_VICTRON ? &lv_font_montserrat_24 : &ui_font_mdi_32, 0);
             lv_obj_set_style_text_color(rows[i].lbl_icon, cur_enabled[tab_id] ? lv_color_hex(UI_COLOR_PRIMARY) : ui_theme_muted(), 0);
         }
         if (rows[i].lbl_name) {

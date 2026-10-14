@@ -1,4 +1,5 @@
 #include "ui_main.h"
+#include "ui_victron.h"
 #include "ui_energy_history.h"
 #include "wifi_diagnostics.h"
 #include "buzzer.h"
@@ -41,7 +42,8 @@ const TabMeta TAB_METAS[TAB_COUNT] = {
     {TAB_SWITCHES, "Schalter", MDI_TOGGLE_SWITCH},
     {TAB_LEVEL, "Level", MDI_SPIRIT_LEVEL},
     {TAB_SETTINGS, "Einstellungen", MDI_TUNE},
-    {TAB_TRUMA, "Truma", MDI_FIRE}
+    {TAB_TRUMA, "Truma", MDI_FIRE},
+    {TAB_VICTRON, "Victron", "VE"}
 };
 
 static constexpr uint8_t PAGE_COUNT = TAB_COUNT;
@@ -320,6 +322,7 @@ static void rebuild_ui(void *) {
     ui_home_settings_destroy();
     ui_nav_settings_destroy();
     ui_home_reset(); ui_maxxfan_reset();
+    ui_victron_reset();
     ui_settings_reset();
     ui_temps_reset();
     ui_power_reset();
@@ -496,6 +499,7 @@ void ui_init() {
 
         switch (i) {
             case TAB_HOME:     ui_build_home(pages[i]); break;
+            case TAB_VICTRON: ui_build_victron(pages[i]); break;
             case TAB_DIMMERS:  ui_build_dimmers(pages[i]); break;
             case TAB_POWER:    ui_build_power(pages[i]); break;
             case TAB_WATER:    ui_build_water(pages[i]); break;
@@ -565,7 +569,7 @@ void ui_init() {
         lv_obj_add_event_cb(button, home_nav_button_cb, LV_EVENT_ALL, (void *)(uintptr_t)tab_id);
         lv_obj_t *icon = lv_label_create(button);
         lv_label_set_text(icon, TAB_METAS[tab_id].icon);
-        lv_obj_set_style_text_font(icon, &ui_font_mdi_32, 0);
+        lv_obj_set_style_text_font(icon, tab_id == TAB_VICTRON ? &lv_font_montserrat_24 : &ui_font_mdi_32, 0);
         lv_obj_center(icon);
 
         btn_slot++;
@@ -615,6 +619,7 @@ void ui_update_visible_page() {
     if (active_page >= TAB_COUNT || !pages[active_page]) return;
     switch (active_page) {
         case TAB_HOME: ui_update_home(); break;
+        case TAB_VICTRON: ui_update_victron(); break;
         case TAB_DIMMERS: ui_update_dimmers_tab(); break;
         case TAB_POWER: ui_update_power_tab(); break;
         case TAB_WATER: ui_update_water_tab(); break;

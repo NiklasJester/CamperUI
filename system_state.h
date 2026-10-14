@@ -16,7 +16,8 @@ enum TabId : uint8_t {
     TAB_LEVEL = 8,
     TAB_SETTINGS = 9,
     TAB_TRUMA = 10,
-    TAB_COUNT = 11
+    TAB_VICTRON = 11, // appended after upstream Truma; legacy RV3D IDs migrate on load
+    TAB_COUNT = 12
 };
 
 enum HeaterType : uint8_t {
@@ -85,11 +86,20 @@ struct SystemState {
     int temps_custom_sensor[2]; // -1 hidden, otherwise /temp sensor 0..12
     int temps_history_window; // 1, 6, or 12 hours
     bool home_show_temp[3]; // shared Indoor, Outdoor, Custom 1 assignment
-    int home_favorite[2]; // 0 hidden, 1..8 relays, 9..16 dimmers
+    int home_favorite[2]; // 0 hidden, 1..8 relays, 9..16 dimmers, 17..18 GX relays
     bool home_show_battery;
     bool home_show_starter;
     bool home_show_solar;
     bool home_show_water;
+    bool home_show_victron;
+    bool victron_enabled;
+    bool victron_keepalive;
+    bool victron_starter; // Home starter voltage: false = VanPi, true = GX battery auxiliary input
+    int victron_battery_instance; // -1 automatic, independent of VE.Bus instance
+    String victron_host, victron_portal, victron_user, victron_password;
+    uint16_t victron_port;
+    int victron_instance; // -1 automatic, otherwise VE.Bus instance
+    String victron_relay_names[2];
     int home_water_source; // /level index 0..3
 
     // Power Dashboard Producers (Persisted)

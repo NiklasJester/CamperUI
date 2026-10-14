@@ -17,6 +17,7 @@
 #include "debug_log.h"
 #include "temp_history.h"
 #include "energy_history.h"
+#include "victron_client.h"
 #include "touch_release_filter.h"
 
 // Hardware and Touch Controller
@@ -249,6 +250,7 @@ void setup() {
     wifi_diagnostics_init();
     wifi_connect_configured();
     const bool data_worker_started = http_start_task();
+    victron_init();
     USBSerial.printf("[DATA " CAMPERUI_VERSION "] Source=%s worker=%s\n",
                      state.debug_mode ? "DEMO" : "LIVE HTTP",
                      data_worker_started ? "RUNNING" : "FAILED");
@@ -423,6 +425,7 @@ void loop() {
     buzzer_loop();
     temp_history_tick();
     energy_history_tick();
+    victron_tick();
 
     // Update UI dynamically
     static uint32_t last_ui_ms = 0;
