@@ -118,6 +118,7 @@ struct SystemState {
     bool tank_enabled[4];
     String tank_names[4];
     uint8_t heater_type;   // 0 = Autoterm, 1 = Truma, 2 = Truma + Elektro, 3 = None
+    bool heater_temp_buttons; // true: show round +/- buttons next to temperature arc
     
     // Custom Names
     String switch_names[8];

@@ -120,24 +120,17 @@ void ui_update_power_tab() {
     float v_solar = (state.solar_voltage > 1.0f && isfinite(state.solar_voltage)) ? state.solar_voltage : (p_solar > 5.0f ? 18.2f : 0.0f);
     float i_solar = (state.solar_current > 0.05f && isfinite(state.solar_current)) ? state.solar_current : (v_solar > 1.0f ? (p_solar / v_solar) : 0.0f);
 
-    // Landstrom (230V)
-    bool shore_active = state.power_show_shore && (state.shore_connected || state.truma_230v || state.shore_power > 5.0f);
+    // Landstrom (230V) - Nur aus Telemetrie/Endpoints, keine interne Schätzung
+    bool shore_active = state.power_show_shore && (state.shore_connected || state.shore_power > 5.0f);
     float p_shore = state.power_show_shore ? ((state.shore_power > 0.0f && isfinite(state.shore_power)) ? state.shore_power : 0.0f) : 0.0f;
     float v_shore = (state.shore_voltage > 50.0f && isfinite(state.shore_voltage)) ? state.shore_voltage : (shore_active ? 230.0f : 0.0f);
-    float i_shore = (state.shore_current > 0.05f && isfinite(state.shore_current)) ? state.shore_current : (v_shore > 50.0f ? (p_shore / v_shore) : 0.0f);
-    if (state.power_show_shore && shore_active && p_shore <= 0.0f && p_bat > p_solar + 5.0f) {
-        p_shore = (p_bat - p_solar) * 1.15f;
-        i_shore = p_shore / 230.0f;
-    }
+    float i_shore = (state.shore_current > 0.01f && isfinite(state.shore_current)) ? state.shore_current : (v_shore > 50.0f && p_shore > 0.0f ? (p_shore / v_shore) : 0.0f);
 
-    // Lichtmaschine
-    float v_starter = (state.starter_voltage > 1.0f && isfinite(state.starter_voltage)) ? state.starter_voltage : 12.6f;
-    bool alt_active = state.power_show_alt && (state.alt_active || v_starter >= 13.4f || state.alt_power > 5.0f);
+    // Lichtmaschine / B2B Booster - Nur aus Telemetrie/Endpoints, keine interne Schätzung
+    bool alt_active = state.power_show_alt && (state.alt_active || state.alt_power > 5.0f);
     float p_alt = state.power_show_alt ? ((state.alt_power > 0.0f && isfinite(state.alt_power)) ? state.alt_power : 0.0f) : 0.0f;
-    if (state.power_show_alt && alt_active && p_alt <= 0.0f && p_bat > (p_solar + p_shore + 10.0f)) {
-        p_alt = p_bat - (p_solar + p_shore);
-    }
-    float i_alt = (state.alt_current > 0.05f && isfinite(state.alt_current)) ? state.alt_current : (v_bat > 10.0f ? (p_alt / v_bat) : 0.0f);
+    float v_starter = (state.starter_voltage > 1.0f && isfinite(state.starter_voltage)) ? state.starter_voltage : 0.0f;
+    float i_alt = (state.alt_current > 0.01f && isfinite(state.alt_current)) ? state.alt_current : ((v_bat > 5.0f && p_alt > 0.0f) ? (p_alt / v_bat) : 0.0f);
 
     // Gesamt-Erzeugung & Verbraucher
     float p_gen = p_solar + (shore_active ? (p_shore / 1.15f) : 0.0f) + p_alt;

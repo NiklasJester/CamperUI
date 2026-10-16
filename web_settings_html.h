@@ -816,6 +816,16 @@ static const char SETTINGS_HTML[] PROGMEM = R"rawliteral(
             <select id="heater_type"></select>
           </div>
           <div class="subtext" style="margin-top:6px; color:#94a3b8; font-size:12px;">Wähle das verbaute Heizungssystem (z.B. Autoterm, Truma).</div>
+          <div class="toggle-row" style="margin-top:12px;">
+            <div class="toggle-info">
+              <div class="toggle-title">Temperaturtasten (+ / -) am Arc</div>
+              <div class="toggle-desc">Runde Tasten neben dem Temperaturregler zum präzisen Einstellen</div>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="heater_temp_buttons">
+              <span class="slider"></span>
+            </label>
+          </div>
         </div>
 
         <div class="card">
@@ -867,11 +877,49 @@ static const char SETTINGS_HTML[] PROGMEM = R"rawliteral(
         </div>
 
         <div class="card">
-          <div class="card-title">🔋 Batterie & Solar Limits</div>
-          <div class="grid-2">
+          <div class="card-title">🔋 Batterie &amp; Energie Dashboard</div>
+          <div class="toggle-row">
+            <div class="toggle-info">
+              <div class="toggle-title">Solar-Erzeuger anzeigen</div>
+              <div class="toggle-desc">Zeigt Solar-Kachel &amp; Leistungs-Arc im Energie-Tab</div>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="power_show_solar">
+              <span class="slider"></span>
+            </label>
+          </div>
+          <div class="toggle-row">
+            <div class="toggle-info">
+              <div class="toggle-title">Landstrom anzeigen (230V)</div>
+              <div class="toggle-desc">Zeigt Landstrom-Kachel &amp; Leistungs-Arc im Energie-Tab</div>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="power_show_shore">
+              <span class="slider"></span>
+            </label>
+          </div>
+          <div class="toggle-row">
+            <div class="toggle-info">
+              <div class="toggle-title">Lichtmaschine / Booster anzeigen</div>
+              <div class="toggle-desc">Zeigt Lima/B2B-Kachel &amp; Leistungs-Arc im Energie-Tab</div>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="power_show_alt">
+              <span class="slider"></span>
+            </label>
+          </div>
+          <div class="grid-2" style="margin-top:14px;">
             <div class="field">
               <label class="label">Solar Maximum (W)</label>
               <input type="number" id="solar_max_w">
+            </div>
+            <div class="field">
+              <label class="label">Landstrom Maximum (W)</label>
+              <input type="number" id="shore_max_w">
+            </div>
+            <div class="field">
+              <label class="label">Lichtmaschine / Booster Max (W)</label>
+              <input type="number" id="alt_max_w">
             </div>
             <div class="field">
               <label class="label">Batterie Kapazität (Ah)</label>
@@ -1034,7 +1082,7 @@ static const char SETTINGS_HTML[] PROGMEM = R"rawliteral(
       fetch('/api/settings')
         .then(r => r.json())
         .then(data => {
-          document.getElementById('badgeVer').innerText = data.version || 'V1.7.0';
+          document.getElementById('badgeVer').innerText = data.version || 'V1.7.1';
           
           // Network
           document.getElementById('wifi_ssid').value = data.wifi_ssid || '';
@@ -1067,6 +1115,7 @@ static const char SETTINGS_HTML[] PROGMEM = R"rawliteral(
 
           // Heater
           populateHeaterTypes(data.heater_types, data.heater_type !== undefined ? data.heater_type : 0);
+          document.getElementById('heater_temp_buttons').checked = !!data.heater_temp_buttons;
 
           // Relays & Dimmers lists
           buildRelaysList(data.switch_names, data.switch_visible);
@@ -1087,7 +1136,12 @@ static const char SETTINGS_HTML[] PROGMEM = R"rawliteral(
           document.getElementById('warn_bat_yellow_soc').value = data.warn_bat_yellow_soc !== undefined ? data.warn_bat_yellow_soc : 30;
           document.getElementById('warn_fresh_min').value = data.warn_fresh_min !== undefined ? data.warn_fresh_min : 15;
           document.getElementById('warn_waste_max').value = data.warn_waste_max !== undefined ? data.warn_waste_max : 85;
+          document.getElementById('power_show_solar').checked = data.power_show_solar !== undefined ? !!data.power_show_solar : true;
+          document.getElementById('power_show_shore').checked = data.power_show_shore !== undefined ? !!data.power_show_shore : true;
+          document.getElementById('power_show_alt').checked = data.power_show_alt !== undefined ? !!data.power_show_alt : true;
           document.getElementById('solar_max_w').value = data.solar_max_w || 200;
+          document.getElementById('shore_max_w').value = data.shore_max_w || 2000;
+          document.getElementById('alt_max_w').value = data.alt_max_w || 600;
           document.getElementById('bat_capacity_ah').value = data.bat_capacity_ah || 100;
 
           // Home Widgets
@@ -1377,6 +1431,7 @@ static const char SETTINGS_HTML[] PROGMEM = R"rawliteral(
         pump_relay: parseInt(document.getElementById('pump_relay').value),
         drain_relay: parseInt(document.getElementById('drain_relay').value),
         heater_type: parseInt(document.getElementById('heater_type').value) || 0,
+        heater_temp_buttons: document.getElementById('heater_temp_buttons').checked,
 
         show_wrelay: document.getElementById('show_wrelay').checked,
         switch_visible: [],
@@ -1395,8 +1450,13 @@ static const char SETTINGS_HTML[] PROGMEM = R"rawliteral(
         warn_bat_yellow_soc: parseInt(document.getElementById('warn_bat_yellow_soc').value),
         warn_fresh_min: parseInt(document.getElementById('warn_fresh_min').value),
         warn_waste_max: parseInt(document.getElementById('warn_waste_max').value),
-        solar_max_w: parseFloat(document.getElementById('solar_max_w').value),
-        bat_capacity_ah: parseFloat(document.getElementById('bat_capacity_ah').value),
+        power_show_solar: document.getElementById('power_show_solar').checked,
+        power_show_shore: document.getElementById('power_show_shore').checked,
+        power_show_alt: document.getElementById('power_show_alt').checked,
+        solar_max_w: parseFloat(document.getElementById('solar_max_w').value) || 200,
+        shore_max_w: parseFloat(document.getElementById('shore_max_w').value) || 2000,
+        alt_max_w: parseFloat(document.getElementById('alt_max_w').value) || 600,
+        bat_capacity_ah: parseFloat(document.getElementById('bat_capacity_ah').value) || 100,
 
         home_show_battery: document.getElementById('home_show_battery').checked,
         home_show_starter: document.getElementById('home_show_starter').checked,

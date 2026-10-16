@@ -264,6 +264,7 @@ state.display_brightness = prefs.getInt("disp_bright", 100);
     state.fan_on = false;
     state.heater_type = constrain(rv_migrate_heater_type(prefs.getInt("heater_type", HEATER_TYPE_AUTOTERM),
         rv_cfg_version<2 && (legacy_rv_tabs || saved_order_bytes<=10)), 0, 3);
+    state.heater_temp_buttons = prefs.getBool("ht_btns", false);
 
     // Truma Climate & Boiler defaults
     state.truma_online = false;
@@ -412,6 +413,7 @@ void state_save() {
     prefs.putInt("pump_relay", state.pump_relay);
     prefs.putInt("drain_relay", state.drain_relay);
     prefs.putInt("heater_type", state.heater_type);
+    prefs.putBool("ht_btns", state.heater_temp_buttons);
     prefs.putUChar("rv_cfg_v",2);
 
     prefs.putBool("scrsave_en", state.screensaver_enabled);

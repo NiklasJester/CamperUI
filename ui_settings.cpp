@@ -1325,12 +1325,26 @@ void ui_settings_screen_init() {
         }
     }, LV_EVENT_VALUE_CHANGED, NULL);
 
+    lv_obj_t *l_ht_btns = lv_label_create(t_val);
+    lv_label_set_text(l_ht_btns, "+/- Tasten am Arc:");
+    lv_obj_set_style_text_font(l_ht_btns, &lv_font_montserrat_14, 0);
+    lv_obj_align(l_ht_btns, LV_ALIGN_TOP_LEFT, 0, 946);
+
+    lv_obj_t *sw_ht_btns = lv_switch_create(t_val);
+    lv_obj_set_size(sw_ht_btns, 52, 28);
+    lv_obj_align(sw_ht_btns, LV_ALIGN_TOP_LEFT, 150, 940);
+    if (state.heater_temp_buttons) lv_obj_add_state(sw_ht_btns, LV_STATE_CHECKED);
+    lv_obj_add_event_cb(sw_ht_btns, [](lv_event_t * e) {
+        lv_obj_t *sw = lv_event_get_target(e);
+        state.heater_temp_buttons = lv_obj_has_state(sw, LV_STATE_CHECKED);
+    }, LV_EVENT_VALUE_CHANGED, NULL);
+
     // Hint Note
     lv_obj_t *l_out_desc = lv_label_create(t_val);
     lv_label_set_text(l_out_desc, "Hinweis: Der gewählte Außensensor steuert die Frostwarnung & das Außenklima.");
     lv_obj_set_style_text_color(l_out_desc, ui_theme_muted(), 0);
     lv_obj_set_style_text_font(l_out_desc, &lv_font_montserrat_12, 0);
-    lv_obj_align(l_out_desc, LV_ALIGN_TOP_LEFT, 0, 944);
+    lv_obj_align(l_out_desc, LV_ALIGN_TOP_LEFT, 0, 988);
     
     // ==========================================
     // TAB 5: ALARME (KOMFORTABLE 44PX EINGABEN)

@@ -355,6 +355,16 @@ static void parse_heater_json(const char *payload) {
         state.heater_error = raw_err;
     }
 
+    if (is_truma_heater(state.heater_type) && (int32_t)(millis() - state.truma_hold_until) >= 0 && raw_hs && raw_hs[0] != '\0') {
+        String rhs = String(raw_hs);
+        rhs.toLowerCase();
+        if (rhs.indexOf("eco") >= 0 || rhs.indexOf("40") >= 0) {
+            state.truma_water_mode = "eco";
+        } else if (rhs.indexOf("hot") >= 0 || rhs.indexOf("60") >= 0 || rhs.indexOf("boost") >= 0) {
+            state.truma_water_mode = "hot";
+        }
+    }
+
     // User is currently interacting with the heater controls -> don't overwrite
     if ((int32_t)(millis() - state.heater_hold_until) < 0) return;
 
@@ -498,8 +508,39 @@ static void parse_heater_json(const char *payload) {
 
             if (truma.containsKey("water")) {
                 JsonObject water = truma["water"];
-                const char *wt = water["target"] | "off";
-                state.truma_water_mode = wt;
+                String wt = "";
+                if (water.containsKey("target")) {
+                    if (water["target"].is<int>()) {
+                        int t = water["target"].as<int>();
+                        if (t == 40) wt = "eco";
+                        else if (t >= 60) wt = "hot";
+                        else if (t == 0) wt = "off";
+                        else wt = String(t);
+                    } else if (water["target"].is<const char*>()) {
+                        wt = water["target"].as<const char*>();
+                    }
+                } else if (water.containsKey("mode")) {
+                    wt = water["mode"].as<String>();
+                } else if (water.containsKey("status")) {
+                    wt = water["status"].as<String>();
+                }
+                wt.toLowerCase();
+                if (wt == "40" || wt.indexOf("eco") >= 0) wt = "eco";
+                else if (wt == "60" || wt.indexOf("hot") >= 0 || wt.indexOf("boost") >= 0) wt = "hot";
+                else if (wt == "0" || wt == "off" || wt == "false") wt = "off";
+
+                if (wt.length() > 0) state.truma_water_mode = wt;
+            }
+
+            // Fallback from raw heatstatus if water target not explicitly provided
+            if (state.truma_water_mode == "off" && raw_hs && raw_hs[0] != '\0') {
+                String rhs = String(raw_hs);
+                rhs.toLowerCase();
+                if (rhs.indexOf("eco") >= 0 || rhs.indexOf("40") >= 0) {
+                    state.truma_water_mode = "eco";
+                } else if (rhs.indexOf("hot") >= 0 || rhs.indexOf("60") >= 0 || rhs.indexOf("boost") >= 0) {
+                    state.truma_water_mode = "hot";
+                }
             }
         }
 
@@ -508,9 +549,13 @@ static void parse_heater_json(const char *payload) {
             state.heating_on = state.truma_heating_on;
             state.target_temp = state.truma_target_temp;
             if (state.truma_heating_on) {
-                state.heater_status = "Heizt";
-            } else if (state.truma_water_mode != "off") {
-                state.heater_status = "Warmwasser (" + state.truma_water_mode + ")";
+                if (state.truma_water_mode == "eco") state.heater_status = "Heizt | Boiler Eco (40 C)";
+                else if (state.truma_water_mode == "hot") state.heater_status = "Heizt | Boiler Hot (60 C)";
+                else state.heater_status = "Heizt";
+            } else if (state.truma_water_mode != "off" && state.truma_water_mode.length() > 0) {
+                if (state.truma_water_mode == "eco") state.heater_status = "Warmwasser Eco (40 C)";
+                else if (state.truma_water_mode == "hot") state.heater_status = "Warmwasser Hot (60 C)";
+                else state.heater_status = "Warmwasser Aktiv";
             } else {
                 state.heater_status = "Standby";
             }

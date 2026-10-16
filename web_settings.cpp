@@ -45,6 +45,7 @@ void web_settings_register_routes(WebServer &server) {
             doc["pump_relay"] = state.pump_relay;
             doc["drain_relay"] = state.drain_relay;
             doc["heater_type"] = state.heater_type;
+            doc["heater_temp_buttons"] = state.heater_temp_buttons;
 
             doc["show_wrelay"] = state.show_wrelay;
             JsonArray sw_nm = doc["switch_names"].to<JsonArray>();
@@ -278,6 +279,7 @@ void web_settings_register_routes(WebServer &server) {
                     state.tab_enabled[TAB_TRUMA] = false;
                 }
             }
+            if (doc["heater_temp_buttons"].is<bool>()) state.heater_temp_buttons = doc["heater_temp_buttons"].as<bool>();
 
             if (doc["show_wrelay"].is<bool>()) state.show_wrelay = doc["show_wrelay"].as<bool>();
             if (doc["switch_visible"].is<JsonArray>()) {

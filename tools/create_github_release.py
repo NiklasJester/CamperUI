@@ -32,45 +32,33 @@ def create_release():
     title = f"CamperUI_{version}"
     body = f"""# 🚐 CamperUI Release {version}
 
-Mit Version **{version}** erhält CamperUI ein umfassendes Upgrade des Energie-Dashboards mit Mini-Arcs und dynamischer Flussanzeige, automatische Uhrzeitsynchronisation über VanPi `/info`, einen energiesparenden Nacht-Screensaver mit 1% Dimmung sowie Schaltersperren.
+Release **{version}** ist ein wichtiges Wartungs- und Feature-Update mit Fehlerbehebungen im Energie-Dashboard, erweiterten Einstellungsmöglichkeiten über das Webinterface, praktischen +/- Temperaturtasten neben dem Heizungs-Arc und verbesserter Truma-Rückmeldung.
 
 ---
 
-### 🚀 Highlights & Neuerungen
+### 🚀 Highlights & Bugfixes in {version}
 
-#### ⚡ 1. Überarbeitetes Energie-Dashboard & Produzenten-Arcs
-* **Zentrales Batterie-Element:**
-  * Großformatige Watt-Anzeige mit direkt danebenliegender Ampere-Anzeige (Lade-/Entladestrom) und Spannung.
-  * Vergrößerter Ladezustands-Arc (SoC %) mit zentrierter Prozentanzeige.
-  * Dynamische Flusslinien: Sämtliche Verbindungslinien und der Batterierahmen färben sich bei positivem Gesamtladestrom grün ein.
-* **Visuelle Leistungs-Arcs für Produzenten:**
-  * Solar, Landstrom (Shore) und Lichtmaschine (Alternator) verfügen nun über eigene farbige Mini-Arcs, die die aktuelle Leistung relativ zur konfigurierten Maximalleistung visualisieren.
-  * Konfigurierbare Maximalwerte in den Einstellungen: `Solar Max Watt`, `Landstrom Max Watt`, `Lichtmaschine Max Watt`.
-* **Flexible Produzentenauswahl:**
-  * Nicht vorhandene Erzeuger können in den Display- und Web-Einstellungen deaktiviert werden. Die verbleibenden Karten zentrieren sich automatisch sauber auf dem Bildschirm.
-* **Direkter Verlaufsaufruf (History Modal):**
-  * Ein Fingertipp auf die Batterie- oder Solarkarte öffnet sofort das 24h-Verlaufsdiagramm.
+#### ⚡ 1. Reine Telemetrie für Energie-Erzeuger (Keine Schätzwerte)
+* **Entfernung aller internen Rückrechnungen:**
+  * Landstrom (230V) und Lichtmaschine / B2B-Booster werden nicht mehr näherungsweise aus dem Batterieladestrom berechnet.
+  * Es werden ausschließlich reale Werte von den VanPi-Endpoints (`/batt` bzw. erweiterte Telemetriefelder) dargestellt. Fehlen die Werte, bleibt die Anzeige bei 0 W bzw. inaktiv.
+* **Vollständige Konfigurierbarkeit im Webinterface:**
+  * Sichtbarkeit der Erzeuger (Solar, Landstrom, Lichtmaschine) und die jeweiligen Maximalleistungen (Solar Max Watt, Landstrom Max Watt, Lima Max Watt) können nun direkt über die Weboberfläche (`/settings`) eingestellt und gespeichert werden.
 
-#### 🕒 2. Automatische Uhrzeitsynchronisation via VanPi `/info`
-* **Kein manuelles Einstellen mehr:**
-  * Die Uhrzeit im Header oben links synchronisiert sich automatisch über den VanPi Endpoint `/info` (`current_date`).
-  * Übernahme der Restlaufzeit (`ttgo` - Time-to-go) direkt aus der VanPi-Telemetrie.
-  * Manuelle Zeiteinstellungen und NTP-Routinen wurden komplett entfernt, was wertvollen Flash-Speicher und RAM freigibt.
+#### 🔥 2. Zusätzliche Temperaturtasten (+ / -) am Arc
+* **Präzise Bedienung per Touch:**
+  * Neben dem Temperatur-Arc im Autoterm- und Truma-Klimatab können runde Touch-Buttons (`-` links, `+` rechts) eingeblendet werden.
+  * Ermöglicht das exakte Verstellen der Temperatur in 1 °C-Schritten (bzw. der Leistungsstufe) ohne fummeliges Schieben auf dem Arc.
+  * Ein- und ausschaltbar über die Display-Einstellungen sowie über das Webinterface (`heater_temp_buttons`).
 
-#### 🌙 3. Nacht-Screensaver (Ruhemodus mit 1% Helligkeit)
-* **Augenschonende Nachtansicht:**
-  * Nach konfigurierbarem Inaktivitäts-Timeout schaltet das Display auf einen schwarzen Bildschirm mit dunkelroter Digitaluhr (`#dc2626`) und dezenter Time-to-go Anzeige (`#b91c1c`).
-  * Automatische Dimmung der Display-Hintergrundbeleuchtung auf minimal sichtbare 1% Helligkeit.
-  * Sicheres Aufwecken bei Touch-Berührung ohne versehentliches Auslösen darunterliegender Schaltflächen.
-  * Aktivierbar in den Display-Einstellungen sowie über das Webinterface.
+#### 💧 3. Zuverlässiges Warmwasser-Feedback bei Truma Combi
+* **Aktive Button-Hervorhebung:**
+  * Warmwasser-Modi (`Eco`, `Hot`, `Aus`) werden nun direkt auf den Tasten farbig hervorgehoben (Grün für Eco, Orange für Hot, Blau für Aus).
+  * Robustes Parsing fängt sowohl numerische VanPi-Ziele (`40`, `60`), Textmodi (`"eco"`, `"hot"`, `"boost"`) als auch den Node-RED Status-Text (`raw_hs`) sauber ab.
 
-#### 🔒 4. Schalter- & Relais-Sperre (Switch Locks)
-* **Schutz vor versehentlichem Schalten:**
-  * Einzelne Schalter und Relais können mit einer Sperrfunktion versehen werden (sichtbar durch Schloss-Symbol), um versehentliches Deaktivieren wichtiger Verbraucher wie Kühlschrank oder Wasserpumpe zu verhindern.
-
-#### 🔥 5. Truma Combi Integration
-* **Modellunterscheidung:**
-  * Saubere Trennung zwischen `Truma (Gas/Diesel)` und `Truma + Elektro (Combi E)`. Elektrische Heizstufen und Landstrom-Hinweise werden bei reinen Gas/Diesel-Modellen automatisch ausgeblendet.
+#### 🌙 4. Screensaver- & Dimm-Stabilität
+* **Flackerfreier Ruhemodus:**
+  * Zuverlässige Aktivierung des dunkelroten Nacht-Screensavers nach Ablauf des Display-Timeouts bei minimaler Hintergrundbeleuchtung.
 
 ---
 

@@ -5,6 +5,10 @@ static lv_obj_t *lbl_indoor;
 static lv_obj_t *lbl_outdoor;
 static lv_obj_t *lbl_target;
 static lv_obj_t *arc_target;
+static lv_obj_t *btn_temp_minus = nullptr;
+static lv_obj_t *btn_temp_plus = nullptr;
+static lv_obj_t *lbl_btn_temp_minus = nullptr;
+static lv_obj_t *lbl_btn_temp_plus = nullptr;
 static lv_obj_t *btn_start_stop;
 static lv_obj_t *lbl_btn_start_stop;
 static lv_obj_t *dd_mode;
@@ -190,6 +194,42 @@ static void arc_target_event_cb(lv_event_t * e) {
     }
 }
 
+static void btn_temp_adjust_event_cb(lv_event_t *e) {
+    int delta = (int)(intptr_t)lv_event_get_user_data(e);
+    state.heater_hold_until = millis() + HEATER_HOLD_MS;
+
+    if (state.heater_vent_mode || state.heater_power_mode) {
+        int cur = state.heater_power_level > 0 ? state.heater_power_level : 1;
+        cur = constrain(cur + delta, 1, 10);
+        state.heater_power_level = cur;
+        if (arc_target) {
+            lv_arc_set_value(arc_target, cur);
+            update_arc_color(arc_target);
+        }
+        if (lbl_target) {
+            lv_label_set_text_fmt(lbl_target, state.heater_vent_mode ? "Luefter Stufe: %d" : "Heiz Stufe: %d", cur);
+        }
+        if (state.heating_on) {
+            http_publish_heater_cmd(state.heater_vent_mode ? "vent" : "power", cur);
+        }
+    } else {
+        int cur = (int)(state.target_temp + 0.5f);
+        if (cur < 10) cur = 20;
+        cur = constrain(cur + delta, 10, 35);
+        state.target_temp = cur;
+        if (arc_target) {
+            lv_arc_set_value(arc_target, cur);
+            update_arc_color(arc_target);
+        }
+        if (lbl_target) {
+            lv_label_set_text_fmt(lbl_target, "Ziel: %d C", cur);
+        }
+        if (state.heating_on) {
+            http_publish_heater_cmd("temp", cur);
+        }
+    }
+}
+
 void ui_update_climate_tab() {
     if (!lbl_indoor) return;
     
@@ -199,6 +239,16 @@ void ui_update_climate_tab() {
     }
 
     update_status_label();
+
+    if (btn_temp_minus && btn_temp_plus) {
+        if (state.heater_temp_buttons) {
+            lv_obj_clear_flag(btn_temp_minus, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_clear_flag(btn_temp_plus, LV_OBJ_FLAG_HIDDEN);
+        } else {
+            lv_obj_add_flag(btn_temp_minus, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(btn_temp_plus, LV_OBJ_FLAG_HIDDEN);
+        }
+    }
 
     // Don't touch controls while the user is interacting with them
     if (lv_obj_has_state(arc_target, LV_STATE_PRESSED) || lv_dropdown_is_open(dd_mode)) return;
@@ -244,6 +294,10 @@ void ui_climate_reset() {
     lbl_outdoor = nullptr;
     lbl_target = nullptr;
     arc_target = nullptr;
+    btn_temp_minus = nullptr;
+    btn_temp_plus = nullptr;
+    lbl_btn_temp_minus = nullptr;
+    lbl_btn_temp_plus = nullptr;
     btn_start_stop = nullptr;
     lbl_btn_start_stop = nullptr;
     dd_mode = nullptr;
@@ -318,6 +372,45 @@ void ui_build_climate(lv_obj_t *parent) {
     
     lv_obj_add_event_cb(arc_target, arc_target_event_cb, LV_EVENT_VALUE_CHANGED, NULL);
     lv_obj_add_event_cb(arc_target, arc_target_event_cb, LV_EVENT_RELEASED, NULL);
+
+    // Minus Button (Left of Arc)
+    btn_temp_minus = lv_btn_create(parent);
+    lv_obj_set_size(btn_temp_minus, 52, 52);
+    lv_obj_set_style_radius(btn_temp_minus, LV_RADIUS_CIRCLE, 0);
+    lv_obj_set_style_bg_color(btn_temp_minus, ui_theme_card(), 0);
+    lv_obj_set_style_border_color(btn_temp_minus, ui_theme_border(), 0);
+    lv_obj_set_style_border_width(btn_temp_minus, 1, 0);
+    lv_obj_set_style_shadow_width(btn_temp_minus, 0, 0);
+    lv_obj_align_to(btn_temp_minus, arc_target, LV_ALIGN_OUT_LEFT_MID, -18, 0);
+    lv_obj_add_event_cb(btn_temp_minus, btn_temp_adjust_event_cb, LV_EVENT_CLICKED, (void *)(intptr_t)-1);
+
+    lbl_btn_temp_minus = lv_label_create(btn_temp_minus);
+    lv_label_set_text(lbl_btn_temp_minus, LV_SYMBOL_MINUS);
+    lv_obj_set_style_text_font(lbl_btn_temp_minus, &lv_font_montserrat_24, 0);
+    lv_obj_set_style_text_color(lbl_btn_temp_minus, ui_theme_text(), 0);
+    lv_obj_center(lbl_btn_temp_minus);
+
+    // Plus Button (Right of Arc)
+    btn_temp_plus = lv_btn_create(parent);
+    lv_obj_set_size(btn_temp_plus, 52, 52);
+    lv_obj_set_style_radius(btn_temp_plus, LV_RADIUS_CIRCLE, 0);
+    lv_obj_set_style_bg_color(btn_temp_plus, ui_theme_card(), 0);
+    lv_obj_set_style_border_color(btn_temp_plus, ui_theme_border(), 0);
+    lv_obj_set_style_border_width(btn_temp_plus, 1, 0);
+    lv_obj_set_style_shadow_width(btn_temp_plus, 0, 0);
+    lv_obj_align_to(btn_temp_plus, arc_target, LV_ALIGN_OUT_RIGHT_MID, 18, 0);
+    lv_obj_add_event_cb(btn_temp_plus, btn_temp_adjust_event_cb, LV_EVENT_CLICKED, (void *)(intptr_t)1);
+
+    lbl_btn_temp_plus = lv_label_create(btn_temp_plus);
+    lv_label_set_text(lbl_btn_temp_plus, LV_SYMBOL_PLUS);
+    lv_obj_set_style_text_font(lbl_btn_temp_plus, &lv_font_montserrat_24, 0);
+    lv_obj_set_style_text_color(lbl_btn_temp_plus, ui_theme_text(), 0);
+    lv_obj_center(lbl_btn_temp_plus);
+
+    if (!state.heater_temp_buttons) {
+        lv_obj_add_flag(btn_temp_minus, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_add_flag(btn_temp_plus, LV_OBJ_FLAG_HIDDEN);
+    }
 
     // Indoor Temp Label (Dead-centered)
     lbl_indoor = lv_label_create(parent);
