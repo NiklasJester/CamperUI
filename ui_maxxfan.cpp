@@ -77,8 +77,6 @@ void ui_update_maxxfan() {
     const lv_img_dsc_t *image = s.lid_open ? &ui_maxxfan_open : &ui_maxxfan_closed;
     if (lv_img_get_src(lid_image) != image) lv_img_set_src(lid_image, image);
     show(lid_image, s.valid);
-    lv_obj_set_pos(lid_image, 162, mode == 1 ? 276 : 194);
-    lv_obj_set_y(info, mode == 1 ? 338 : 292);
     const char *details = s.pending ? "Warte auf Rueckmeldung..." : s.message;
     if (s.demo != state.debug_mode) details = "Datenquelle wird gewechselt...";
     else if (!s.valid && !s.demo && s.updated && millis() - s.updated > 15000) details = "Live - Daten veraltet";

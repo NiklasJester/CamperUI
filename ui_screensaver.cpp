@@ -1,4 +1,5 @@
 #include "ui_screensaver.h"
+#include "ui_main.h"
 #include "system_state.h"
 #include "WS_CH32_IO.h"
 #include "ui_fonts.h"
@@ -86,23 +87,23 @@ void ui_screensaver_update() {
     if (now > 100000 && localtime_r(&now, &ti)) {
         char buf[16];
         snprintf(buf, sizeof(buf), "%02d:%02d", ti.tm_hour, ti.tm_min);
-        lv_label_set_text(lbl_time, buf);
+        ui_label_set_text_if_changed(lbl_time, buf);
     } else {
-        lv_label_set_text(lbl_time, "--:--");
+        ui_label_set_text_if_changed(lbl_time, "--:--");
     }
 
     if (state.time_to_go.length() > 0) {
         char buf[64];
         snprintf(buf, sizeof(buf), "Time to go: %s", state.time_to_go.c_str());
-        lv_label_set_text(lbl_ttgo, buf);
+        ui_label_set_text_if_changed(lbl_ttgo, buf);
     } else {
-        lv_label_set_text(lbl_ttgo, "Time to go: --");
+        ui_label_set_text_if_changed(lbl_ttgo, "Time to go: --");
     }
 
     if (lbl_sub) {
         char buf[64];
         snprintf(buf, sizeof(buf), "Batterie: %d%% | %.1f V", state.bat_soc, state.bat_voltage);
-        lv_label_set_text(lbl_sub, buf);
+        ui_label_set_text_if_changed(lbl_sub, buf);
     }
 }
 

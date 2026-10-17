@@ -85,13 +85,53 @@ static void dd_win_event_cb(lv_event_t *e) {
     ui_trigger_temps_anim();
 }
 
+static int last_layout_custom_count = -1;
+static int last_layout_c1 = -1;
+static int last_layout_c2 = -1;
+static uint32_t last_rendered_hist_ver = 0xFFFFFFFF;
+static int last_rendered_win = -1;
+static int last_rendered_points_to_show = -1;
+static int8_t last_card_hum_mode[4] = {-1, -1, -1, -1};
+static lv_coord_t cached_points[4][CHART_POINTS];
+static bool cached_track_valid[4] = {false, false, false, false};
+
 static void temps_anim_cb(void *var, int32_t val) {
-    anim_revealed_points = val;
+    (void)var;
+    int target_pts = constrain((int)val, 2, CHART_POINTS);
+    if (target_pts == last_rendered_points_to_show && last_rendered_win != -1) {
+        anim_revealed_points = target_pts;
+        return;
+    }
+    anim_revealed_points = target_pts;
+
+    // Fast path: if series data is already cached for current window/version, only reveal new points
+    int win = constrain(state.temps_history_window, 1, 24);
+    uint32_t hist_ver = temp_history_get_version();
+    if (chart && win == last_rendered_win && hist_ver == last_rendered_hist_ver && last_rendered_points_to_show >= 2) {
+        lv_chart_series_t *sers[4] = {ser_outdoor, ser_indoor, ser_custom1, ser_custom2};
+        int start_idx = (target_pts > last_rendered_points_to_show) ? last_rendered_points_to_show : 0;
+        for (int t = 0; t < 4; ++t) {
+            if (!sers[t]) continue;
+            if (cached_track_valid[t] && plot_track_visible[t]) {
+                for (int i = start_idx; i < target_pts; ++i) {
+                    lv_chart_set_value_by_id(chart, sers[t], i, cached_points[t][i]);
+                }
+                for (int i = target_pts; i < last_rendered_points_to_show; ++i) {
+                    lv_chart_set_value_by_id(chart, sers[t], i, LV_CHART_POINT_NONE);
+                }
+            }
+        }
+        last_rendered_points_to_show = target_pts;
+        lv_chart_refresh(chart);
+        return;
+    }
+
     StateLockGuard lock;
     ui_update_temps_tab();
 }
 
 static void temps_anim_ready_cb(lv_anim_t *a) {
+    (void)a;
     temps_animating = false;
     anim_revealed_points = CHART_POINTS;
     StateLockGuard lock;
@@ -103,6 +143,7 @@ void ui_trigger_temps_anim(void) {
     lv_anim_del(chart, temps_anim_cb);
     temps_animating = true;
     anim_revealed_points = 2;
+    last_rendered_points_to_show = -1;
 
     lv_anim_t a;
     lv_anim_init(&a);
@@ -114,13 +155,6 @@ void ui_trigger_temps_anim(void) {
     lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
     lv_anim_start(&a);
 }
-
-static int last_layout_custom_count = -1;
-static int last_layout_c1 = -1;
-static int last_layout_c2 = -1;
-static uint32_t last_rendered_hist_ver = 0xFFFFFFFF;
-static int last_rendered_win = -1;
-static int last_rendered_points_to_show = -1;
 
 void ui_temps_reset(void) {
     if (chart) lv_anim_del(chart, temps_anim_cb);
@@ -144,6 +178,8 @@ void ui_temps_reset(void) {
         lbl_hum[i] = nullptr;
         lbl_max[i] = nullptr;
         lbl_min[i] = nullptr;
+        last_card_hum_mode[i] = -1;
+        cached_track_valid[i] = false;
     }
 }
 
@@ -358,6 +394,7 @@ void ui_update_temps_tab(void) {
         last_layout_custom_count = custom_count;
         last_layout_c1 = state.temps_custom_sensor[0];
         last_layout_c2 = state.temps_custom_sensor[1];
+        for (int i = 0; i < 4; ++i) last_card_hum_mode[i] = -1;
 
         if (custom_count == 0) {
             // Only 2 cards: Outdoor and Indoor side-by-side
@@ -520,48 +557,58 @@ void ui_update_temps_tab(void) {
         int idx = s_idx[i];
         float hum = (idx >= 0 && idx < TEMP_SOURCE_COUNT) ? state.temp_humidity[idx] : 0.0f;
         int align_x = (custom_count == 1 && i == (c1_active ? 2 : 3)) ? -12 : -10;
+        bool has_hum = (hum > 0.5f && hum <= 100.0f);
+        int8_t hum_mode = (int8_t)((has_hum ? 1 : 0) | ((align_x == -12) ? 2 : 0));
 
-        if (hum > 0.5f && hum <= 100.0f) {
+        if (has_hum) {
             snprintf(buf, sizeof(buf), "%.1f %%", hum);
             ui_label_set_text_if_changed(lbl_hum[i], buf);
-            lv_obj_align(lbl_hum[i], LV_ALIGN_TOP_RIGHT, align_x, 5);
-            lv_obj_set_style_text_font(lbl_max[i], &lv_font_montserrat_10, 0);
-            lv_obj_set_style_text_font(lbl_min[i], &lv_font_montserrat_10, 0);
-            lv_obj_align(lbl_max[i], LV_ALIGN_TOP_RIGHT, align_x, 23);
-            lv_obj_align(lbl_min[i], LV_ALIGN_TOP_RIGHT, align_x, 39);
         } else {
             ui_label_set_text_if_changed(lbl_hum[i], "");
-            lv_obj_set_style_text_font(lbl_max[i], &lv_font_montserrat_12, 0);
-            lv_obj_set_style_text_font(lbl_min[i], &lv_font_montserrat_12, 0);
-            lv_obj_align(lbl_max[i], LV_ALIGN_TOP_RIGHT, align_x, 10);
-            lv_obj_align(lbl_min[i], LV_ALIGN_TOP_RIGHT, align_x, 34);
         }
 
-        // Active vs Toggled Off visual feedback
+        if (hum_mode != last_card_hum_mode[i]) {
+            last_card_hum_mode[i] = hum_mode;
+            if (has_hum) {
+                lv_obj_align(lbl_hum[i], LV_ALIGN_TOP_RIGHT, align_x, 5);
+                lv_obj_set_style_text_font(lbl_max[i], &lv_font_montserrat_10, 0);
+                lv_obj_set_style_text_font(lbl_min[i], &lv_font_montserrat_10, 0);
+                lv_obj_align(lbl_max[i], LV_ALIGN_TOP_RIGHT, align_x, 23);
+                lv_obj_align(lbl_min[i], LV_ALIGN_TOP_RIGHT, align_x, 39);
+            } else {
+                lv_obj_set_style_text_font(lbl_max[i], &lv_font_montserrat_12, 0);
+                lv_obj_set_style_text_font(lbl_min[i], &lv_font_montserrat_12, 0);
+                lv_obj_align(lbl_max[i], LV_ALIGN_TOP_RIGHT, align_x, 10);
+                lv_obj_align(lbl_min[i], LV_ALIGN_TOP_RIGHT, align_x, 34);
+            }
+        }
+
+        // Active vs Toggled Off visual feedback (without container opacity layer!)
         bool is_vis = plot_track_visible[i];
         lv_color_t active_col = track_color(i);
         lv_color_t muted_col = ui_theme_muted();
 
         if (accents[i]) {
-            lv_obj_set_style_bg_color(accents[i], is_vis ? active_col : muted_col, 0);
-            lv_obj_set_style_bg_opa(accents[i], is_vis ? LV_OPA_COVER : LV_OPA_40, 0);
+            ui_bg_color_if_changed(accents[i], is_vis ? active_col : ui_theme_border());
+        }
+        if (lbl_names[i]) {
+            ui_text_color_if_changed(lbl_names[i], is_vis ? ui_theme_text() : muted_col);
         }
         ui_text_color_if_changed(lbl_vals[i], is_vis ? active_col : muted_col);
         if (cards[i]) {
-            lv_obj_set_style_opa(cards[i], is_vis ? LV_OPA_COVER : LV_OPA_70, 0);
+            ui_border_color_if_changed(cards[i], is_vis ? ui_theme_border() : ui_theme_track());
         }
     }
 
     // 2. Chart History Throttling: only recalculate curves when a new minute-sample arrived,
-    // window changed, plot visibility changed, or reveal animation is in flight.
+    // window changed, plot visibility changed, or reveal animation point count changed.
     int win = constrain(state.temps_history_window, 1, 24);
     uint32_t hist_ver = temp_history_get_version();
     int points_to_show = temps_animating ? anim_revealed_points : CHART_POINTS;
     if (points_to_show < 2) points_to_show = 2;
     if (points_to_show > CHART_POINTS) points_to_show = CHART_POINTS;
 
-    bool chart_needs_update = temps_animating ||
-                              (win != last_rendered_win) ||
+    bool chart_needs_update = (win != last_rendered_win) ||
                               (hist_ver != last_rendered_hist_ver) ||
                               (points_to_show != last_rendered_points_to_show);
 
@@ -571,18 +618,18 @@ void ui_update_temps_tab(void) {
     last_rendered_hist_ver = hist_ver;
     last_rendered_points_to_show = points_to_show;
 
-    lv_coord_t points[CHART_POINTS];
     float min_val = 0.0f, max_val = 0.0f;
     float overall_min = 999.0f;
     float overall_max = -999.0f;
     bool has_any_series = false;
 
     auto update_track = [&](int track_idx, lv_chart_series_t *ser, bool active_sensor, lv_obj_t *l_max, lv_obj_t *l_min) {
-        if (active_sensor && temp_history_get_series(track_idx, win, points, CHART_POINTS, &min_val, &max_val)) {
+        if (active_sensor && temp_history_get_series(track_idx, win, cached_points[track_idx], CHART_POINTS, &min_val, &max_val)) {
+            cached_track_valid[track_idx] = true;
             if (plot_track_visible[track_idx]) {
                 for (int i = 0; i < CHART_POINTS; ++i) {
                     if (i < points_to_show) {
-                        lv_chart_set_value_by_id(chart, ser, i, points[i]);
+                        lv_chart_set_value_by_id(chart, ser, i, cached_points[track_idx][i]);
                     } else {
                         lv_chart_set_value_by_id(chart, ser, i, LV_CHART_POINT_NONE);
                     }
@@ -600,6 +647,7 @@ void ui_update_temps_tab(void) {
             snprintf(buf, sizeof(buf), "Min: %.1f C", min_val);
             ui_label_set_text_if_changed(l_min, buf);
         } else {
+            cached_track_valid[track_idx] = false;
             for (int i = 0; i < CHART_POINTS; ++i) {
                 lv_chart_set_value_by_id(chart, ser, i, LV_CHART_POINT_NONE);
             }

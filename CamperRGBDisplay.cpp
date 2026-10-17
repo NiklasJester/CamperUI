@@ -577,15 +577,37 @@ void CamperRGBDisplay::draw16bitRGBBitmap(int16_t x, int16_t y,
         cache_size = _fb_width * w * 2;
         break;
       case 2:
-        cachePos = (uint32_t)(_framebuffer + ((HEIGHT - y - h) * _fb_width));
-        cache_size = _fb_width * h * 2;
+      {
+        int16_t cx = x, cy = y, cw = w, ch = h;
+        if (cy < 0) { ch += cy; cy = 0; }
+        if (cx < 0) { cw += cx; cx = 0; }
+        if (cy + ch > HEIGHT) ch = HEIGHT - cy;
+        if (cx + cw > WIDTH) cw = WIDTH - cx;
+        if (cw <= 0 || ch <= 0) return;
+        int16_t dst_x = WIDTH - cx - cw;
+        int16_t dst_y = HEIGHT - cy - ch;
+        cachePos = (uint32_t)(_framebuffer + (dst_y * _fb_width) + dst_x);
+        if (cw <= 160 && ch > 1) {
+          for (int16_t r = 0; r < ch; ++r) {
+            Cache_WriteBack_Addr(cachePos + (uint32_t)(r * _fb_width * 2), (size_t)(cw * 2));
+          }
+          return;
+        }
+        cache_size = (_fb_width * (ch - 1) + cw) * 2;
         break;
+      }
       case 3:
         cachePos = (uint32_t)(_framebuffer + ((HEIGHT - x - w) * _fb_width));
         cache_size = _fb_width * w * 2;
         break;
       default: // case 0:
         cachePos = (uint32_t)(_framebuffer + (y * _fb_width) + x);
+        if (w <= 160 && h > 1) {
+          for (int16_t r = 0; r < h; ++r) {
+            Cache_WriteBack_Addr(cachePos + (uint32_t)(r * _fb_width * 2), (size_t)(w * 2));
+          }
+          return;
+        }
         cache_size = (_fb_width * (h - 1) + w) * 2;
       }
       Cache_WriteBack_Addr(cachePos, cache_size);

@@ -223,19 +223,19 @@ static void ui_settings_update_producers() {
         if (!state.shore_available) {
             lv_obj_clear_state(sw_shore_toggle, LV_STATE_CHECKED);
             lv_obj_add_state(sw_shore_toggle, LV_STATE_DISABLED);
-            lv_obj_set_style_opa(card_shore_toggle, LV_OPA_40, 0);
+            ui_border_color_if_changed(card_shore_toggle, ui_theme_track());
             lv_obj_clear_flag(card_shore_toggle, LV_OBJ_FLAG_CLICKABLE);
             if (lbl_shore_toggle && lv_obj_is_valid(lbl_shore_toggle)) {
-                lv_obj_set_style_text_color(lbl_shore_toggle, ui_theme_muted(), 0);
+                ui_text_color_if_changed(lbl_shore_toggle, ui_theme_muted());
             }
         } else {
             lv_obj_clear_state(sw_shore_toggle, LV_STATE_DISABLED);
             if (state.power_show_shore) lv_obj_add_state(sw_shore_toggle, LV_STATE_CHECKED);
             else lv_obj_clear_state(sw_shore_toggle, LV_STATE_CHECKED);
-            lv_obj_set_style_opa(card_shore_toggle, LV_OPA_COVER, 0);
+            ui_border_color_if_changed(card_shore_toggle, ui_theme_border());
             lv_obj_add_flag(card_shore_toggle, LV_OBJ_FLAG_CLICKABLE);
             if (lbl_shore_toggle && lv_obj_is_valid(lbl_shore_toggle)) {
-                lv_obj_set_style_text_color(lbl_shore_toggle, ui_theme_text(), 0);
+                ui_text_color_if_changed(lbl_shore_toggle, ui_theme_text());
             }
         }
     }
@@ -243,19 +243,19 @@ static void ui_settings_update_producers() {
         if (!state.alt_available) {
             lv_obj_clear_state(sw_alt_toggle, LV_STATE_CHECKED);
             lv_obj_add_state(sw_alt_toggle, LV_STATE_DISABLED);
-            lv_obj_set_style_opa(card_alt_toggle, LV_OPA_40, 0);
+            ui_border_color_if_changed(card_alt_toggle, ui_theme_track());
             lv_obj_clear_flag(card_alt_toggle, LV_OBJ_FLAG_CLICKABLE);
             if (lbl_alt_toggle && lv_obj_is_valid(lbl_alt_toggle)) {
-                lv_obj_set_style_text_color(lbl_alt_toggle, ui_theme_muted(), 0);
+                ui_text_color_if_changed(lbl_alt_toggle, ui_theme_muted());
             }
         } else {
             lv_obj_clear_state(sw_alt_toggle, LV_STATE_DISABLED);
             if (state.power_show_alt) lv_obj_add_state(sw_alt_toggle, LV_STATE_CHECKED);
             else lv_obj_clear_state(sw_alt_toggle, LV_STATE_CHECKED);
-            lv_obj_set_style_opa(card_alt_toggle, LV_OPA_COVER, 0);
+            ui_border_color_if_changed(card_alt_toggle, ui_theme_border());
             lv_obj_add_flag(card_alt_toggle, LV_OBJ_FLAG_CLICKABLE);
             if (lbl_alt_toggle && lv_obj_is_valid(lbl_alt_toggle)) {
-                lv_obj_set_style_text_color(lbl_alt_toggle, ui_theme_text(), 0);
+                ui_text_color_if_changed(lbl_alt_toggle, ui_theme_text());
             }
         }
     }
@@ -265,21 +265,26 @@ void ui_sync_demo_controls() {
     lv_obj_t *controls[] = {sw_debug, sw_demo};
     for (lv_obj_t *control : controls) {
         if (!control || !lv_obj_is_valid(control)) continue;
-        if (state.debug_mode) lv_obj_add_state(control, LV_STATE_CHECKED);
-        else lv_obj_clear_state(control, LV_STATE_CHECKED);
+        bool checked = lv_obj_has_state(control, LV_STATE_CHECKED);
+        if (state.debug_mode && !checked) lv_obj_add_state(control, LV_STATE_CHECKED);
+        else if (!state.debug_mode && checked) lv_obj_clear_state(control, LV_STATE_CHECKED);
     }
 }
 void ui_update_settings_tab() {
-    ui_victron_settings_update();
     ui_sync_demo_controls();
-    ui_settings_update_producers();
+    if (lv_scr_act() == scr_settings) {
+        ui_victron_settings_update();
+        ui_settings_update_producers();
+    }
     if (lv_scr_act() == scr_settings && wifi_status_label) {
         String details = wifi_connection_details();
-        ui_label_set_text_if_changed(wifi_status_label, details.c_str());
-        if (card_web_ota) {
-            lv_obj_update_layout(wifi_status_label);
-            lv_obj_set_y(card_web_ota, lv_obj_get_y(wifi_status_label) +
-                lv_obj_get_height(wifi_status_label) + 16);
+        if (strcmp(lv_label_get_text(wifi_status_label), details.c_str()) != 0) {
+            lv_label_set_text(wifi_status_label, details.c_str());
+            if (card_web_ota) {
+                lv_obj_update_layout(wifi_status_label);
+                lv_obj_set_y(card_web_ota, lv_obj_get_y(wifi_status_label) +
+                    lv_obj_get_height(wifi_status_label) + 16);
+            }
         }
     }
     if (lv_scr_act() == scr_settings && lbl_web_ota_url) {
@@ -981,7 +986,7 @@ void ui_settings_screen_init() {
         lv_obj_align(lbl, LV_ALIGN_LEFT_MID, 54, 0);
 
         if (!is_enabled) {
-            lv_obj_set_style_opa(card, LV_OPA_40, 0);
+            lv_obj_set_style_border_color(card, ui_theme_track(), 0);
             lv_obj_clear_flag(card, LV_OBJ_FLAG_CLICKABLE);
         } else {
             // Entire row is touchable: tapping card toggles the switch

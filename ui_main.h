@@ -61,6 +61,35 @@ static inline void ui_text_color_if_changed(lv_obj_t *obj, lv_color_t color,
         lv_obj_set_style_text_color(obj, color, selector);
 }
 
+static inline void ui_bg_color_if_changed(lv_obj_t *obj, lv_color_t color,
+                                          lv_style_selector_t selector = 0) {
+    if (obj && lv_obj_get_style_bg_color(obj, selector & LV_PART_ANY).full != color.full)
+        lv_obj_set_style_bg_color(obj, color, selector);
+}
+
+static inline void ui_border_color_if_changed(lv_obj_t *obj, lv_color_t color,
+                                              lv_style_selector_t selector = 0) {
+    if (obj && lv_obj_get_style_border_color(obj, selector & LV_PART_ANY).full != color.full)
+        lv_obj_set_style_border_color(obj, color, selector);
+}
+
+static inline void ui_line_color_if_changed(lv_obj_t *obj, lv_color_t color,
+                                            lv_style_selector_t selector = 0) {
+    if (obj && lv_obj_get_style_line_color(obj, selector & LV_PART_ANY).full != color.full)
+        lv_obj_set_style_line_color(obj, color, selector);
+}
+
+static inline void ui_arc_color_if_changed(lv_obj_t *obj, lv_color_t color,
+                                           lv_style_selector_t selector = LV_PART_INDICATOR) {
+    if (obj && lv_obj_get_style_arc_color(obj, selector & LV_PART_ANY).full != color.full)
+        lv_obj_set_style_arc_color(obj, color, selector);
+}
+
+static inline void ui_arc_value_if_changed(lv_obj_t *arc, int16_t val) {
+    if (arc && lv_arc_get_value(arc) != val)
+        lv_arc_set_value(arc, val);
+}
+
 // Robust float-to-label formatter using C runtime snprintf
 static inline void ui_label_set_float(lv_obj_t *lbl, const char *fmt, float val) {
     if (!lbl) return;

@@ -249,24 +249,10 @@ void setup() {
         WS_CH32_IO::setPwm(Wire, pwm);
     }
 
-    // Reserve WiFi and data-worker allocations before the optional larger
-    // draw buffer. Otherwise the UI may start while its data task cannot.
-    // Credentials already persist in CamperUI Preferences; avoid a second
-    // Flash write by the WiFi driver when reconnecting from Settings.
-    wifi_diagnostics_init();
-    wifi_connect_configured();
-    const bool data_worker_started = http_start_task();
-    victron_init();
-    USBSerial.printf("[DATA " CAMPERUI_VERSION "] Source=%s worker=%s\n",
-                     state.debug_mode ? "DEMO" : "LIVE HTTP",
-                     data_worker_started ? "RUNNING" : "FAILED");
-
-    // Initialize LVGL
+    // Initialize LVGL and allocate internal SRAM draw buffers BEFORE WiFi and
+    // background tasks fragment internal heap, guaranteeing 2x 20-line double buffering.
     lv_init();
 
-    // Keep LVGL's working buffer separate from the RGB framebuffer in PSRAM.
-    // A small strip avoids a silent PSRAM fallback and leaves internal RAM
-    // available for the RGB driver's bounce buffers and network worker.
     const uint32_t internal_caps = MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT;
     uint32_t buf_lines = 20;
     uint32_t buf_size = screenWidth * buf_lines;
@@ -284,6 +270,14 @@ void setup() {
         USBSerial.println("[DISPLAY " CAMPERUI_VERSION "] FATAL: internal LVGL draw buffer allocation failed");
         while (true) delay(1000);
     }
+
+    wifi_diagnostics_init();
+    wifi_connect_configured();
+    const bool data_worker_started = http_start_task();
+    victron_init();
+    USBSerial.printf("[DATA " CAMPERUI_VERSION "] Source=%s worker=%s\n",
+                     state.debug_mode ? "DEMO" : "LIVE HTTP",
+                     data_worker_started ? "RUNNING" : "FAILED");
 
 #if LV_USE_LOG != 0
     lv_log_register_print_cb(my_print);

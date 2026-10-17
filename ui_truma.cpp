@@ -41,13 +41,13 @@ static int last_heating_state = -1;
 static void style_segmented_button(lv_obj_t *btn, lv_obj_t *lbl, bool active, uint32_t active_color_hex = UI_COLOR_PRIMARY) {
     if (!btn) return;
     if (active) {
-        lv_obj_set_style_bg_color(btn, lv_color_hex(active_color_hex), 0);
-        lv_obj_set_style_border_color(btn, lv_color_hex(active_color_hex), 0);
-        if (lbl) lv_obj_set_style_text_color(lbl, lv_color_hex(0xffffff), 0);
+        ui_bg_color_if_changed(btn, lv_color_hex(active_color_hex));
+        ui_border_color_if_changed(btn, lv_color_hex(active_color_hex));
+        if (lbl) ui_text_color_if_changed(lbl, lv_color_hex(0xffffff));
     } else {
-        lv_obj_set_style_bg_color(btn, ui_theme_card(), 0);
-        lv_obj_set_style_border_color(btn, ui_theme_border(), 0);
-        if (lbl) lv_obj_set_style_text_color(lbl, ui_theme_text(), 0);
+        ui_bg_color_if_changed(btn, ui_theme_card());
+        ui_border_color_if_changed(btn, ui_theme_border());
+        if (lbl) ui_text_color_if_changed(lbl, ui_theme_text());
     }
 }
 
@@ -61,10 +61,9 @@ static void update_arc_color(lv_obj_t *arc) {
 
     lv_color_t color = lv_color_mix(lv_color_hex(UI_COLOR_DANGER), lv_color_hex(UI_COLOR_PRIMARY), pct);
 
-    lv_obj_set_style_arc_color(arc, color, LV_PART_INDICATOR);
-    lv_obj_set_style_bg_color(arc, lv_color_hex(0xffffff), LV_PART_KNOB);
-    lv_obj_set_style_border_color(arc, color, LV_PART_KNOB);
-    lv_obj_set_style_border_width(arc, 4, LV_PART_KNOB);
+    ui_arc_color_if_changed(arc, color, LV_PART_INDICATOR);
+    ui_bg_color_if_changed(arc, lv_color_hex(0xffffff), LV_PART_KNOB);
+    ui_border_color_if_changed(arc, color, LV_PART_KNOB);
 }
 
 // ----------------------------------------------------------------------------
@@ -460,11 +459,11 @@ void ui_update_truma_tab() {
     // Online Status Dot: Oben rechts in der Ecke als grüner oder roter Punkt
     if (dot_online) {
         if (state.truma_online) {
-            lv_obj_set_style_bg_color(dot_online, lv_color_hex(UI_COLOR_SUCCESS), 0);
-            lv_obj_set_style_border_color(dot_online, lv_color_hex(0x34d399), 0);
+            ui_bg_color_if_changed(dot_online, lv_color_hex(UI_COLOR_SUCCESS));
+            ui_border_color_if_changed(dot_online, lv_color_hex(0x34d399));
         } else {
-            lv_obj_set_style_bg_color(dot_online, lv_color_hex(UI_COLOR_DANGER), 0);
-            lv_obj_set_style_border_color(dot_online, lv_color_hex(0xf87171), 0);
+            ui_bg_color_if_changed(dot_online, lv_color_hex(UI_COLOR_DANGER));
+            ui_border_color_if_changed(dot_online, lv_color_hex(0xf87171));
         }
     }
 
@@ -472,14 +471,14 @@ void ui_update_truma_tab() {
     if (badge_230v && lbl_230v) {
         if (state.truma_230v) {
             ui_label_set_text_if_changed(lbl_230v, "230V");
-            lv_obj_set_style_bg_color(badge_230v, lv_color_hex(UI_COLOR_PRIMARY), 0);
-            lv_obj_set_style_border_color(badge_230v, lv_color_hex(0x38bdf8), 0);
-            lv_obj_set_style_text_color(lbl_230v, lv_color_hex(0xffffff), 0);
+            ui_bg_color_if_changed(badge_230v, lv_color_hex(UI_COLOR_PRIMARY));
+            ui_border_color_if_changed(badge_230v, lv_color_hex(0x38bdf8));
+            ui_text_color_if_changed(lbl_230v, lv_color_hex(0xffffff));
         } else {
             ui_label_set_text_if_changed(lbl_230v, "Kein\n230V");
-            lv_obj_set_style_bg_color(badge_230v, ui_theme_card(), 0);
-            lv_obj_set_style_border_color(badge_230v, ui_theme_border(), 0);
-            lv_obj_set_style_text_color(lbl_230v, ui_theme_muted(), 0);
+            ui_bg_color_if_changed(badge_230v, ui_theme_card());
+            ui_border_color_if_changed(badge_230v, ui_theme_border());
+            ui_text_color_if_changed(lbl_230v, ui_theme_muted());
         }
     }
 
@@ -523,7 +522,7 @@ void ui_update_truma_tab() {
 
     if (lbl_heater_status) {
         ui_label_set_text_if_changed(lbl_heater_status, status_txt.c_str());
-        lv_obj_set_style_text_color(lbl_heater_status, status_col, 0);
+        ui_text_color_if_changed(lbl_heater_status, status_col);
     }
 
     // 2. Indoor Temp (Ist-Temperatur inside Arc)

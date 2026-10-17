@@ -169,7 +169,7 @@ void ui_update_power_tab() {
 
         float max_s = (state.solar_max_w > 10.0f) ? state.solar_max_w : 200.0f;
         int pct_s = constrain((int)lroundf((p_solar / max_s) * 100.0f), 0, 100);
-        if (arc_solar) lv_arc_set_value(arc_solar, pct_s);
+        ui_arc_value_if_changed(arc_solar, pct_s);
         if (lbl_solar_pct) {
             snprintf(buf, sizeof(buf), "%d%%", pct_s);
             ui_label_set_text_if_changed(lbl_solar_pct, buf);
@@ -183,7 +183,7 @@ void ui_update_power_tab() {
             ui_text_color_if_changed(lbl_shore_w, ui_theme_muted());
             ui_label_set_text_if_changed(lbl_shore_sub, "Getrennt");
             ui_text_color_if_changed(lbl_shore_sub, ui_theme_muted());
-            if (arc_shore) lv_arc_set_value(arc_shore, 0);
+            ui_arc_value_if_changed(arc_shore, 0);
             if (lbl_shore_pct) {
                 ui_label_set_text_if_changed(lbl_shore_pct, "--");
                 ui_text_color_if_changed(lbl_shore_pct, ui_theme_muted());
@@ -200,7 +200,7 @@ void ui_update_power_tab() {
 
             float max_sh = (state.shore_max_w > 10.0f) ? state.shore_max_w : 500.0f;
             int pct_sh = constrain((int)lroundf((p_shore / max_sh) * 100.0f), 0, 100);
-            if (arc_shore) lv_arc_set_value(arc_shore, pct_sh);
+            ui_arc_value_if_changed(arc_shore, pct_sh);
             if (lbl_shore_pct) {
                 snprintf(buf, sizeof(buf), "%d%%", pct_sh);
                 ui_label_set_text_if_changed(lbl_shore_pct, buf);
@@ -217,7 +217,7 @@ void ui_update_power_tab() {
             else snprintf(buf, sizeof(buf), "Inaktiv");
             ui_label_set_text_if_changed(lbl_alt_sub, buf);
             ui_text_color_if_changed(lbl_alt_sub, ui_theme_muted());
-            if (arc_alt) lv_arc_set_value(arc_alt, 0);
+            ui_arc_value_if_changed(arc_alt, 0);
             if (lbl_alt_pct) {
                 ui_label_set_text_if_changed(lbl_alt_pct, "--");
                 ui_text_color_if_changed(lbl_alt_pct, ui_theme_muted());
@@ -235,7 +235,7 @@ void ui_update_power_tab() {
 
             float max_a = (state.alt_max_w > 10.0f) ? state.alt_max_w : 300.0f;
             int pct_a = constrain((int)lroundf((p_alt / max_a) * 100.0f), 0, 100);
-            if (arc_alt) lv_arc_set_value(arc_alt, pct_a);
+            ui_arc_value_if_changed(arc_alt, pct_a);
             if (lbl_alt_pct) {
                 snprintf(buf, sizeof(buf), "%d%%", pct_a);
                 ui_label_set_text_if_changed(lbl_alt_pct, buf);
@@ -252,21 +252,17 @@ void ui_update_power_tab() {
     lv_color_t green_c = lv_color_hex(UI_COLOR_SUCCESS);
 
     if (line_solar) {
-        lv_obj_set_style_line_color(line_solar, p_solar > 5.0f ? (is_charging ? green_c : lv_color_hex(UI_COLOR_WARNING)) : ui_theme_border(), 0);
+        ui_line_color_if_changed(line_solar, p_solar > 5.0f ? (is_charging ? green_c : lv_color_hex(UI_COLOR_WARNING)) : ui_theme_border());
     }
     if (line_shore) {
-        lv_obj_set_style_line_color(line_shore, (shore_active || p_shore > 5.0f) ? (is_charging ? green_c : lv_color_hex(UI_COLOR_PRIMARY)) : ui_theme_border(), 0);
+        ui_line_color_if_changed(line_shore, (shore_active || p_shore > 5.0f) ? (is_charging ? green_c : lv_color_hex(UI_COLOR_PRIMARY)) : ui_theme_border());
     }
     if (line_alt) {
-        lv_obj_set_style_line_color(line_alt, (alt_active || p_alt > 5.0f) ? (is_charging ? green_c : lv_color_hex(0xa855f7)) : ui_theme_border(), 0);
+        ui_line_color_if_changed(line_alt, (alt_active || p_alt > 5.0f) ? (is_charging ? green_c : lv_color_hex(0xa855f7)) : ui_theme_border());
     }
     // Linie zu den Verbrauchern (aktiv wenn Strom aus der Batterie entnommen wird)
     if (line_load) {
-        if (p_load > 2.0f) {
-            lv_obj_set_style_line_color(line_load, lv_color_hex(UI_COLOR_WARNING), 0);
-        } else {
-            lv_obj_set_style_line_color(line_load, ui_theme_border(), 0);
-        }
+        ui_line_color_if_changed(line_load, p_load > 2.0f ? lv_color_hex(UI_COLOR_WARNING) : ui_theme_border());
     }
 
     // -------------------------------------------------------------
@@ -286,7 +282,7 @@ void ui_update_power_tab() {
     }
 
     lv_color_t soc_color = ui_battery_soc_color(soc);
-    lv_obj_set_style_arc_color(arc_battery, soc_color, LV_PART_INDICATOR);
+    ui_arc_color_if_changed(arc_battery, soc_color, LV_PART_INDICATOR);
     ui_text_color_if_changed(lbl_bat_pct, soc_color);
 
     // Spannung unter Watt & Ampere
@@ -298,33 +294,33 @@ void ui_update_power_tab() {
         // Laden (Grün) - Groß die Watt, daneben der Strom
         snprintf(buf, sizeof(buf), "+%.0f W", p_bat);
         ui_label_set_text_if_changed(lbl_bat_watt, buf);
-        lv_obj_set_style_text_color(lbl_bat_watt, green_c, 0);
+        ui_text_color_if_changed(lbl_bat_watt, green_c);
 
         snprintf(buf, sizeof(buf), "(+%.1f A)", i_bat);
         ui_label_set_text_if_changed(lbl_bat_amp, buf);
-        lv_obj_set_style_text_color(lbl_bat_amp, green_c, 0);
+        ui_text_color_if_changed(lbl_bat_amp, green_c);
 
-        if (card_bat_hub) lv_obj_set_style_border_color(card_bat_hub, green_c, 0);
+        if (card_bat_hub) ui_border_color_if_changed(card_bat_hub, green_c);
     } else if (current_dir < 0) {
         // Entladen (Orange/Amber)
         snprintf(buf, sizeof(buf), "%.0f W", p_bat);
         ui_label_set_text_if_changed(lbl_bat_watt, buf);
-        lv_obj_set_style_text_color(lbl_bat_watt, lv_color_hex(UI_COLOR_WARNING), 0);
+        ui_text_color_if_changed(lbl_bat_watt, lv_color_hex(UI_COLOR_WARNING));
 
         snprintf(buf, sizeof(buf), "(%.1f A)", i_bat);
         ui_label_set_text_if_changed(lbl_bat_amp, buf);
-        lv_obj_set_style_text_color(lbl_bat_amp, lv_color_hex(UI_COLOR_WARNING), 0);
+        ui_text_color_if_changed(lbl_bat_amp, lv_color_hex(UI_COLOR_WARNING));
 
-        if (card_bat_hub) lv_obj_set_style_border_color(card_bat_hub, lv_color_hex(UI_COLOR_WARNING), 0);
+        if (card_bat_hub) ui_border_color_if_changed(card_bat_hub, lv_color_hex(UI_COLOR_WARNING));
     } else {
         // Standby (Muted)
         ui_label_set_text_if_changed(lbl_bat_watt, "0 W");
-        lv_obj_set_style_text_color(lbl_bat_watt, ui_theme_text(), 0);
+        ui_text_color_if_changed(lbl_bat_watt, ui_theme_text());
 
         ui_label_set_text_if_changed(lbl_bat_amp, "(0.0 A)");
-        lv_obj_set_style_text_color(lbl_bat_amp, ui_theme_muted(), 0);
+        ui_text_color_if_changed(lbl_bat_amp, ui_theme_muted());
 
-        if (card_bat_hub) lv_obj_set_style_border_color(card_bat_hub, ui_theme_border(), 0);
+        if (card_bat_hub) ui_border_color_if_changed(card_bat_hub, ui_theme_border());
     }
     last_shunt_dir = current_dir;
 
@@ -342,17 +338,17 @@ void ui_update_power_tab() {
             snprintf(buf, sizeof(buf), "Entladen");
         }
         ui_label_set_text_if_changed(lbl_load_sub, buf);
-        lv_obj_set_style_text_color(lbl_load_sub, lv_color_hex(UI_COLOR_WARNING), 0);
+        ui_text_color_if_changed(lbl_load_sub, lv_color_hex(UI_COLOR_WARNING));
     } else if (i_bat > 0.05f) {
         if (soc >= 100) {
             ui_label_set_text_if_changed(lbl_load_sub, "Batterie Voll");
         } else {
             ui_label_set_text_if_changed(lbl_load_sub, "Wird geladen");
         }
-        lv_obj_set_style_text_color(lbl_load_sub, green_c, 0);
+        ui_text_color_if_changed(lbl_load_sub, green_c);
     } else {
         ui_label_set_text_if_changed(lbl_load_sub, "Standby");
-        lv_obj_set_style_text_color(lbl_load_sub, ui_theme_muted(), 0);
+        ui_text_color_if_changed(lbl_load_sub, ui_theme_muted());
     }
 }
 
