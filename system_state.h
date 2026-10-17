@@ -69,6 +69,7 @@ struct SystemState {
     bool battery_icon_mode; // true = icon, false = percent
     bool buzzer_enabled;    // Touch-tone / haptic buzzer feedback
     bool screensaver_enabled; // true = display screensaver with 1% brightness on timeout
+    int screensaver_brightness; // 1-100 (backlight brightness in %, default 5%)
     
     // Limits & Capacities
     float bat_capacity_ah;
@@ -105,10 +106,11 @@ struct SystemState {
     String victron_relay_names[2];
     int home_water_source; // /level index 0..3
 
-    // Power Dashboard Producers (Persisted)
+    // Power Dashboard Producers & Calculation (Persisted)
     bool power_show_solar;
     bool power_show_shore;
     bool power_show_alt;
+    bool power_calc_load; // true: load = producers - net_battery, false: load = direct battery discharge only
 
     // Tank Capacities & Display Settings
     int tank_count;        // 1..4 tanks shown
@@ -155,9 +157,11 @@ struct SystemState {
     float shore_voltage;   // V
     float shore_current;   // A
     bool shore_connected;  // true if 230V Landstrom connected
+    bool shore_available;  // true if /shore endpoint is reachable
     float alt_power;       // W (B2B booster / Lima)
     float alt_current;     // A
     bool alt_active;       // true if alternator / booster active
+    bool alt_available;    // true if /booster endpoint is reachable
     uint32_t bat_soc_updated_ms, bat_voltage_updated_ms, bat_current_updated_ms, solar_power_updated_ms;
     uint8_t battery_fields; // VoltB=1, Ampere=2, battsoc=4, optional starter_voltage=8
     uint8_t solar_fields; // watts=1, amps=2, volts=4

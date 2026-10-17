@@ -676,12 +676,20 @@ static const char SETTINGS_HTML[] PROGMEM = R"rawliteral(
           <div class="toggle-row" style="margin-top:12px;">
             <div class="toggle-info">
               <div class="toggle-title">Screensaver</div>
-              <div class="toggle-desc">Zeigt Uhrzeit &amp; Restlaufzeit in Dunkelrot bei 1% Helligkeit nach Timeout</div>
+              <div class="toggle-desc">Zeigt große Uhrzeit &amp; Restlaufzeit in Dunkelrot nach Timeout</div>
             </div>
             <label class="switch">
               <input type="checkbox" id="screensaver_enabled">
               <span class="slider"></span>
             </label>
+          </div>
+          <div class="field" style="margin-top:12px;">
+            <label class="label">Screensaver Helligkeit</label>
+            <div class="range-wrap">
+              <input type="range" id="screensaver_brightness" min="1" max="100" step="1" oninput="document.getElementById('val_scrsave_bright').innerText = this.value + '%'">
+              <span class="range-val" id="val_scrsave_bright">5%</span>
+            </div>
+            <div class="subtext">Empfohlen: 1% bis 10% für angenehme Nachtanzeige</div>
           </div>
         </div>
       </div>
@@ -908,6 +916,16 @@ static const char SETTINGS_HTML[] PROGMEM = R"rawliteral(
               <span class="slider"></span>
             </label>
           </div>
+          <div class="toggle-row">
+            <div class="toggle-info">
+              <div class="toggle-title">Verbrauch mit Erzeugern verrechnen</div>
+              <div class="toggle-desc">Aktiv: Berechnet Gesamtlast (Erzeuger − Batterie). Inaktiv: Nur reine Entnahme aus /batt.</div>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="power_calc_load">
+              <span class="slider"></span>
+            </label>
+          </div>
           <div class="grid-2" style="margin-top:14px;">
             <div class="field">
               <label class="label">Solar Maximum (W)</label>
@@ -1097,6 +1115,8 @@ static const char SETTINGS_HTML[] PROGMEM = R"rawliteral(
           document.getElementById('val_bright').innerText = (data.display_brightness || 80) + '%';
           document.getElementById('display_timeout').value = data.display_timeout !== undefined ? data.display_timeout : 60;
           document.getElementById('screensaver_enabled').checked = !!data.screensaver_enabled;
+          document.getElementById('screensaver_brightness').value = data.screensaver_brightness !== undefined ? data.screensaver_brightness : 5;
+          document.getElementById('val_scrsave_bright').innerText = (data.screensaver_brightness !== undefined ? data.screensaver_brightness : 5) + '%';
 
           // Water
           document.getElementById('tank_count').value = data.tank_count || 1;
@@ -1137,8 +1157,20 @@ static const char SETTINGS_HTML[] PROGMEM = R"rawliteral(
           document.getElementById('warn_fresh_min').value = data.warn_fresh_min !== undefined ? data.warn_fresh_min : 15;
           document.getElementById('warn_waste_max').value = data.warn_waste_max !== undefined ? data.warn_waste_max : 85;
           document.getElementById('power_show_solar').checked = data.power_show_solar !== undefined ? !!data.power_show_solar : true;
-          document.getElementById('power_show_shore').checked = data.power_show_shore !== undefined ? !!data.power_show_shore : true;
-          document.getElementById('power_show_alt').checked = data.power_show_alt !== undefined ? !!data.power_show_alt : true;
+
+          const shoreAvail = data.shore_available !== undefined ? !!data.shore_available : true;
+          const altAvail = data.alt_available !== undefined ? !!data.alt_available : true;
+
+          const elShore = document.getElementById('power_show_shore');
+          elShore.checked = shoreAvail ? (data.power_show_shore !== undefined ? !!data.power_show_shore : true) : false;
+          elShore.disabled = !shoreAvail;
+          elShore.closest('.toggle-row').style.opacity = shoreAvail ? '1' : '0.4';
+
+          const elAlt = document.getElementById('power_show_alt');
+          elAlt.checked = altAvail ? (data.power_show_alt !== undefined ? !!data.power_show_alt : true) : false;
+          elAlt.disabled = !altAvail;
+          elAlt.closest('.toggle-row').style.opacity = altAvail ? '1' : '0.4';
+          document.getElementById('power_calc_load').checked = data.power_calc_load !== undefined ? !!data.power_calc_load : false;
           document.getElementById('solar_max_w').value = data.solar_max_w || 200;
           document.getElementById('shore_max_w').value = data.shore_max_w || 2000;
           document.getElementById('alt_max_w').value = data.alt_max_w || 600;
@@ -1412,6 +1444,7 @@ static const char SETTINGS_HTML[] PROGMEM = R"rawliteral(
         display_brightness: parseInt(document.getElementById('display_brightness').value),
         display_timeout: parseInt(document.getElementById('display_timeout').value),
         screensaver_enabled: document.getElementById('screensaver_enabled').checked,
+        screensaver_brightness: parseInt(document.getElementById('screensaver_brightness').value),
 
         tank_count: parseInt(document.getElementById('tank_count').value),
         tank_show_liters: document.getElementById('tank_show_liters').checked,
@@ -1453,6 +1486,7 @@ static const char SETTINGS_HTML[] PROGMEM = R"rawliteral(
         power_show_solar: document.getElementById('power_show_solar').checked,
         power_show_shore: document.getElementById('power_show_shore').checked,
         power_show_alt: document.getElementById('power_show_alt').checked,
+        power_calc_load: document.getElementById('power_calc_load').checked,
         solar_max_w: parseFloat(document.getElementById('solar_max_w').value) || 200,
         shore_max_w: parseFloat(document.getElementById('shore_max_w').value) || 2000,
         alt_max_w: parseFloat(document.getElementById('alt_max_w').value) || 600,

@@ -33,9 +33,12 @@
 * **Exakte Passform:** Genau 4 Dimmer füllen das 480x480 Display perfekt aus, ohne vertikales Scrollen.
 
 ### 2. ⚡ Energie & Batterie-Dashboard
-* **Intelligenter Energiefluss:** Dynamische Berechnung der aktuellen Camper-Last ({\\text{last}} = P_{\\text{solar}} - P_{\\text{batt}}$) und Richtungspfeile.
-* **LiFePO4 Batterie-Monitoring:** Präzise Anzeige von Ladezustand (SoC %), Spannung (V), Lade-/Entladestrom (A) und Restlaufzeit.
-* **Solar-Einspeisung:** Live-Erfassung der PV-Leistung in Watt.
+* **Modulare Erzeuger-Verrechnung:** Wahlweise Berechnung der echten Gesamtsystemlast ($P_{\text{load}} = P_{\text{gen}} - P_{\text{batt}}$) oder reine Anzeige des Batterie-Entladestroms (direkt umschaltbar in den Display- & Web-Settings).
+* **Separate REST-Endpoints (`/shore` & `/booster`):** Native Unterstützung für 230V-Landstrom und B2B-Ladebooster über Node-RED mit Watt, Volt, Ampere und Online-Erkennung.
+* **Eindeutiger `Off`-Zustand:** Inaktive oder getrennte Erzeuger werden dezent als `Off` dargestellt – keine Verwechslung mehr mit aktivem `0 W`-Betrieb.
+* **Reine VanPi-Telemetrie:** Restlaufzeit (`ttgo`) und Batteriewerte kommen 1:1 vom Shunt ohne verfälschende interne Schätzungen.
+* **LiFePO4 Batterie-Monitoring:** Präzise Anzeige von Ladezustand (SoC %), Spannung (V), Lade-/Entladestrom (A) und automatischer Farbwechsel (Grün / Gelb / Rot).
+* **Starterbatterie-Überwachung:** Zeigt Starterspannung auch bei ausgeschaltetem Ladebooster.
 
 ### 3. 💧 Wassertanks & Pumpensteuerung
 * **Große 160px Füllstandsbalken:** Klare Farbtrennung (Frischwasser Cyan, Grauwasser Schiefergrau).
@@ -44,16 +47,17 @@
 
 ### 4. 🌡️ Klima & Heizungssteuerung
 * **Thermostat-Drehbogen:** Großzügiger Arc-Slider mit weißem, kontraststarkem Bedienknob und Schlagschatten.
+* **Präzise +/- Tasten:** Zusätzliche Touch-Buttons am Bogen für gradgenaue Temperatureinstellung.
 * **Modus-Auswahl:** Schnellumschaltung zwischen *Heizen (Temp)*, *Heizen (Stufe)* und *Lüften*.
-* **Status auf einen Blick:** Außentemperatur oben links, Ist- und Zieltemperatur zentriert im Bogen.
+* **Truma Combi Warmwasser:** Zuverlässige Farbrückmeldung der Boiler-Stufen (Eco, Hot, Aus).
 
 ### 5. ⚖️ Digitale Wasserwaage & Keil-Assistent
 * **2D-Dosenlibelle:** Präzise grafische Libelle mit 0.5°-Toleranz-Zielring und Längs-/Querneigung in Grad.
 * **Keil-Ausgleichsassistent:** Berechnet aus Geometrie und Neigungswinkeln direkt die benötigte Unterleghöhe in **Zentimetern** für jedes einzelne Rad (*Vorne L*, *Vorne R*, *Hinten L*, *Hinten R*).
 * **Tara-Funktion:** Sendet den aktuellen Nullpunkt direkt an den VanPi-Neigungssensor.
 
-### 6. 🔌 Lastrelais / Verbraucher
-* Bis zu 8 individuell benennbare Relais.
+### 6. 🔌 Lastrelais & Schalter
+* Bis zu 8 individuell benennbare Relais und 8 optionale WLAN-Relais (Tasmota / Shelly).
 * Farbliches Zustandsfeedback (Grün aktiv, Anthrazit Standby).
 
 ### 7. 🔔 Smart Header Badges & Alarme
@@ -74,14 +78,16 @@
 ### 9. 🔊 Haptisches Feedback (Touch-Ton)
 * **Onboard-Buzzer Anbindung:** Akustische Rückmeldung für Berührungen und Tastendrücke über den hardwareseitigen Piezo-Buzzer des Displays.
 * **Präziser 3-ms Klick:** Extrem kurzer Mikrosekunden-Impuls erzeugt ein dezentes mechanisches "Tick"-Geräusch statt eines störenden Piepens.
-* **Intelligente Filterung:** Löst nur bei echten Klicks auf Buttons, Schalter, Tabs und Tastaturtasten aus – kein Ton beim Wischen, Scrollen oder Aufwecken des Displays.
 * **In den Einstellungen konfigurierbar:** Unter *Einstellungen → Allgemein* per Schalter ("Touch-Ton") jederzeit an- und abschaltbar.
 
 ### 10. 📟 Web-Terminal & Live Debug-Monitor
 * **Drahtlose Fehlerdiagnose:** Vollständiger Zugriff auf serielle Meldungen und Debug-Logs direkt im Browser unter `http://<IP>/status` – ohne USB-Kabel.
 * **1-Klick Foren-Export:** "In die Zwischenablage kopieren"-Button zum schnellen Teilen von Logs bei Support-Fragen oder Fehlerberichten.
-* **Interaktive Schnellbefehle:** WLAN-Diagnose (`w`), Demo-Modus (`d`), Buzzer-Test (`b`) oder Display-Resync (`s`) direkt per Weboberfläche auslösen.
-* **64 KB PSRAM-Puffer:** Schneller, entkoppelter Ringpuffer im Octal-PSRAM ohne Belastung des internen Heaps.
+
+### 11. 🌙 XXL Nacht-Bildschirmschoner
+* **120px Riesenuhr:** Gigantische Ziffernanzeige für mühelose Ablesbarkeit bei Nacht quer durch den Camper.
+* **Nacht-Statuszeilen:** Gering blendende dunkelrote Farbgebung (`#dc2626`) für Uhrzeit, Restzeit (`ttgo`) und Batteriespannung.
+* **Separate Nacht-Helligkeit:** Individuell einstellbarer Dimm-Wert (Standard 3% PWM) über Display- und Webeinstellungen.
 
 ---
 

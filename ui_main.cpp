@@ -586,6 +586,16 @@ void ui_rebuild_water(void) {
     }
 }
 
+void ui_rebuild_power(void) {
+    if (pages[TAB_POWER]) {
+        lv_obj_clean(pages[TAB_POWER]);
+        ui_build_power(pages[TAB_POWER]);
+        if (active_page == TAB_POWER) {
+            ui_update_power_tab();
+        }
+    }
+}
+
 void ui_update_visible_page() {
     if (ui_energy_history_active()) { ui_energy_history_update(); return; }
     if (lv_scr_act() != scr_main) return;

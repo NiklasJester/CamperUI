@@ -21,6 +21,7 @@ LV_FONT_DECLARE(ui_font_de_28);
 LV_FONT_DECLARE(ui_font_de_30);
 LV_FONT_DECLARE(ui_font_de_32);
 LV_FONT_DECLARE(ui_font_de_42);
+LV_FONT_DECLARE(ui_font_clock_120);
 
 // Augmented Montserrat fonts (with attached German umlaut fallbacks)
 extern lv_font_t ui_font_montserrat_10;

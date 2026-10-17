@@ -104,8 +104,20 @@ void ui_power_reset() {
     last_shunt_dir = -99;
 }
 
+static bool last_shore_shown = false;
+static bool last_alt_shown = false;
+
 void ui_update_power_tab() {
     if (!arc_battery) return;
+
+    bool cur_shore_shown = state.power_show_shore && state.shore_available;
+    bool cur_alt_shown = state.power_show_alt && state.alt_available;
+    if (cur_shore_shown != last_shore_shown || cur_alt_shown != last_alt_shown) {
+        last_shore_shown = cur_shore_shown;
+        last_alt_shown = cur_alt_shown;
+        ui_rebuild_power();
+        return;
+    }
 
     // -------------------------------------------------------------
     // 1. Sensordaten & elektrische Bilanz berechnen
@@ -121,21 +133,28 @@ void ui_update_power_tab() {
     float i_solar = (state.solar_current > 0.05f && isfinite(state.solar_current)) ? state.solar_current : (v_solar > 1.0f ? (p_solar / v_solar) : 0.0f);
 
     // Landstrom (230V) - Nur aus Telemetrie/Endpoints, keine interne Schätzung
-    bool shore_active = state.power_show_shore && (state.shore_connected || state.shore_power > 5.0f);
-    float p_shore = state.power_show_shore ? ((state.shore_power > 0.0f && isfinite(state.shore_power)) ? state.shore_power : 0.0f) : 0.0f;
+    bool shore_active = cur_shore_shown && (state.shore_connected || state.shore_power > 5.0f);
+    float p_shore = cur_shore_shown ? ((state.shore_power > 0.0f && isfinite(state.shore_power)) ? state.shore_power : 0.0f) : 0.0f;
     float v_shore = (state.shore_voltage > 50.0f && isfinite(state.shore_voltage)) ? state.shore_voltage : (shore_active ? 230.0f : 0.0f);
     float i_shore = (state.shore_current > 0.01f && isfinite(state.shore_current)) ? state.shore_current : (v_shore > 50.0f && p_shore > 0.0f ? (p_shore / v_shore) : 0.0f);
 
     // Lichtmaschine / B2B Booster - Nur aus Telemetrie/Endpoints, keine interne Schätzung
-    bool alt_active = state.power_show_alt && (state.alt_active || state.alt_power > 5.0f);
-    float p_alt = state.power_show_alt ? ((state.alt_power > 0.0f && isfinite(state.alt_power)) ? state.alt_power : 0.0f) : 0.0f;
+    bool alt_active = cur_alt_shown && (state.alt_active || state.alt_power > 5.0f);
+    float p_alt = cur_alt_shown ? ((state.alt_power > 0.0f && isfinite(state.alt_power)) ? state.alt_power : 0.0f) : 0.0f;
     float v_starter = (state.starter_voltage > 1.0f && isfinite(state.starter_voltage)) ? state.starter_voltage : 0.0f;
     float i_alt = (state.alt_current > 0.01f && isfinite(state.alt_current)) ? state.alt_current : ((v_bat > 5.0f && p_alt > 0.0f) ? (p_alt / v_bat) : 0.0f);
 
-    // Gesamt-Erzeugung & Verbraucher
-    float p_gen = p_solar + (shore_active ? (p_shore / 1.15f) : 0.0f) + p_alt;
-    float p_load = p_gen - p_bat;
-    if (p_load < 0.0f) p_load = 0.0f;
+    // Verbraucher:
+    // Wenn power_calc_load aktiv: Gesamtlast = Erzeuger (Solar + Landstrom + Booster) - Netto-Batterieleistung
+    // Wenn inaktiv: Rein aus /batt Telemetrie (Entnahme aus der Batterie)
+    float p_load = 0.0f;
+    if (state.power_calc_load) {
+        float p_gen = p_solar + p_shore + p_alt;
+        p_load = p_gen - p_bat;
+        if (p_load < 0.0f) p_load = 0.0f;
+    } else {
+        p_load = (i_bat < -0.05f) ? (-i_bat * v_bat) : 0.0f;
+    }
 
     char buf[48];
 
@@ -159,36 +178,69 @@ void ui_update_power_tab() {
     }
 
     if (lbl_shore_w) {
-        if (p_shore > 5.0f) snprintf(buf, sizeof(buf), "%.0f W", p_shore);
-        else snprintf(buf, sizeof(buf), "%s", shore_active ? "230V" : "0 W");
-        ui_label_set_text_if_changed(lbl_shore_w, buf);
-        snprintf(buf, sizeof(buf), "%.0fV  %.1fA", v_shore, i_shore);
-        ui_label_set_text_if_changed(lbl_shore_sub, buf);
+        if (!shore_active) {
+            ui_label_set_text_if_changed(lbl_shore_w, "Off");
+            ui_text_color_if_changed(lbl_shore_w, ui_theme_muted());
+            ui_label_set_text_if_changed(lbl_shore_sub, "Getrennt");
+            ui_text_color_if_changed(lbl_shore_sub, ui_theme_muted());
+            if (arc_shore) lv_arc_set_value(arc_shore, 0);
+            if (lbl_shore_pct) {
+                ui_label_set_text_if_changed(lbl_shore_pct, "--");
+                ui_text_color_if_changed(lbl_shore_pct, ui_theme_muted());
+            }
+        } else {
+            if (p_shore > 5.0f) snprintf(buf, sizeof(buf), "%.0f W", p_shore);
+            else snprintf(buf, sizeof(buf), "0 W");
+            ui_label_set_text_if_changed(lbl_shore_w, buf);
+            ui_text_color_if_changed(lbl_shore_w, lv_color_hex(UI_COLOR_PRIMARY));
 
-        float max_sh = (state.shore_max_w > 10.0f) ? state.shore_max_w : 500.0f;
-        int pct_sh = constrain((int)lroundf((p_shore / max_sh) * 100.0f), 0, 100);
-        if (arc_shore) lv_arc_set_value(arc_shore, pct_sh);
-        if (lbl_shore_pct) {
-            snprintf(buf, sizeof(buf), "%d%%", pct_sh);
-            ui_label_set_text_if_changed(lbl_shore_pct, buf);
-            ui_text_color_if_changed(lbl_shore_pct, (shore_active || p_shore > 5.0f) ? lv_color_hex(UI_COLOR_PRIMARY) : ui_theme_muted());
+            snprintf(buf, sizeof(buf), "%.0fV  %.1fA", v_shore, i_shore);
+            ui_label_set_text_if_changed(lbl_shore_sub, buf);
+            ui_text_color_if_changed(lbl_shore_sub, ui_theme_muted());
+
+            float max_sh = (state.shore_max_w > 10.0f) ? state.shore_max_w : 500.0f;
+            int pct_sh = constrain((int)lroundf((p_shore / max_sh) * 100.0f), 0, 100);
+            if (arc_shore) lv_arc_set_value(arc_shore, pct_sh);
+            if (lbl_shore_pct) {
+                snprintf(buf, sizeof(buf), "%d%%", pct_sh);
+                ui_label_set_text_if_changed(lbl_shore_pct, buf);
+                ui_text_color_if_changed(lbl_shore_pct, p_shore > 5.0f ? lv_color_hex(UI_COLOR_PRIMARY) : ui_theme_muted());
+            }
         }
     }
 
     if (lbl_alt_w) {
-        if (p_alt > 5.0f) snprintf(buf, sizeof(buf), "%.0f W", p_alt);
-        else snprintf(buf, sizeof(buf), "%s", alt_active ? "AN" : "0 W");
-        ui_label_set_text_if_changed(lbl_alt_w, buf);
-        snprintf(buf, sizeof(buf), "%.1fV Lima", v_starter);
-        ui_label_set_text_if_changed(lbl_alt_sub, buf);
+        if (!alt_active) {
+            ui_label_set_text_if_changed(lbl_alt_w, "Off");
+            ui_text_color_if_changed(lbl_alt_w, ui_theme_muted());
+            if (v_starter > 1.0f) snprintf(buf, sizeof(buf), "%.1fV Lima", v_starter);
+            else snprintf(buf, sizeof(buf), "Inaktiv");
+            ui_label_set_text_if_changed(lbl_alt_sub, buf);
+            ui_text_color_if_changed(lbl_alt_sub, ui_theme_muted());
+            if (arc_alt) lv_arc_set_value(arc_alt, 0);
+            if (lbl_alt_pct) {
+                ui_label_set_text_if_changed(lbl_alt_pct, "--");
+                ui_text_color_if_changed(lbl_alt_pct, ui_theme_muted());
+            }
+        } else {
+            if (p_alt > 5.0f) snprintf(buf, sizeof(buf), "%.0f W", p_alt);
+            else snprintf(buf, sizeof(buf), "0 W");
+            ui_label_set_text_if_changed(lbl_alt_w, buf);
+            ui_text_color_if_changed(lbl_alt_w, lv_color_hex(0xa855f7));
 
-        float max_a = (state.alt_max_w > 10.0f) ? state.alt_max_w : 300.0f;
-        int pct_a = constrain((int)lroundf((p_alt / max_a) * 100.0f), 0, 100);
-        if (arc_alt) lv_arc_set_value(arc_alt, pct_a);
-        if (lbl_alt_pct) {
-            snprintf(buf, sizeof(buf), "%d%%", pct_a);
-            ui_label_set_text_if_changed(lbl_alt_pct, buf);
-            ui_text_color_if_changed(lbl_alt_pct, (alt_active || p_alt > 5.0f) ? lv_color_hex(0xa855f7) : ui_theme_muted());
+            if (v_starter > 1.0f) snprintf(buf, sizeof(buf), "%.1fV Lima", v_starter);
+            else snprintf(buf, sizeof(buf), "Aktiv");
+            ui_label_set_text_if_changed(lbl_alt_sub, buf);
+            ui_text_color_if_changed(lbl_alt_sub, ui_theme_muted());
+
+            float max_a = (state.alt_max_w > 10.0f) ? state.alt_max_w : 300.0f;
+            int pct_a = constrain((int)lroundf((p_alt / max_a) * 100.0f), 0, 100);
+            if (arc_alt) lv_arc_set_value(arc_alt, pct_a);
+            if (lbl_alt_pct) {
+                snprintf(buf, sizeof(buf), "%d%%", pct_a);
+                ui_label_set_text_if_changed(lbl_alt_pct, buf);
+                ui_text_color_if_changed(lbl_alt_pct, p_alt > 5.0f ? lv_color_hex(0xa855f7) : ui_theme_muted());
+            }
         }
     }
 
@@ -208,10 +260,10 @@ void ui_update_power_tab() {
     if (line_alt) {
         lv_obj_set_style_line_color(line_alt, (alt_active || p_alt > 5.0f) ? (is_charging ? green_c : lv_color_hex(0xa855f7)) : ui_theme_border(), 0);
     }
-    // Linie zu den Verbrauchern: auch grün, wenn insgesamt geladen wird!
+    // Linie zu den Verbrauchern (aktiv wenn Strom aus der Batterie entnommen wird)
     if (line_load) {
-        if (p_load > 5.0f) {
-            lv_obj_set_style_line_color(line_load, is_charging ? green_c : lv_color_hex(UI_COLOR_WARNING), 0);
+        if (p_load > 2.0f) {
+            lv_obj_set_style_line_color(line_load, lv_color_hex(UI_COLOR_WARNING), 0);
         } else {
             lv_obj_set_style_line_color(line_load, ui_theme_border(), 0);
         }
@@ -281,24 +333,22 @@ void ui_update_power_tab() {
     // -------------------------------------------------------------
     snprintf(buf, sizeof(buf), "%.0f W", p_load);
     ui_label_set_text_if_changed(lbl_load_watt, buf);
+    ui_text_color_if_changed(lbl_load_watt, p_load > 2.0f ? lv_color_hex(UI_COLOR_WARNING) : ui_theme_muted());
 
-    float cap_max = state.bat_capacity_ah > 10.0f ? state.bat_capacity_ah : 100.0f;
-    if (i_bat < -0.1f) {
-        float rem_ah = (soc / 100.0f) * cap_max;
-        float hrs = rem_ah / (-i_bat);
-        if (hrs > 99.0f) hrs = 99.0f;
-        snprintf(buf, sizeof(buf), "Restzeit: %.1f h", hrs);
+    if (i_bat < -0.05f) {
+        if (state.time_to_go.length() > 0 && state.time_to_go != "--") {
+            snprintf(buf, sizeof(buf), "Restzeit: %s", state.time_to_go.c_str());
+        } else {
+            snprintf(buf, sizeof(buf), "Entladen");
+        }
         ui_label_set_text_if_changed(lbl_load_sub, buf);
         lv_obj_set_style_text_color(lbl_load_sub, lv_color_hex(UI_COLOR_WARNING), 0);
-    } else if (i_bat > 0.1f && soc < 100) {
-        float need_ah = ((100 - soc) / 100.0f) * cap_max;
-        float hrs = need_ah / i_bat;
-        if (hrs > 99.0f) hrs = 99.0f;
-        snprintf(buf, sizeof(buf), "Voll in: %.1f h", hrs);
-        ui_label_set_text_if_changed(lbl_load_sub, buf);
-        lv_obj_set_style_text_color(lbl_load_sub, green_c, 0);
-    } else if (soc >= 100) {
-        ui_label_set_text_if_changed(lbl_load_sub, "Batterie Voll");
+    } else if (i_bat > 0.05f) {
+        if (soc >= 100) {
+            ui_label_set_text_if_changed(lbl_load_sub, "Batterie Voll");
+        } else {
+            ui_label_set_text_if_changed(lbl_load_sub, "Wird geladen");
+        }
         lv_obj_set_style_text_color(lbl_load_sub, green_c, 0);
     } else {
         ui_label_set_text_if_changed(lbl_load_sub, "Standby");
@@ -320,11 +370,14 @@ void ui_build_power(lv_obj_t *parent) {
         lv_coord_t w;
         lv_coord_t cx;
     };
+    last_shore_shown = state.power_show_shore && state.shore_available;
+    last_alt_shown = state.power_show_alt && state.alt_available;
+
     ProdSlot slots[3];
     int prod_count = 0;
     if (state.power_show_solar) { slots[prod_count++].type = 0; }
-    if (state.power_show_shore) { slots[prod_count++].type = 1; }
-    if (state.power_show_alt)   { slots[prod_count++].type = 2; }
+    if (last_shore_shown) { slots[prod_count++].type = 1; }
+    if (last_alt_shown)   { slots[prod_count++].type = 2; }
 
     if (prod_count == 3) {
         slots[0].x = 0;   slots[0].w = 140; slots[0].cx = 70;
@@ -459,14 +512,14 @@ void ui_build_power(lv_obj_t *parent) {
 
             lbl_shore_w = lv_label_create(card);
             lv_obj_set_style_text_font(lbl_shore_w, &lv_font_montserrat_18, 0);
-            lv_obj_set_style_text_color(lbl_shore_w, lv_color_hex(UI_COLOR_PRIMARY), 0);
-            lv_label_set_text(lbl_shore_w, "0 W");
+            lv_obj_set_style_text_color(lbl_shore_w, ui_theme_muted(), 0);
+            lv_label_set_text(lbl_shore_w, "Off");
             lv_obj_align(lbl_shore_w, LV_ALIGN_TOP_LEFT, 0, 16);
 
             lbl_shore_sub = lv_label_create(card);
             lv_obj_set_style_text_font(lbl_shore_sub, &lv_font_montserrat_10, 0);
             lv_obj_set_style_text_color(lbl_shore_sub, ui_theme_muted(), 0);
-            lv_label_set_text(lbl_shore_sub, "230V  0.0A");
+            lv_label_set_text(lbl_shore_sub, "Getrennt");
             lv_obj_align(lbl_shore_sub, LV_ALIGN_BOTTOM_LEFT, 0, 0);
         } else if (t == 2) {
             // Lichtmaschine Card
@@ -482,14 +535,14 @@ void ui_build_power(lv_obj_t *parent) {
 
             lbl_alt_w = lv_label_create(card);
             lv_obj_set_style_text_font(lbl_alt_w, &lv_font_montserrat_18, 0);
-            lv_obj_set_style_text_color(lbl_alt_w, lv_color_hex(0xa855f7), 0);
-            lv_label_set_text(lbl_alt_w, "0 W");
+            lv_obj_set_style_text_color(lbl_alt_w, ui_theme_muted(), 0);
+            lv_label_set_text(lbl_alt_w, "Off");
             lv_obj_align(lbl_alt_w, LV_ALIGN_TOP_LEFT, 0, 16);
 
             lbl_alt_sub = lv_label_create(card);
             lv_obj_set_style_text_font(lbl_alt_sub, &lv_font_montserrat_10, 0);
             lv_obj_set_style_text_color(lbl_alt_sub, ui_theme_muted(), 0);
-            lv_label_set_text(lbl_alt_sub, "12.6V Lima");
+            lv_label_set_text(lbl_alt_sub, "Inaktiv");
             lv_obj_align(lbl_alt_sub, LV_ALIGN_BOTTOM_LEFT, 0, 0);
         }
     }

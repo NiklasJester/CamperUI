@@ -84,6 +84,15 @@ static int jsonInt(JsonVariant v) {
     return atoi(s);
 }
 
+static bool jsonBool(JsonVariant v) {
+    if (v.isNull()) return false;
+    if (v.is<bool>()) return v.as<bool>();
+    if (v.is<int>()) return v.as<int>() != 0;
+    const char *s = v.as<const char*>();
+    if (!s) return false;
+    return (strcasecmp(s, "true") == 0 || strcmp(s, "1") == 0 || strcasecmp(s, "on") == 0 || strcasecmp(s, "yes") == 0);
+}
+
 void http_init() {
     if (!http_cmd_queue) {
         http_cmd_queue = xQueueCreate(16, sizeof(HttpCmd));
@@ -124,33 +133,104 @@ static void parse_batt_json(const char *payload) {
         state.battery_fields |= 8;
     }
 
-    // Landstrom / Shore (230V)
-    if (doc.containsKey("shore_power")) {
-        state.shore_power = jsonFloat(doc["shore_power"]);
-        state.shore_connected = (state.shore_power > 0.0f || (doc.containsKey("shore_connected") && doc["shore_connected"].as<bool>()));
-    } else if (doc.containsKey("charger_power")) {
-        state.shore_power = jsonFloat(doc["charger_power"]);
-        state.shore_connected = (state.shore_power > 0.0f);
-    } else if (doc.containsKey("ac_power")) {
-        state.shore_power = jsonFloat(doc["ac_power"]);
-        state.shore_connected = (state.shore_power > 0.0f);
-    }
-    if (doc.containsKey("shore_connected")) {
-        state.shore_connected = doc["shore_connected"].as<bool>();
-    }
-    if (doc.containsKey("shore_voltage")) state.shore_voltage = jsonFloat(doc["shore_voltage"]);
-    if (doc.containsKey("shore_current")) state.shore_current = jsonFloat(doc["shore_current"]);
+}
 
-    // Lichtmaschine / B2B Booster
-    if (doc.containsKey("alt_power")) {
-        state.alt_power = jsonFloat(doc["alt_power"]);
-        state.alt_active = (state.alt_power > 5.0f);
-    } else if (doc.containsKey("b2b_power")) {
-        state.alt_power = jsonFloat(doc["b2b_power"]);
-        state.alt_active = (state.alt_power > 5.0f);
-    }
-    if (doc.containsKey("alt_current")) state.alt_current = jsonFloat(doc["alt_current"]);
-    if (doc.containsKey("alt_active")) state.alt_active = doc["alt_active"].as<bool>();
+// GET /shore -> { "connected": bool, "power": float, "voltage": float, "current": float }
+static void parse_shore_json(const char *payload) {
+    if (!payload || payload[0] == '\0') return;
+    StaticJsonDocument<384> doc;
+    if (deserializeJson(doc, payload)) return;
+
+    StateLockGuard lock;
+    state.shore_available = true;
+
+    bool conn = false;
+    if (doc.containsKey("connected")) conn = jsonBool(doc["connected"]);
+    else if (doc.containsKey("shore_connected")) conn = jsonBool(doc["shore_connected"]);
+    else if (doc.containsKey("state")) conn = jsonBool(doc["state"]);
+    else if (doc.containsKey("on")) conn = jsonBool(doc["on"]);
+
+    float p = 0.0f;
+    if (validEnergyNumber(doc["power"])) p = jsonFloat(doc["power"]);
+    else if (validEnergyNumber(doc["watt"])) p = jsonFloat(doc["watt"]);
+    else if (validEnergyNumber(doc["shore_power"])) p = jsonFloat(doc["shore_power"]);
+
+    float v = 0.0f;
+    if (validEnergyNumber(doc["voltage"])) v = jsonFloat(doc["voltage"]);
+    else if (validEnergyNumber(doc["volt"])) v = jsonFloat(doc["volt"]);
+    else if (validEnergyNumber(doc["shore_voltage"])) v = jsonFloat(doc["shore_voltage"]);
+
+    float i = 0.0f;
+    if (validEnergyNumber(doc["current"])) i = jsonFloat(doc["current"]);
+    else if (validEnergyNumber(doc["amp"])) i = jsonFloat(doc["amp"]);
+    else if (validEnergyNumber(doc["ampere"])) i = jsonFloat(doc["ampere"]);
+    else if (validEnergyNumber(doc["shore_current"])) i = jsonFloat(doc["shore_current"]);
+
+    if (p > 5.0f) conn = true;
+    if (conn && v < 1.0f) v = 230.0f;
+    if (conn && i < 0.01f && v > 50.0f && p > 0.0f) i = p / v;
+
+    state.shore_connected = conn;
+    state.shore_power = conn ? p : 0.0f;
+    state.shore_voltage = conn ? v : 0.0f;
+    state.shore_current = conn ? i : 0.0f;
+}
+
+static void on_shore_error() {
+    StateLockGuard lock;
+    state.shore_available = false;
+    state.shore_connected = false;
+    state.shore_power = 0.0f;
+    state.shore_current = 0.0f;
+    state.shore_voltage = 0.0f;
+}
+
+// GET /booster -> { "active": bool, "power": float, "voltage": float, "current": float }
+static void parse_booster_json(const char *payload) {
+    if (!payload || payload[0] == '\0') return;
+    StaticJsonDocument<384> doc;
+    if (deserializeJson(doc, payload)) return;
+
+    StateLockGuard lock;
+    state.alt_available = true;
+
+    bool act = false;
+    if (doc.containsKey("active")) act = jsonBool(doc["active"]);
+    else if (doc.containsKey("alt_active")) act = jsonBool(doc["alt_active"]);
+    else if (doc.containsKey("state")) act = jsonBool(doc["state"]);
+    else if (doc.containsKey("on")) act = jsonBool(doc["on"]);
+
+    float p = 0.0f;
+    if (validEnergyNumber(doc["power"])) p = jsonFloat(doc["power"]);
+    else if (validEnergyNumber(doc["watt"])) p = jsonFloat(doc["watt"]);
+    else if (validEnergyNumber(doc["alt_power"])) p = jsonFloat(doc["alt_power"]);
+    else if (validEnergyNumber(doc["b2b_power"])) p = jsonFloat(doc["b2b_power"]);
+
+    float v = 0.0f;
+    if (validEnergyNumber(doc["voltage"])) v = jsonFloat(doc["voltage"]);
+    else if (validEnergyNumber(doc["volt"])) v = jsonFloat(doc["volt"]);
+    else if (validEnergyNumber(doc["starter_voltage"])) v = jsonFloat(doc["starter_voltage"]);
+
+    float i = 0.0f;
+    if (validEnergyNumber(doc["current"])) i = jsonFloat(doc["current"]);
+    else if (validEnergyNumber(doc["amp"])) i = jsonFloat(doc["amp"]);
+    else if (validEnergyNumber(doc["ampere"])) i = jsonFloat(doc["ampere"]);
+    else if (validEnergyNumber(doc["alt_current"])) i = jsonFloat(doc["alt_current"]);
+
+    if (p > 5.0f) act = true;
+    if (v > 1.0f) state.starter_voltage = v;
+
+    state.alt_active = act;
+    state.alt_power = act ? p : 0.0f;
+    state.alt_current = act ? i : 0.0f;
+}
+
+static void on_booster_error() {
+    StateLockGuard lock;
+    state.alt_available = false;
+    state.alt_active = false;
+    state.alt_power = 0.0f;
+    state.alt_current = 0.0f;
 }
 
 // GET /mppt/ -> { "mppt_pv_watts": float, "mppt_pv_amps": float, "mppt_pv_volts": float }
@@ -606,13 +686,17 @@ static void parse_info_json(const char *payload) {
     if (doc.containsKey("ttgo")) {
         const char *tt = doc["ttgo"];
         if (tt) {
-            state.time_to_go = tt;
+            String s = tt;
+            s.replace("\xE2\x80\x94", "--"); // em-dash U+2014
+            s.replace("\xE2\x80\x93", "-");  // en-dash U+2013
+            state.time_to_go = s;
         }
     }
 }
 
 
 static unsigned long vanpi_fail_backoff_until = 0;
+static int consecutive_main_errors = 0;
 
 static void fetch_endpoint(const char* endpoint, void (*parser)(const char*)) {
     if (WiFi.status() != WL_CONNECTED) {
@@ -631,23 +715,147 @@ static void fetch_endpoint(const char* endpoint, void (*parser)(const char*)) {
 
     HTTPClient http;
     http.begin(get_url() + endpoint);
-    // Short connect timeout (200ms) - in LAN WiFi, 200ms is more than enough
-    // to fail fast if host is unreachable.
-    http.setConnectTimeout(200);
-    http.setTimeout(800);
+    http.setConnectTimeout(1000);
+    http.setTimeout(1500);
     int code = http.GET();
     if (code == 200) {
         state.vanpi_connected = true;
+        consecutive_main_errors = 0;
         vanpi_fail_backoff_until = 0;
         String payload = http.getString();
-        if (payload.length() > 0) {
+        if (payload.length() > 0 && parser) {
             parser(payload.c_str());
         }
     } else {
-        state.vanpi_connected = false;
-        // Host unreachable / refused: back off for 5 seconds before next network call
-        vanpi_fail_backoff_until = millis() + 5000;
-        Serial.printf("[HTTP] GET %s -> %d (pause 5s)\n", endpoint, code);
+        consecutive_main_errors++;
+        Serial.printf("[HTTP] GET %s -> %d (consec errs: %d)\n", endpoint, code, consecutive_main_errors);
+        if (consecutive_main_errors >= 4) {
+            state.vanpi_connected = false;
+            vanpi_fail_backoff_until = millis() + 4000;
+            Serial.println("[HTTP] 4 consecutive failures, backoff 4s");
+        }
+    }
+    http.end();
+}
+
+static void fetch_optional_endpoint(const char* endpoint, void (*parser)(const char*), void (*on_error)()) {
+    if (WiFi.status() != WL_CONNECTED || state.vanpi_ip.length() < 7) {
+        if (on_error) on_error();
+        return;
+    }
+
+    HTTPClient http;
+    http.begin(get_url() + endpoint);
+    http.setConnectTimeout(1000);
+    http.setTimeout(1500);
+    int code = http.GET();
+    if (code == 200) {
+        String payload = http.getString();
+        if (payload.length() > 0 && parser) {
+            parser(payload.c_str());
+        }
+    } else {
+        // Optional endpoint missing (404) or failed: do NOT trigger vanpi_fail_backoff_until!
+        if (on_error) on_error();
+    }
+    http.end();
+}
+
+static unsigned long last_shore_success_ms = 0;
+static int shore_404_count = 0;
+static int shore_fail_count = 0;
+
+static void fetch_shore_data() {
+    if (WiFi.status() != WL_CONNECTED || state.vanpi_ip.length() < 7) return;
+
+    HTTPClient http;
+    http.begin(get_url() + "/shore");
+    http.setConnectTimeout(1000);
+    http.setTimeout(1500);
+    int code = http.GET();
+    if (code == 200) {
+        shore_404_count = 0;
+        shore_fail_count = 0;
+        last_shore_success_ms = millis();
+        String payload = http.getString();
+        if (payload.length() > 0) {
+            parse_shore_json(payload.c_str());
+        }
+        Serial.printf("[HTTP-OPT] /shore -> 200 OK: %s\n", payload.c_str());
+    } else if (code == 404) {
+        shore_404_count++;
+        if (shore_404_count >= 2) {
+            StateLockGuard lock;
+            state.shore_available = false;
+            state.shore_connected = false;
+            state.shore_power = 0.0f;
+            state.shore_voltage = 0.0f;
+            state.shore_current = 0.0f;
+            if (shore_404_count == 2) {
+                Serial.println("[HTTP-OPT] /shore -> 404 Not Found (marked unavailable)");
+            }
+        }
+    } else {
+        shore_fail_count++;
+        Serial.printf("[HTTP-OPT] /shore -> error %d\n", code);
+        // Only mark unavailable if no success for > 30 seconds
+        if ((last_shore_success_ms > 0 && millis() - last_shore_success_ms > 30000) ||
+            (last_shore_success_ms == 0 && shore_fail_count >= 5)) {
+            StateLockGuard lock;
+            state.shore_available = false;
+            state.shore_connected = false;
+            state.shore_power = 0.0f;
+            state.shore_voltage = 0.0f;
+            state.shore_current = 0.0f;
+        }
+    }
+    http.end();
+}
+
+static unsigned long last_booster_success_ms = 0;
+static int booster_404_count = 0;
+static int booster_fail_count = 0;
+
+static void fetch_booster_data() {
+    if (WiFi.status() != WL_CONNECTED || state.vanpi_ip.length() < 7) return;
+
+    HTTPClient http;
+    http.begin(get_url() + "/booster");
+    http.setConnectTimeout(1000);
+    http.setTimeout(1500);
+    int code = http.GET();
+    if (code == 200) {
+        booster_404_count = 0;
+        booster_fail_count = 0;
+        last_booster_success_ms = millis();
+        String payload = http.getString();
+        if (payload.length() > 0) {
+            parse_booster_json(payload.c_str());
+        }
+        Serial.printf("[HTTP-OPT] /booster -> 200 OK: %s\n", payload.c_str());
+    } else if (code == 404) {
+        booster_404_count++;
+        if (booster_404_count >= 2) {
+            StateLockGuard lock;
+            state.alt_available = false;
+            state.alt_active = false;
+            state.alt_power = 0.0f;
+            state.alt_current = 0.0f;
+            if (booster_404_count == 2) {
+                Serial.println("[HTTP-OPT] /booster -> 404 Not Found (marked unavailable)");
+            }
+        }
+    } else {
+        booster_fail_count++;
+        Serial.printf("[HTTP-OPT] /booster -> error %d\n", code);
+        if ((last_booster_success_ms > 0 && millis() - last_booster_success_ms > 30000) ||
+            (last_booster_success_ms == 0 && booster_fail_count >= 5)) {
+            StateLockGuard lock;
+            state.alt_available = false;
+            state.alt_active = false;
+            state.alt_power = 0.0f;
+            state.alt_current = 0.0f;
+        }
     }
     http.end();
 }
@@ -766,6 +974,38 @@ void http_loop() {
                     parse_info_json(dummy);
                     break;
                 }
+                case 10: {
+                    if (state.power_show_shore) {
+                        float phase = (millis() % 240000UL) * (2.0f * PI / 240000.0f);
+                        float sim_p_shore = 280.0f + 60.0f * cosf(phase);
+                        char dummy[128];
+                        snprintf(dummy, sizeof(dummy),
+                            "{\"connected\":true,\"power\":%.1f,\"voltage\":230.0,\"current\":%.2f}",
+                            sim_p_shore, sim_p_shore / 230.0f);
+                        parse_shore_json(dummy);
+                    } else {
+                        state.shore_available = true;
+                        state.shore_connected = false;
+                        state.shore_power = 0.0f;
+                    }
+                    break;
+                }
+                case 11: {
+                    if (state.power_show_alt) {
+                        float phase = (millis() % 240000UL) * (2.0f * PI / 240000.0f);
+                        float sim_p_alt = 190.0f + 30.0f * sinf(phase * 1.5f);
+                        char dummy[128];
+                        snprintf(dummy, sizeof(dummy),
+                            "{\"active\":true,\"power\":%.1f,\"voltage\":14.2,\"current\":%.2f}",
+                            sim_p_alt, sim_p_alt / 13.4f);
+                        parse_booster_json(dummy);
+                    } else {
+                        state.alt_available = true;
+                        state.alt_active = false;
+                        state.alt_power = 0.0f;
+                    }
+                    break;
+                }
             }
 
             // Print UART diagnostic line on every full cycle for validation
@@ -778,7 +1018,7 @@ void http_loop() {
             }
 
             poll_step++;
-            if (poll_step > 9) poll_step = 0;
+            if (poll_step > 11) poll_step = 0;
             last_http_poll = millis();
         }
         return;
@@ -817,10 +1057,18 @@ void http_loop() {
                 if (state.tab_enabled[TAB_LEVEL]) fetch_endpoint("/position_sensor/?request=true", parse_position_json);
                 break;
             case 8:
-                fetch_endpoint("/wrelay", parse_wrelay_json);
+                if (state.show_wrelay) {
+                    fetch_optional_endpoint("/wrelay", parse_wrelay_json, nullptr);
+                }
                 break;
             case 9:
                 fetch_endpoint("/info", parse_info_json);
+                break;
+            case 10:
+                fetch_shore_data();
+                break;
+            case 11:
+                fetch_booster_data();
                 break;
         }
 
@@ -837,10 +1085,13 @@ void http_loop() {
                           state.dimmer_val[0], state.dimmer_val[1], state.dimmer_val[2], state.dimmer_val[3]);
             Serial.printf("[CAMPER_UART] WRelay: [0]='%s' [1]='%s' fields=0x%02X\n",
                           state.wrelay_names[0].c_str(), state.wrelay_names[1].c_str(), state.wrelay_fields);
+            Serial.printf("[CAMPER_UART] Power: Shore=%.1fW (avail=%d, conn=%d) | Booster=%.1fW (avail=%d, act=%d)\n",
+                          state.shore_power, state.shore_available, state.shore_connected,
+                          state.alt_power, state.alt_available, state.alt_active);
         }
 
         poll_step++;
-        if (poll_step > 9) poll_step = 0;
+        if (poll_step > 11) poll_step = 0;
         last_http_poll = millis();
     }
 }

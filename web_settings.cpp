@@ -6,6 +6,7 @@
 #include "ui_main.h"
 #include "wifi_diagnostics.h"
 #include "WS_CH32_IO.h"
+#include "ui_screensaver.h"
 #include <WiFi.h>
 #include <ArduinoJson.h>
 #include <Wire.h>
@@ -34,6 +35,7 @@ void web_settings_register_routes(WebServer &server) {
             doc["display_brightness"] = state.display_brightness;
             doc["display_timeout"] = state.display_timeout;
             doc["screensaver_enabled"] = state.screensaver_enabled;
+            doc["screensaver_brightness"] = state.screensaver_brightness;
 
             doc["tank_count"] = state.tank_count;
             doc["tank_show_liters"] = state.tank_show_liters;
@@ -93,6 +95,9 @@ void web_settings_register_routes(WebServer &server) {
             doc["power_show_solar"] = state.power_show_solar;
             doc["power_show_shore"] = state.power_show_shore;
             doc["power_show_alt"] = state.power_show_alt;
+            doc["power_calc_load"] = state.power_calc_load;
+            doc["shore_available"] = state.shore_available;
+            doc["alt_available"] = state.alt_available;
             JsonArray h_fav = doc["home_favorite"].to<JsonArray>();
             h_fav.add(state.home_favorite[0]);
             h_fav.add(state.home_favorite[1]);
@@ -247,6 +252,13 @@ void web_settings_register_routes(WebServer &server) {
             }
             if (doc["display_timeout"].is<int>()) state.display_timeout = doc["display_timeout"].as<int>();
             if (doc["screensaver_enabled"].is<bool>()) state.screensaver_enabled = doc["screensaver_enabled"].as<bool>();
+            if (doc["screensaver_brightness"].is<int>()) {
+                state.screensaver_brightness = constrain(doc["screensaver_brightness"].as<int>(), 1, 100);
+                if (ui_screensaver_is_active()) {
+                    uint8_t pwm = ui_screensaver_brightness_to_pwm(state.screensaver_brightness);
+                    WS_CH32_IO::setPwm(Wire, pwm);
+                }
+            }
 
             if (doc["tank_count"].is<int>()) state.tank_count = constrain(doc["tank_count"].as<int>(), 1, 4);
             if (doc["tank_show_liters"].is<bool>()) state.tank_show_liters = doc["tank_show_liters"].as<bool>();
@@ -327,9 +339,12 @@ void web_settings_register_routes(WebServer &server) {
                 state.home_show_victron=next;if(next)state.home_show_water=false;
             }
             if (doc["home_water_source"].is<int>()) state.home_water_source = doc["home_water_source"].as<int>();
-            if (doc["power_show_solar"].is<bool>()) state.power_show_solar = doc["power_show_solar"].as<bool>();
-            if (doc["power_show_shore"].is<bool>()) state.power_show_shore = doc["power_show_shore"].as<bool>();
-            if (doc["power_show_alt"].is<bool>()) state.power_show_alt = doc["power_show_alt"].as<bool>();
+            bool pwr_rebuild = false;
+            if (doc["power_show_solar"].is<bool>()) { state.power_show_solar = doc["power_show_solar"].as<bool>(); pwr_rebuild = true; }
+            if (doc["power_show_shore"].is<bool>()) { state.power_show_shore = doc["power_show_shore"].as<bool>(); pwr_rebuild = true; }
+            if (doc["power_show_alt"].is<bool>()) { state.power_show_alt = doc["power_show_alt"].as<bool>(); pwr_rebuild = true; }
+            if (doc["power_calc_load"].is<bool>()) { state.power_calc_load = doc["power_calc_load"].as<bool>(); pwr_rebuild = true; }
+            if (pwr_rebuild) ui_rebuild_power();
             if (doc["home_favorite"].is<JsonArray>()) {
                 JsonArray arr = doc["home_favorite"].as<JsonArray>();
                 if (arr.size() > 0) state.home_favorite[0] = arr[0].as<int>();

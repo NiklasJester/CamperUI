@@ -23,7 +23,7 @@ if not exist "%ARDUINO_CLI%" (
 )
 
 echo Kompiliere CamperUI (%VERSION%)...
-%ARDUINO_CLI% compile --output-dir ./build -b esp32:esp32:esp32s3:CPUFreq=240,CDCOnBoot=cdc,PSRAM=opi,FlashSize=16M,PartitionScheme=app3M_fat9M_16MB CamperUI.ino
+"%ARDUINO_CLI%" compile --output-dir ./build -b esp32:esp32:esp32s3:CPUFreq=240,CDCOnBoot=cdc,PSRAM=opi,FlashSize=16M,PartitionScheme=app3M_fat9M_16MB CamperUI.ino
 
 if %ERRORLEVEL% NEQ 0 (
     echo.

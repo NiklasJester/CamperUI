@@ -89,6 +89,7 @@ state.display_brightness = prefs.getInt("disp_bright", 100);
     state.battery_icon_mode = prefs.getBool("bat_icn_md", true);
     state.buzzer_enabled = prefs.getBool("buzzer_en", true);
     state.screensaver_enabled = prefs.getBool("scrsave_en", false);
+    state.screensaver_brightness = constrain(prefs.getInt("scrsave_brt", 5), 1, 100);
     state.debug_mode = prefs.getBool("dbg_sim", true);
     
     state.bat_capacity_ah = prefs.getFloat("bat_cap_ah", 100.0f);
@@ -141,10 +142,11 @@ state.display_brightness = prefs.getInt("disp_bright", 100);
     state.victron_relay_names[1] = prefs.getString("gx_r1", "GX Relais 2");
     state.home_water_source = constrain(prefs.getInt("home_tank", 0), 0, 3);
 
-    // Power Dashboard Producers
+    // Power Dashboard Producers & Calculation
     state.power_show_solar = prefs.getBool("pwr_solar", true);
     state.power_show_shore = prefs.getBool("pwr_shore", true);
     state.power_show_alt   = prefs.getBool("pwr_alt", true);
+    state.power_calc_load  = prefs.getBool("pwr_calcload", false);
 
     // Tab Order & Visibility: preserve legacy RV3D and upstream page identities.
     const uint8_t rv_cfg_version=prefs.getUChar("rv_cfg_v",0);
@@ -234,9 +236,11 @@ state.display_brightness = prefs.getInt("disp_bright", 100);
     state.shore_voltage = 0.0f;
     state.shore_current = 0.0f;
     state.shore_connected = false;
+    state.shore_available = false;
     state.alt_power = 0.0f;
     state.alt_current = 0.0f;
     state.alt_active = false;
+    state.alt_available = false;
     state.battery_fields = state.solar_fields = state.temp_fields = state.tank_fields = 0;
     state.relay_fields = state.dimmer_fields = 0;
     state.data_is_demo = state.debug_mode;
@@ -354,6 +358,7 @@ void state_save() {
     prefs.putBool("pwr_solar", state.power_show_solar);
     prefs.putBool("pwr_shore", state.power_show_shore);
     prefs.putBool("pwr_alt", state.power_show_alt);
+    prefs.putBool("pwr_calcload", state.power_calc_load);
     prefs.putString("wifi_ssid", state.wifi_ssid);
     prefs.putString("wifi_pass", state.wifi_pass);
     prefs.putString("vanpi_ip", state.vanpi_ip);
@@ -417,6 +422,7 @@ void state_save() {
     prefs.putUChar("rv_cfg_v",2);
 
     prefs.putBool("scrsave_en", state.screensaver_enabled);
+    prefs.putInt("scrsave_brt", state.screensaver_brightness);
 
     prefs.putBool("show_wrelay", state.show_wrelay);
     for (int i = 0; i < 8; i++) {

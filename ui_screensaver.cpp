@@ -12,6 +12,15 @@ static lv_obj_t *lbl_ttgo = nullptr;
 static lv_obj_t *lbl_sub = nullptr;
 static bool screensaver_active = false;
 
+uint8_t ui_screensaver_brightness_to_pwm(int brightness_pct) {
+    int b = constrain(brightness_pct, 1, 100);
+    // ST7701S backlight on CH32V003 IO expander:
+    // Inverted PWM (255 = 0% duty / off, 0 = 100% duty / full brightness).
+    // Hardware boost converter cuts out below ~10% duty (PWM > 230), turning backlight off.
+    // Map user range 1%..100% smoothly across stable visible hardware range [230 .. 0]:
+    return (uint8_t)(230 - ((b - 1) * 230 / 99));
+}
+
 void ui_screensaver_init() {
     if (screensaver_cont) return;
 
@@ -28,7 +37,7 @@ void ui_screensaver_init() {
 
     // Flex centered content container
     lv_obj_t *box = lv_obj_create(screensaver_cont);
-    lv_obj_set_size(box, 440, 260);
+    lv_obj_set_size(box, 460, 320);
     lv_obj_center(box);
     lv_obj_set_style_bg_opa(box, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(box, 0, 0);
@@ -36,24 +45,24 @@ void ui_screensaver_init() {
     lv_obj_clear_flag(box, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_flex_flow(box, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(box, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_row(box, 14, 0);
+    lv_obj_set_style_pad_row(box, 8, 0);
 
-    // Large Clock in dark red (#dc2626)
+    // 120px Clock in dark red (#dc2626)
     lbl_time = lv_label_create(box);
-    lv_obj_set_style_text_font(lbl_time, &lv_font_montserrat_42, 0);
+    lv_obj_set_style_text_font(lbl_time, &ui_font_clock_120, 0);
     lv_obj_set_style_text_color(lbl_time, lv_color_hex(0xdc2626), 0);
     lv_label_set_text(lbl_time, "--:--");
 
-    // Time to go in deep red (#b91c1c)
+    // Time to go: large 28px font, matching color (#dc2626)
     lbl_ttgo = lv_label_create(box);
-    lv_obj_set_style_text_font(lbl_ttgo, &lv_font_montserrat_20, 0);
-    lv_obj_set_style_text_color(lbl_ttgo, lv_color_hex(0xb91c1c), 0);
+    lv_obj_set_style_text_font(lbl_ttgo, &lv_font_montserrat_28, 0);
+    lv_obj_set_style_text_color(lbl_ttgo, lv_color_hex(0xdc2626), 0);
     lv_label_set_text(lbl_ttgo, "Time to go: --");
 
-    // Battery / Voltage status subtitle (#7f1d1d)
+    // Battery / Voltage status subtitle: 20px font, matching color (#dc2626)
     lbl_sub = lv_label_create(box);
-    lv_obj_set_style_text_font(lbl_sub, &lv_font_montserrat_14, 0);
-    lv_obj_set_style_text_color(lbl_sub, lv_color_hex(0x7f1d1d), 0);
+    lv_obj_set_style_text_font(lbl_sub, &lv_font_montserrat_20, 0);
+    lv_obj_set_style_text_color(lbl_sub, lv_color_hex(0xdc2626), 0);
     lv_label_set_text(lbl_sub, "");
 
     // Safety touch handler on container
@@ -108,9 +117,10 @@ void ui_screensaver_enter() {
         lv_refr_now(nullptr);
     }
 
-    // Dim backlight to night mode (PWM 230 = 10% duty cycle, lowest stable hardware backlight)
-    WS_CH32_IO::setPwm(Wire, 230);
-    USBSerial.println("[SCREENSAVER] Activated (night backlight 10% / PWM 230)");
+    // Dim backlight to user-configured screensaver brightness mapped to hardware range
+    uint8_t pwm = ui_screensaver_brightness_to_pwm(state.screensaver_brightness);
+    WS_CH32_IO::setPwm(Wire, pwm);
+    USBSerial.printf("[SCREENSAVER] Activated (backlight %d%% / PWM %d)\n", state.screensaver_brightness, pwm);
 }
 
 void ui_screensaver_exit() {

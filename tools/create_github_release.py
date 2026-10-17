@@ -32,33 +32,30 @@ def create_release():
     title = f"CamperUI_{version}"
     body = f"""# 🚐 CamperUI Release {version}
 
-Release **{version}** ist ein wichtiges Wartungs- und Feature-Update mit Fehlerbehebungen im Energie-Dashboard, erweiterten Einstellungsmöglichkeiten über das Webinterface, praktischen +/- Temperaturtasten neben dem Heizungs-Arc und verbesserter Truma-Rückmeldung.
+Release **{version}** bringt umfangreiche Verbesserungen für das Energie-Dashboard, separate REST-Endpoints für Landstrom und Booster, einen neuen XXL-Nachtbildschirmschoner sowie flexible Verbraucher-Berechnungsoptionen.
 
 ---
 
-### 🚀 Highlights & Bugfixes in {version}
+### 🚀 Highlights & Neuerungen in {version}
 
-#### ⚡ 1. Reine Telemetrie für Energie-Erzeuger (Keine Schätzwerte)
-* **Entfernung aller internen Rückrechnungen:**
-  * Landstrom (230V) und Lichtmaschine / B2B-Booster werden nicht mehr näherungsweise aus dem Batterieladestrom berechnet.
-  * Es werden ausschließlich reale Werte von den VanPi-Endpoints (`/batt` bzw. erweiterte Telemetriefelder) dargestellt. Fehlen die Werte, bleibt die Anzeige bei 0 W bzw. inaktiv.
-* **Vollständige Konfigurierbarkeit im Webinterface:**
-  * Sichtbarkeit der Erzeuger (Solar, Landstrom, Lichtmaschine) und die jeweiligen Maximalleistungen (Solar Max Watt, Landstrom Max Watt, Lima Max Watt) können nun direkt über die Weboberfläche (`/settings`) eingestellt und gespeichert werden.
+#### ⚡ 1. Energie-Dashboard & Erzeuger-Verrechnung
+* **Neue Option „Verbrauch mit Erzeugern verrechnen“:**
+  * Wählbar zwischen **Gesamtlast** ($P_\\text{{load}} = P_\\text{{gen}} - P_\\text{{bat}}$) und **reiner Batterie-Entnahme** (nur was tatsächlich aus `/batt` fließt).
+  * Umschaltbar sowohl direkt am Display (*Einstellungen → Sichtbarkeit*) als auch über das Webinterface.
+* **Separate REST-Endpoints (`/shore` & `/booster`):**
+  * Volle Unterstützung für modulare Node-RED-Endpoints für 230V Landstrom und B2B-Ladebooster inkl. mitgeliefertem Flow und Anleitung.
+* **Eindeutiger `Off`-Zustand:**
+  * Ist ein Erzeuger ausgeschaltet oder getrennt, zeigt das Display nun deutlich **`Off`** in dezentem Grau anstelle von missverständlichem `0 W`.
+  * Starterbatteriespannung bleibt auch bei inaktivem Booster sichtbar.
+* **Automatische Erkennung & Ausgrauen:**
+  * Werden Endpoints nicht gefunden (404), werden die Toggles in den Einstellungen automatisch ausgegraut (mit 30s Hysterese gegen Netzwerk-Aussetzer).
+* **Reine VanPi Restzeit (`ttgo`):**
+  * Keine fehlerhaften internen Restzeit-Schätzungen mehr – das Display nutzt direkt das Shunt-Feld `ttgo` aus `/info`.
 
-#### 🔥 2. Zusätzliche Temperaturtasten (+ / -) am Arc
-* **Präzise Bedienung per Touch:**
-  * Neben dem Temperatur-Arc im Autoterm- und Truma-Klimatab können runde Touch-Buttons (`-` links, `+` rechts) eingeblendet werden.
-  * Ermöglicht das exakte Verstellen der Temperatur in 1 °C-Schritten (bzw. der Leistungsstufe) ohne fummeliges Schieben auf dem Arc.
-  * Ein- und ausschaltbar über die Display-Einstellungen sowie über das Webinterface (`heater_temp_buttons`).
-
-#### 💧 3. Zuverlässiges Warmwasser-Feedback bei Truma Combi
-* **Aktive Button-Hervorhebung:**
-  * Warmwasser-Modi (`Eco`, `Hot`, `Aus`) werden nun direkt auf den Tasten farbig hervorgehoben (Grün für Eco, Orange für Hot, Blau für Aus).
-  * Robustes Parsing fängt sowohl numerische VanPi-Ziele (`40`, `60`), Textmodi (`"eco"`, `"hot"`, `"boost"`) als auch den Node-RED Status-Text (`raw_hs`) sauber ab.
-
-#### 🌙 4. Screensaver- & Dimm-Stabilität
-* **Flackerfreier Ruhemodus:**
-  * Zuverlässige Aktivierung des dunkelroten Nacht-Screensavers nach Ablauf des Display-Timeouts bei minimaler Hintergrundbeleuchtung.
+#### 🌙 2. XXL Nacht-Bildschirmschoner
+* **120-Pixel Uhrzeitanzeige:** Übergroße Ziffern für perfekte Lesbarkeit bei Nacht aus jeder Position im Camper.
+* **Große Statuszeilen:** Restzeit (Time to go) und Batteriespannung/SoC in 28px bzw. 20px, farblich passend in Rot (`#dc2626`).
+* **Eigene Nacht-Helligkeit:** Die Dimm-Stufe des Screensavers kann separat in den Display- und Web-Einstellungen festgelegt werden (Default 3% für blendfreies Schlafen).
 
 ---
 

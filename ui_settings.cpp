@@ -87,6 +87,7 @@ static void open_http_test_cb(lv_event_t * e) {
 #include <WiFi.h>
 #include <Wire.h>
 #include "WS_CH32_IO.h"
+#include "ui_screensaver.h"
 
 extern TwoWire Wire;
 
@@ -209,6 +210,57 @@ lv_obj_t *lbl_debug_info = NULL;
 
 static bool scan_in_progress = false;
 
+static lv_obj_t *card_shore_toggle = nullptr;
+static lv_obj_t *sw_shore_toggle = nullptr;
+static lv_obj_t *lbl_shore_toggle = nullptr;
+
+static lv_obj_t *card_alt_toggle = nullptr;
+static lv_obj_t *sw_alt_toggle = nullptr;
+static lv_obj_t *lbl_alt_toggle = nullptr;
+
+static void ui_settings_update_producers() {
+    if (card_shore_toggle && sw_shore_toggle && lv_obj_is_valid(card_shore_toggle)) {
+        if (!state.shore_available) {
+            lv_obj_clear_state(sw_shore_toggle, LV_STATE_CHECKED);
+            lv_obj_add_state(sw_shore_toggle, LV_STATE_DISABLED);
+            lv_obj_set_style_opa(card_shore_toggle, LV_OPA_40, 0);
+            lv_obj_clear_flag(card_shore_toggle, LV_OBJ_FLAG_CLICKABLE);
+            if (lbl_shore_toggle && lv_obj_is_valid(lbl_shore_toggle)) {
+                lv_obj_set_style_text_color(lbl_shore_toggle, ui_theme_muted(), 0);
+            }
+        } else {
+            lv_obj_clear_state(sw_shore_toggle, LV_STATE_DISABLED);
+            if (state.power_show_shore) lv_obj_add_state(sw_shore_toggle, LV_STATE_CHECKED);
+            else lv_obj_clear_state(sw_shore_toggle, LV_STATE_CHECKED);
+            lv_obj_set_style_opa(card_shore_toggle, LV_OPA_COVER, 0);
+            lv_obj_add_flag(card_shore_toggle, LV_OBJ_FLAG_CLICKABLE);
+            if (lbl_shore_toggle && lv_obj_is_valid(lbl_shore_toggle)) {
+                lv_obj_set_style_text_color(lbl_shore_toggle, ui_theme_text(), 0);
+            }
+        }
+    }
+    if (card_alt_toggle && sw_alt_toggle && lv_obj_is_valid(card_alt_toggle)) {
+        if (!state.alt_available) {
+            lv_obj_clear_state(sw_alt_toggle, LV_STATE_CHECKED);
+            lv_obj_add_state(sw_alt_toggle, LV_STATE_DISABLED);
+            lv_obj_set_style_opa(card_alt_toggle, LV_OPA_40, 0);
+            lv_obj_clear_flag(card_alt_toggle, LV_OBJ_FLAG_CLICKABLE);
+            if (lbl_alt_toggle && lv_obj_is_valid(lbl_alt_toggle)) {
+                lv_obj_set_style_text_color(lbl_alt_toggle, ui_theme_muted(), 0);
+            }
+        } else {
+            lv_obj_clear_state(sw_alt_toggle, LV_STATE_DISABLED);
+            if (state.power_show_alt) lv_obj_add_state(sw_alt_toggle, LV_STATE_CHECKED);
+            else lv_obj_clear_state(sw_alt_toggle, LV_STATE_CHECKED);
+            lv_obj_set_style_opa(card_alt_toggle, LV_OPA_COVER, 0);
+            lv_obj_add_flag(card_alt_toggle, LV_OBJ_FLAG_CLICKABLE);
+            if (lbl_alt_toggle && lv_obj_is_valid(lbl_alt_toggle)) {
+                lv_obj_set_style_text_color(lbl_alt_toggle, ui_theme_text(), 0);
+            }
+        }
+    }
+}
+
 void ui_sync_demo_controls() {
     lv_obj_t *controls[] = {sw_debug, sw_demo};
     for (lv_obj_t *control : controls) {
@@ -220,6 +272,7 @@ void ui_sync_demo_controls() {
 void ui_update_settings_tab() {
     ui_victron_settings_update();
     ui_sync_demo_controls();
+    ui_settings_update_producers();
     if (lv_scr_act() == scr_settings && wifi_status_label) {
         String details = wifi_connection_details();
         ui_label_set_text_if_changed(wifi_status_label, details.c_str());
@@ -851,6 +904,29 @@ void ui_settings_screen_init() {
     lv_label_set_text(l_scrsave, "Screensaver");
     lv_obj_set_style_text_font(l_scrsave, &lv_font_montserrat_14, 0);
     lv_obj_align(l_scrsave, LV_ALIGN_TOP_LEFT, 288, 134);
+
+    // Screensaver Brightness
+    lv_obj_t *l_scrsave_bri = lv_label_create(t_gen);
+    lv_label_set_text_fmt(l_scrsave_bri, "Schoner: %d%%", state.screensaver_brightness);
+    lv_obj_set_style_text_font(l_scrsave_bri, &lv_font_montserrat_14, 0);
+    lv_obj_align(l_scrsave_bri, LV_ALIGN_TOP_LEFT, 230, 168);
+
+    lv_obj_t *sl_scrsave_bri = lv_slider_create(t_gen);
+    lv_slider_set_range(sl_scrsave_bri, 1, 100);
+    lv_slider_set_value(sl_scrsave_bri, state.screensaver_brightness, LV_ANIM_OFF);
+    lv_obj_set_size(sl_scrsave_bri, 115, 20);
+    lv_obj_align(sl_scrsave_bri, LV_ALIGN_TOP_LEFT, 325, 168);
+    lv_obj_set_user_data(sl_scrsave_bri, l_scrsave_bri);
+    lv_obj_add_event_cb(sl_scrsave_bri, [](lv_event_t * e) {
+        lv_obj_t *slider = lv_event_get_target(e);
+        lv_obj_t *lbl = (lv_obj_t *)lv_obj_get_user_data(slider);
+        state.screensaver_brightness = constrain(lv_slider_get_value(slider), 1, 100);
+        if (lbl) lv_label_set_text_fmt(lbl, "Schoner: %d%%", state.screensaver_brightness);
+        if (ui_screensaver_is_active()) {
+            WS_CH32_IO::setPwm(Wire, ui_screensaver_brightness_to_pwm(state.screensaver_brightness));
+        }
+        state_save();
+    }, LV_EVENT_VALUE_CHANGED, NULL);
     
     // ==========================================
     // TAB 3: SICHTBARKEIT (ANZEIGE - GROSSE TOGGLE SWITCHES)
@@ -861,7 +937,8 @@ void ui_settings_screen_init() {
     
     // Helper for creating generous, finger-friendly toggle rows with clickable cards
     auto make_toggle_row = [](lv_obj_t *parent, lv_coord_t x, lv_coord_t y, lv_coord_t w, lv_coord_t h,
-                              const char *name, bool is_active, auto val_changed_cb, void *user_data) {
+                              const char *name, bool is_active, auto val_changed_cb, void *user_data,
+                              bool is_enabled = true, lv_obj_t **out_card = nullptr, lv_obj_t **out_sw = nullptr, lv_obj_t **out_lbl = nullptr) {
         lv_obj_t *card = lv_obj_create(parent);
         lv_obj_set_pos(card, x, y);
         lv_obj_set_size(card, w, h);
@@ -877,24 +954,36 @@ void ui_settings_screen_init() {
         lv_obj_t *sw = lv_switch_create(card);
         lv_obj_set_size(sw, 46, 26);
         lv_obj_align(sw, LV_ALIGN_LEFT_MID, 0, 0);
-        if (is_active) lv_obj_add_state(sw, LV_STATE_CHECKED);
+        if (is_active && is_enabled) lv_obj_add_state(sw, LV_STATE_CHECKED);
+        else lv_obj_clear_state(sw, LV_STATE_CHECKED);
+        if (!is_enabled) lv_obj_add_state(sw, LV_STATE_DISABLED);
         lv_obj_add_event_cb(sw, val_changed_cb, LV_EVENT_VALUE_CHANGED, user_data);
 
         lv_obj_t *lbl = lv_label_create(card);
         lv_label_set_text(lbl, name);
         lv_obj_set_style_text_font(lbl, &lv_font_montserrat_14, 0);
-        lv_obj_set_style_text_color(lbl, ui_theme_text(), 0);
+        lv_obj_set_style_text_color(lbl, is_enabled ? ui_theme_text() : ui_theme_muted(), 0);
         lv_label_set_long_mode(lbl, LV_LABEL_LONG_DOT);
         lv_obj_set_width(lbl, w - 66);
         lv_obj_align(lbl, LV_ALIGN_LEFT_MID, 54, 0);
 
-        // Entire row is touchable: tapping card toggles the switch
-        lv_obj_add_event_cb(card, [](lv_event_t *e) {
-            lv_obj_t *s = (lv_obj_t *)lv_event_get_user_data(e);
-            if (lv_obj_has_state(s, LV_STATE_CHECKED)) lv_obj_clear_state(s, LV_STATE_CHECKED);
-            else lv_obj_add_state(s, LV_STATE_CHECKED);
-            lv_event_send(s, LV_EVENT_VALUE_CHANGED, NULL);
-        }, LV_EVENT_CLICKED, sw);
+        if (!is_enabled) {
+            lv_obj_set_style_opa(card, LV_OPA_40, 0);
+            lv_obj_clear_flag(card, LV_OBJ_FLAG_CLICKABLE);
+        } else {
+            // Entire row is touchable: tapping card toggles the switch
+            lv_obj_add_event_cb(card, [](lv_event_t *e) {
+                lv_obj_t *s = (lv_obj_t *)lv_event_get_user_data(e);
+                if (lv_obj_has_state(s, LV_STATE_DISABLED)) return;
+                if (lv_obj_has_state(s, LV_STATE_CHECKED)) lv_obj_clear_state(s, LV_STATE_CHECKED);
+                else lv_obj_add_state(s, LV_STATE_CHECKED);
+                lv_event_send(s, LV_EVENT_VALUE_CHANGED, NULL);
+            }, LV_EVENT_CLICKED, sw);
+        }
+
+        if (out_card) *out_card = card;
+        if (out_sw) *out_sw = sw;
+        if (out_lbl) *out_lbl = lbl;
 
         return card;
     };
@@ -910,41 +999,53 @@ void ui_settings_screen_init() {
         [](lv_event_t *e) {
             lv_obj_t *obj = lv_event_get_target(e);
             state.power_show_solar = lv_obj_has_state(obj, LV_STATE_CHECKED);
-        }, NULL);
+            ui_rebuild_power();
+        }, NULL, true);
 
     make_toggle_row(t_vis, 150, 26, 140, 42, "Landstrom", state.power_show_shore,
         [](lv_event_t *e) {
             lv_obj_t *obj = lv_event_get_target(e);
             state.power_show_shore = lv_obj_has_state(obj, LV_STATE_CHECKED);
-        }, NULL);
+            ui_rebuild_power();
+        }, NULL, state.shore_available, &card_shore_toggle, &sw_shore_toggle, &lbl_shore_toggle);
 
     make_toggle_row(t_vis, 300, 26, 140, 42, "Lichtm.", state.power_show_alt,
         [](lv_event_t *e) {
             lv_obj_t *obj = lv_event_get_target(e);
             state.power_show_alt = lv_obj_has_state(obj, LV_STATE_CHECKED);
-        }, NULL);
+            ui_rebuild_power();
+        }, NULL, state.alt_available, &card_alt_toggle, &sw_alt_toggle, &lbl_alt_toggle);
+
+    // Verbraucher-Berechnung Toggle
+    make_toggle_row(t_vis, 0, 74, 440, 42, "Verbrauch mit Erzeugern verrechnen", state.power_calc_load,
+        [](lv_event_t *e) {
+            lv_obj_t *obj = lv_event_get_target(e);
+            state.power_calc_load = lv_obj_has_state(obj, LV_STATE_CHECKED);
+            state_save();
+            ui_rebuild_power();
+        }, NULL, true);
 
     // 2. Schalter & Dimmer
     lv_obj_t *l_vis = lv_label_create(t_vis);
     lv_label_set_text(l_vis, "Schalter & Dimmer Sichtbarkeit");
     lv_obj_set_style_text_font(l_vis, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(l_vis, lv_color_hex(UI_COLOR_PRIMARY), 0);
-    lv_obj_align(l_vis, LV_ALIGN_TOP_LEFT, 0, 80);
+    lv_obj_align(l_vis, LV_ALIGN_TOP_LEFT, 0, 128);
 
     lv_obj_t *l_hdr_relays = lv_label_create(t_vis);
     lv_label_set_text(l_hdr_relays, "Relais (8)");
     lv_obj_set_style_text_font(l_hdr_relays, &lv_font_montserrat_14, 0);
     lv_obj_set_style_text_color(l_hdr_relays, ui_theme_muted(), 0);
-    lv_obj_align(l_hdr_relays, LV_ALIGN_TOP_LEFT, 4, 108);
+    lv_obj_align(l_hdr_relays, LV_ALIGN_TOP_LEFT, 4, 156);
 
     lv_obj_t *l_hdr_dimmers = lv_label_create(t_vis);
     lv_label_set_text(l_hdr_dimmers, "Dimmer (8)");
     lv_obj_set_style_text_font(l_hdr_dimmers, &lv_font_montserrat_14, 0);
     lv_obj_set_style_text_color(l_hdr_dimmers, ui_theme_muted(), 0);
-    lv_obj_align(l_hdr_dimmers, LV_ALIGN_TOP_LEFT, 229, 108);
+    lv_obj_align(l_hdr_dimmers, LV_ALIGN_TOP_LEFT, 229, 156);
 
     for (int i = 0; i < 8; i++) {
-        lv_coord_t row_y = 130 + (i * 48);
+        lv_coord_t row_y = 178 + (i * 48);
 
         // Relais (Left Column)
         make_toggle_row(t_vis, 0, row_y, 215, 42, state.switch_names[i].c_str(), state.switch_visible[i],
@@ -963,16 +1064,16 @@ void ui_settings_screen_init() {
             }, (void *)(intptr_t)i);
     }
 
-    // 3. WiFi Relais Section at y = 522
+    // 3. WiFi Relais Section at y = 570
     lv_obj_t *l_wr_head = lv_label_create(t_vis);
     lv_label_set_text(l_wr_head, "WiFi-Relais");
     lv_obj_set_style_text_font(l_wr_head, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(l_wr_head, lv_color_hex(UI_COLOR_PRIMARY), 0);
-    lv_obj_align(l_wr_head, LV_ALIGN_TOP_LEFT, 0, 522);
+    lv_obj_align(l_wr_head, LV_ALIGN_TOP_LEFT, 0, 570);
 
     lv_obj_t *cont_wr = lv_obj_create(t_vis);
     lv_obj_set_size(cont_wr, 440, 210);
-    lv_obj_align(cont_wr, LV_ALIGN_TOP_LEFT, 0, 600);
+    lv_obj_align(cont_wr, LV_ALIGN_TOP_LEFT, 0, 648);
     lv_obj_set_style_bg_opa(cont_wr, 0, 0);
     lv_obj_set_style_border_width(cont_wr, 0, 0);
     lv_obj_set_style_pad_all(cont_wr, 0, 0);
@@ -981,7 +1082,7 @@ void ui_settings_screen_init() {
 
     // Master Switch Row for WiFi Relais
     lv_obj_t *card_master_wr = lv_obj_create(t_vis);
-    lv_obj_set_pos(card_master_wr, 0, 548);
+    lv_obj_set_pos(card_master_wr, 0, 596);
     lv_obj_set_size(card_master_wr, 440, 44);
     lv_obj_set_style_radius(card_master_wr, 8, 0);
     lv_obj_set_style_bg_color(card_master_wr, ui_theme_card(), 0);

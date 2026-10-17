@@ -234,7 +234,10 @@ VANPI_POLL_PATHS = [
     "/temp",
     "/heater",
     "/position_sensor/?request=true",
-    "/maxxfan/"
+    "/maxxfan/",
+    "/info",
+    "/shore",
+    "/booster"
 ]
 
 def background_sync_worker():
