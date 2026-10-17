@@ -1,4 +1,5 @@
 #include "http_handler.h"
+#include "ui_main.h"
 #include "maxxfan_client.h"
 #include "relay_click_filter.h"
 #include <math.h>
@@ -388,6 +389,15 @@ static void parse_temp_json(const char *payload) {
                 state.temp_sensors[i] = v; fields |= (1 << i);
             }
         }
+        if (!t["hum"].isNull()) {
+            String raw_h = t["hum"].as<String>(); raw_h.trim(); raw_h.replace(',', '.');
+            char *end_h; float h = strtof(raw_h.c_str(), &end_h);
+            if (end_h != raw_h.c_str() && !*end_h && isfinite(h)) {
+                state.temp_humidity[i] = h;
+            }
+        } else {
+            state.temp_humidity[i] = 0.0f;
+        }
     }
 
     state.temp_fields = fields;
@@ -395,7 +405,9 @@ static void parse_temp_json(const char *payload) {
     state.outdoor_temp = state.temp_sensors[out_idx];
     int in_idx = constrain(state.indoor_temp_sensor, 0, TEMP_SOURCE_COUNT - 1);
     state.indoor_temp = state.temp_sensors[in_idx];
-    if (out_idx != 2 && in_idx != 2) {
+    if (state.temp_humidity[in_idx] > 0.5f) {
+        state.indoor_humidity = state.temp_humidity[in_idx];
+    } else if (out_idx != 2 && in_idx != 2) {
         state.indoor_humidity = state.temp_sensors[2];
     }
 }
@@ -877,7 +889,7 @@ void http_loop() {
         state.alt_active = false;
         state.indoor_temp = state.outdoor_temp = 0;
         state.heating_on = state.fan_on = false;
-        for (int i = 0; i < TEMP_SOURCE_COUNT; ++i) { state.temp_sensors[i] = 0; state.temp_is_humidity[i] = false; }
+        for (int i = 0; i < TEMP_SOURCE_COUNT; ++i) { state.temp_sensors[i] = 0; state.temp_humidity[i] = 0.0f; state.temp_is_humidity[i] = false; }
         for (int i = 0; i < 4; ++i) state.tank_level[i] = 0;
         for (int i = 0; i < 8; ++i) {
             state.dimmer_hold_until[i] = state.relay_hold_until[i] = 0;
@@ -932,7 +944,7 @@ void http_loop() {
                 }
                 case 4: {
                     const char *dummy = "{\"temp1\":{\"state\":\"22.4\",\"name\":\"Innen\"},\"temp2\":{\"state\":\"14.6\",\"name\":\"Aussen\"},\"temp3\":{\"state\":\"52.0\",\"name\":\"Feuchte\"},\"temp4\":{\"state\":\"7.8\",\"name\":\"Kuehlbox\"},"
-                                        "\"ruuvitag0\":{\"state\":22.7,\"name\":\"Ruuvi Wohnraum\",\"hum\":48},\"ruuvitag1\":{\"state\":15.2,\"name\":\"Ruuvi Aussen\"},\"ruuvitag2\":{\"state\":5.3,\"name\":\"Ruuvi Kuehlschrank\"}}";
+                                        "\"ruuvitag0\":{\"state\":22.7,\"name\":\"Ruuvi Wohnraum\",\"hum\":48.5},\"ruuvitag1\":{\"state\":15.2,\"name\":\"Ruuvi Aussen\",\"hum\":68.2},\"ruuvitag2\":{\"state\":5.3,\"name\":\"Ruuvi Kuehlschrank\"}}";
                     parse_temp_json(dummy);
                     break;
                 }
@@ -1040,7 +1052,13 @@ void http_loop() {
         return;
     }
 
-    if (millis() - last_http_poll > 500) {
+    static uint32_t last_level_fast_poll = 0;
+    if (ui_is_level_tab_active() && millis() - last_level_fast_poll >= 400) {
+        last_level_fast_poll = millis();
+        fetch_endpoint("/position_sensor/?request=true", parse_position_json);
+    }
+
+    if (millis() - last_http_poll > (ui_is_level_tab_active() ? 1000UL : 500UL)) {
         switch (poll_step) {
             case 0: fetch_endpoint("/batt",    parse_batt_json);    break;
             case 1: fetch_endpoint("/relay",   parse_relay_json);   break;
@@ -1054,7 +1072,9 @@ void http_loop() {
                 break;
             case 6: fetch_endpoint("/mppt/",   parse_mppt_json);    break;
             case 7:
-                if (state.tab_enabled[TAB_LEVEL]) fetch_endpoint("/position_sensor/?request=true", parse_position_json);
+                if (state.tab_enabled[TAB_LEVEL] && !ui_is_level_tab_active()) {
+                    fetch_endpoint("/position_sensor/?request=true", parse_position_json);
+                }
                 break;
             case 8:
                 if (state.show_wrelay) {

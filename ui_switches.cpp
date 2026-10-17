@@ -109,6 +109,7 @@ static void relay_btn_event_cb(lv_event_t * e) {
                 sw_press_start[idx] = 0;
                 bool new_locked = !state.switch_locked[idx];
                 state_set_switch_locked(idx, new_locked);
+                buzzer_beep(40);
                 ui_update_switches_tab();
             }
         }
@@ -147,6 +148,7 @@ static void wrelay_btn_event_cb(lv_event_t * e) {
                 wr_press_start[idx] = 0;
                 bool new_locked = !state.wrelay_locked[idx];
                 state_set_wrelay_locked(idx, new_locked);
+                buzzer_beep(40);
                 ui_update_switches_tab();
             }
         }
@@ -315,6 +317,9 @@ void ui_trigger_switches_anim() {
     lv_anim_start(&a);
 }
 
+static uint32_t dimmer_last_live_pub[8] = {0};
+static int dimmer_last_pub_val[8] = {-1, -1, -1, -1, -1, -1, -1, -1};
+
 static void dimmer_slider_event_cb(lv_event_t * e) {
     int idx = (int)(intptr_t)lv_event_get_user_data(e);
     lv_obj_t *slider = lv_event_get_target(e);
@@ -331,11 +336,23 @@ static void dimmer_slider_event_cb(lv_event_t * e) {
             lv_anim_del((void*)(intptr_t)idx, dimmer_anim_cb);
             dimmer_animating[idx] = false;
         }
-        state.dimmer_hold_until[idx] = millis() + 3000;
-        state.dimmer_val[idx] = lv_slider_get_value(slider);
+        uint32_t now = millis();
+        state.dimmer_hold_until[idx] = now + 3000;
+        int val = lv_slider_get_value(slider);
+        state.dimmer_val[idx] = val;
         update_dimmer_visuals(idx);
+        if (now - dimmer_last_live_pub[idx] >= 180 && abs(val - dimmer_last_pub_val[idx]) >= 3) {
+            dimmer_last_live_pub[idx] = now;
+            dimmer_last_pub_val[idx] = val;
+            http_publish_dimmer(idx, val);
+        }
     } else if (code == LV_EVENT_RELEASED || code == LV_EVENT_PRESS_LOST) {
-        http_publish_dimmer(idx, state.dimmer_val[idx]);
+        int val = state.dimmer_val[idx];
+        if (dimmer_last_pub_val[idx] != val) {
+            dimmer_last_pub_val[idx] = val;
+            dimmer_last_live_pub[idx] = millis();
+            http_publish_dimmer(idx, val);
+        }
         // Give VanPi time to apply the new value before polling overrides it again
         state.dimmer_hold_until[idx] = millis() + 2000;
     }
@@ -402,6 +419,8 @@ void ui_switches_reset() {
         sw_hold_triggered[i] = false;
         wr_press_start[i] = 0;
         wr_hold_triggered[i] = false;
+        dimmer_last_live_pub[i] = 0;
+        dimmer_last_pub_val[i] = -1;
     }
 }
 
@@ -442,6 +461,7 @@ void ui_build_switches(lv_obj_t *parent) {
         lv_obj_set_style_radius(switches[i], 14, 0);
         lv_obj_set_style_border_width(switches[i], 1, 0);
         lv_obj_set_style_shadow_width(switches[i], 0, 0);
+        lv_obj_clear_flag(switches[i], LV_OBJ_FLAG_SCROLL_ON_FOCUS);
         lv_obj_add_event_cb(switches[i], relay_btn_event_cb, LV_EVENT_ALL, (void*)(intptr_t)i);
 
         lbl_switch_name[i] = lv_label_create(switches[i]);
@@ -474,6 +494,7 @@ void ui_build_switches(lv_obj_t *parent) {
         lv_obj_set_style_radius(w_switches[i], 14, 0);
         lv_obj_set_style_border_width(w_switches[i], 1, 0);
         lv_obj_set_style_shadow_width(w_switches[i], 0, 0);
+        lv_obj_clear_flag(w_switches[i], LV_OBJ_FLAG_SCROLL_ON_FOCUS);
         lv_obj_add_event_cb(w_switches[i], wrelay_btn_event_cb, LV_EVENT_ALL, (void*)(intptr_t)i);
 
         lbl_wswitch_name[i] = lv_label_create(w_switches[i]);
@@ -528,6 +549,7 @@ void ui_build_dimmers(lv_obj_t *parent) {
         lv_slider_set_range(dimmers[i], 0, 100);
         lv_slider_set_value(dimmers[i], state.dimmer_val[i], LV_ANIM_OFF);
         lv_obj_align(dimmers[i], LV_ALIGN_LEFT_MID, 130, 0);
+        lv_obj_clear_flag(dimmers[i], LV_OBJ_FLAG_SCROLL_ON_FOCUS);
         
         // Track styling (capsule pill shape)
         lv_obj_set_style_bg_color(dimmers[i], ui_theme_track(), LV_PART_MAIN);

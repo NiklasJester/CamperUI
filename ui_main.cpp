@@ -157,6 +157,9 @@ static void select_page(uint8_t index) {
 
 bool ui_page_available(TabId page) { return page < TAB_COUNT && pages[page] && state.tab_enabled[page]; }
 void ui_navigate_to(TabId page) { if (ui_page_available(page)) select_page(page); }
+bool ui_is_level_tab_active() {
+    return scr_main != nullptr && !rebuild_pending && active_page == TAB_LEVEL && state.tab_enabled[TAB_LEVEL];
+}
 
 static lv_timer_t *nav_hold_timer = nullptr;
 static uint32_t nav_hold_start = 0;
@@ -240,7 +243,7 @@ lv_obj_t* ui_create_card(lv_obj_t *parent, int w, int h) {
     
     lv_obj_set_style_radius(card, 14, 0);
     lv_obj_set_style_pad_all(card, 12, 0);
-    lv_obj_clear_flag(card, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_clear_flag(card, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_SCROLL_ON_FOCUS);
     return card;
 }
 

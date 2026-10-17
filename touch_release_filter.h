@@ -12,8 +12,9 @@ public:
             last_frame = now;
             if (pressed) { held = true; releasing = false; }
             else if (held && !releasing) { releasing = true; release_at = now; }
+            else if (held && releasing && now - release_at >= 8) { held = releasing = false; }
         }
-        if (held && ((releasing && now - release_at >= 60) || now - last_frame >= 250))
+        if (held && ((releasing && now - release_at >= 25) || now - last_frame >= 250))
             held = releasing = false;
         return held;
     }

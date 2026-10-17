@@ -376,26 +376,39 @@ static void wifi_scan_cb(lv_event_t * e) {
 }
 
 static void save_settings_cb(lv_event_t * e) {
+    String old_ssid, old_pass;
+    {
+        StateLockGuard lock;
+        old_ssid = state.wifi_ssid;
+        old_pass = state.wifi_pass;
+    }
+    String new_ssid = old_ssid;
+    String new_pass = old_pass;
     if (dd_wifi_ssid && lv_dropdown_get_option_cnt(dd_wifi_ssid) > 0) {
         char buf[64] = {0};
         lv_dropdown_get_selected_str(dd_wifi_ssid, buf, sizeof(buf));
-        StateLockGuard lock;
-        state.wifi_ssid = String(buf);
+        new_ssid = String(buf);
     }
     if (ta_wifi_pass) {
-        StateLockGuard lock;
-        state.wifi_pass = String(lv_textarea_get_text(ta_wifi_pass));
+        new_pass = String(lv_textarea_get_text(ta_wifi_pass));
     }
-    if (ta_mqtt_ip) {
+    bool wifi_changed = (new_ssid != old_ssid) || (new_pass != old_pass);
+    {
         StateLockGuard lock;
-        state.vanpi_ip = String(lv_textarea_get_text(ta_mqtt_ip));
+        state.wifi_ssid = new_ssid;
+        state.wifi_pass = new_pass;
+        if (ta_mqtt_ip) {
+            state.vanpi_ip = String(lv_textarea_get_text(ta_mqtt_ip));
+        }
     }
     
     state_save();
     
-    // Attempt reconnects
-    WiFi.disconnect();
-    wifi_connect_configured();
+    // Only reconnect WiFi if credentials changed or WiFi is not currently connected
+    if (wifi_changed || (new_ssid.length() > 0 && WiFi.status() != WL_CONNECTED)) {
+        WiFi.disconnect();
+        wifi_connect_configured();
+    }
     
     // Load main screen cleanly
     if (scr_main) lv_scr_load(scr_main);
@@ -1546,11 +1559,33 @@ void ui_settings_screen_init() {
     lv_obj_add_event_cb(kb, kb_event_cb, LV_EVENT_ALL, NULL);
     
     // ==========================================
-    // Save & Exit Button (Generous 440x48 px touch bar)
+    // Back / Cancel & Save Buttons (Footer bar)
     // ==========================================
+    lv_obj_t *btn_cancel = lv_btn_create(scr_settings);
+    lv_obj_set_size(btn_cancel, 140, 48);
+    lv_obj_align(btn_cancel, LV_ALIGN_BOTTOM_LEFT, 20, -8);
+    lv_obj_set_style_bg_color(btn_cancel, ui_theme_card(), 0);
+    lv_obj_set_style_border_width(btn_cancel, 1, 0);
+    lv_obj_set_style_border_color(btn_cancel, ui_theme_border(), 0);
+    lv_obj_set_style_radius(btn_cancel, 10, 0);
+    lv_obj_set_style_shadow_width(btn_cancel, 0, 0);
+    lv_obj_add_event_cb(btn_cancel, [](lv_event_t * e) {
+        (void)e;
+        if (kb) {
+            lv_keyboard_set_textarea(kb, NULL);
+            lv_obj_add_flag(kb, LV_OBJ_FLAG_HIDDEN);
+        }
+        if (scr_main) lv_scr_load(scr_main);
+    }, LV_EVENT_CLICKED, NULL);
+    lv_obj_t *l_cancel = lv_label_create(btn_cancel);
+    lv_label_set_text(l_cancel, LV_SYMBOL_LEFT " Zurück");
+    lv_obj_set_style_text_font(l_cancel, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_color(l_cancel, ui_theme_text(), 0);
+    lv_obj_center(l_cancel);
+
     lv_obj_t *btn_save = lv_btn_create(scr_settings);
-    lv_obj_set_size(btn_save, 440, 48);
-    lv_obj_align(btn_save, LV_ALIGN_BOTTOM_MID, 0, -8);
+    lv_obj_set_size(btn_save, 288, 48);
+    lv_obj_align(btn_save, LV_ALIGN_BOTTOM_RIGHT, -20, -8);
     lv_obj_set_style_bg_color(btn_save, lv_color_hex(UI_COLOR_SUCCESS), 0);
     lv_obj_set_style_radius(btn_save, 10, 0);
     lv_obj_add_event_cb(btn_save, [](lv_event_t * e) {

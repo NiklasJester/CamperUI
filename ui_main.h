@@ -93,6 +93,7 @@ void ui_water_reset();
 void ui_switches_reset();
 void ui_navigate_to(TabId page);
 bool ui_page_available(TabId page);
+bool ui_is_level_tab_active();
 void ui_home_layout_changed();
 void ui_build_home_settings(lv_obj_t *parent);
 void ui_home_settings_refresh();

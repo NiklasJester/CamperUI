@@ -7,14 +7,14 @@ constexpr bool held_without_new_frame() {
     for (unsigned t = 1; t < 5000; ++t)
         if (!f.update(t % 20 == 0, true, t)) return false;
     return f.update(true, false, 5000) &&
-        (f.update(false, false, 5059) && !f.update(false, false, 5060));
+        (f.update(false, false, 5024) && !f.update(false, false, 5025));
 }
 constexpr bool dropout_and_real_release() {
     TouchReleaseFilter f;
     return f.update(true, true, 0) && f.update(true, false, 10) &&
-        f.update(false, false, 50) && f.update(true, true, 55) &&
-        f.update(true, false, 100) && f.update(false, false, 159) &&
-        !f.update(false, false, 160);
+        f.update(false, false, 25) && f.update(true, true, 30) &&
+        f.update(true, false, 100) && f.update(false, false, 124) &&
+        !f.update(false, false, 125);
 }
 constexpr bool sensor_failure_is_bounded() {
     TouchReleaseFilter f;
@@ -24,7 +24,7 @@ constexpr bool sensor_failure_is_bounded() {
 constexpr bool clock_rollover() {
     TouchReleaseFilter f;
     return f.update(true, true, 0xffffffe0u) && f.update(true, false, 0xfffffff0u) &&
-        f.update(false, false, 43) && !f.update(false, false, 44);
+        f.update(false, false, 8) && !f.update(false, false, 9);
 }
 constexpr bool reset_cancels_touch() {
     TouchReleaseFilter f; f.update(true, true, 0); f.reset();

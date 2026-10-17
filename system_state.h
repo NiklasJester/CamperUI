@@ -180,6 +180,7 @@ struct SystemState {
     float indoor_humidity;
     float target_temp;
     float temp_sensors[TEMP_SOURCE_COUNT];
+    float temp_humidity[TEMP_SOURCE_COUNT];
     bool temp_is_humidity[TEMP_SOURCE_COUNT];
     String temp_sensor_names[TEMP_SOURCE_COUNT];
     bool heating_on;

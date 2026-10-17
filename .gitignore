@@ -28,3 +28,7 @@ Desktop.ini
 
 # Local WLAN credentials (never commit)
 /config/wifi_secrets.h
+
+# Separate CamperCam project (do not track in git)
+/CamperCam/
+

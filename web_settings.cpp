@@ -143,6 +143,7 @@ void web_settings_register_routes(WebServer &server) {
                 }
                 s["name"] = label;
                 s["val"] = state.temp_sensors[i];
+                s["hum"] = state.temp_humidity[i];
             }
 
             // Metadata: Heater Types

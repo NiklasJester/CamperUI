@@ -314,7 +314,7 @@ void setup() {
         indev_drv.type = LV_INDEV_TYPE_POINTER;
         indev_drv.read_cb = my_touchpad_read;
         indev_drv.feedback_cb = my_touchpad_feedback;
-        indev_drv.scroll_limit = 4; // Lower scroll threshold (4px) so small horizontal drags trigger scrolling immediately instead of accidental clicks
+        indev_drv.scroll_limit = 6; // 6px threshold balances crisp scrolling and reliable button taps
         indev_drv.scroll_throw = 15; // Smooth momentum deceleration
         lv_indev_drv_register(&indev_drv);
     }
@@ -456,8 +456,11 @@ void loop() {
 
     // Update UI dynamically
     static uint32_t last_ui_ms = 0;
-    if (display_is_on && millis() - last_ui_ms > 1000) {
-        last_ui_ms = millis();
+    static uint32_t last_level_ui_ms = 0;
+    uint32_t now_ui = millis();
+    if (display_is_on && now_ui - last_ui_ms > 1000) {
+        last_ui_ms = now_ui;
+        last_level_ui_ms = now_ui;
         {
             StateLockGuard lock;
             if (ui_screensaver_is_active()) {
@@ -469,6 +472,10 @@ void loop() {
                 ui_update_settings_tab();
             }
         }
+    } else if (display_is_on && !ui_screensaver_is_active() && ui_is_level_tab_active() && (now_ui - last_level_ui_ms >= 250)) {
+        last_level_ui_ms = now_ui;
+        StateLockGuard lock;
+        ui_update_level_tab();
     }
     
     web_ota_loop();

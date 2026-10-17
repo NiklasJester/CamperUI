@@ -16,6 +16,9 @@ static lv_obj_t *lbl_drain = NULL;
 
 static int last_pump_state = -1;
 static int last_drain_state = -1;
+static uint32_t water_press_start[2] = {0, 0};
+static bool water_hold_triggered[2] = {false, false};
+static const uint32_t WATER_LOCK_HOLD_MS = 2000;
 
 static bool get_water_relay_state(int relay) {
     if (relay >= 0 && relay < 8) return state.switch_state[relay];
@@ -23,20 +26,35 @@ static bool get_water_relay_state(int relay) {
     return false;
 }
 
+static bool is_water_relay_locked(int relay) {
+    if (relay >= 0 && relay < 8) return state.switch_locked[relay];
+    if (relay >= 8 && relay < 16) return state.wrelay_locked[relay - 8];
+    return false;
+}
+
+static void toggle_water_relay_lock(int relay) {
+    if (relay >= 0 && relay < 8) {
+        state_set_switch_locked(relay, !state.switch_locked[relay]);
+        buzzer_beep(40);
+    } else if (relay >= 8 && relay < 16) {
+        int idx = relay - 8;
+        state_set_wrelay_locked(idx, !state.wrelay_locked[idx]);
+        buzzer_beep(40);
+    }
+}
+
 static void toggle_water_relay(int relay) {
     if (relay >= 0 && relay < 8) {
         if (state.switch_locked[relay]) {
             return;
         }
-        state.switch_state[relay] = !state.switch_state[relay];
-        http_publish_switch(relay, state.switch_state[relay]);
+        http_publish_switch(relay, !state.switch_state[relay]);
     } else if (relay >= 8 && relay < 16) {
         int idx = relay - 8;
         if (state.wrelay_locked[idx]) {
             return;
         }
-        state.wrelay_state[idx] = !state.wrelay_state[idx];
-        http_publish_wrelay(idx, state.wrelay_state[idx]);
+        http_publish_wrelay(idx, !state.wrelay_state[idx]);
     }
 }
 
@@ -44,6 +62,7 @@ static void update_water_button_visuals(bool force = false) {
     // Pump Button
     if (btn_pump && state.pump_relay >= 0 && state.pump_relay < 16) {
         bool on = get_water_relay_state(state.pump_relay);
+        bool locked = is_water_relay_locked(state.pump_relay);
         if (force || (int)on != last_pump_state) {
             last_pump_state = (int)on;
             if (on) {
@@ -58,13 +77,14 @@ static void update_water_button_visuals(bool force = false) {
         }
 
         if (lbl_pump) {
-            ui_label_set_text_if_changed(lbl_pump, LV_SYMBOL_TINT "  Wasserpumpe");
+            ui_label_set_text_if_changed(lbl_pump, locked ? (MDI_LOCK "  " LV_SYMBOL_TINT "  Wasserpumpe") : (LV_SYMBOL_TINT "  Wasserpumpe"));
         }
     }
 
     // Drain Button
     if (btn_drain && state.drain_relay >= 0 && state.drain_relay < 16) {
         bool on = get_water_relay_state(state.drain_relay);
+        bool locked = is_water_relay_locked(state.drain_relay);
         if (force || (int)on != last_drain_state) {
             last_drain_state = (int)on;
             if (on) {
@@ -77,12 +97,42 @@ static void update_water_button_visuals(bool force = false) {
                 ui_text_color_if_changed(lbl_drain, ui_theme_text());
             }
         }
+
+        if (lbl_drain) {
+            ui_label_set_text_if_changed(lbl_drain, locked ? (MDI_LOCK "  " LV_SYMBOL_DOWN "  Abwasser") : (LV_SYMBOL_DOWN "  Abwasser"));
+        }
     }
 }
 
-static void on_pump_click() {
-    toggle_water_relay(state.pump_relay);
-    update_water_button_visuals(true);
+static void water_btn_event_cb(lv_event_t * e) {
+    int slot = (int)(intptr_t)lv_event_get_user_data(e); // 0 = pump, 1 = drain
+    if (slot < 0 || slot > 1) return;
+    int relay = (slot == 0) ? state.pump_relay : state.drain_relay;
+    lv_event_code_t code = lv_event_get_code(e);
+
+    if (code == LV_EVENT_PRESSED) {
+        water_press_start[slot] = millis();
+        water_hold_triggered[slot] = false;
+    } else if (code == LV_EVENT_PRESSING) {
+        if (water_press_start[slot] != 0 && !water_hold_triggered[slot]) {
+            if (millis() - water_press_start[slot] >= WATER_LOCK_HOLD_MS) {
+                water_hold_triggered[slot] = true;
+                water_press_start[slot] = 0;
+                toggle_water_relay_lock(relay);
+                update_water_button_visuals(true);
+            }
+        }
+    } else if (code == LV_EVENT_CLICKED) {
+        if (water_hold_triggered[slot]) {
+            water_hold_triggered[slot] = false;
+            return;
+        }
+        toggle_water_relay(relay);
+        update_water_button_visuals(true);
+    } else if (code == LV_EVENT_RELEASED || code == LV_EVENT_PRESS_LOST) {
+        water_press_start[slot] = 0;
+        if (code == LV_EVENT_PRESS_LOST) water_hold_triggered[slot] = false;
+    }
 }
 
 void ui_update_water_tab() {
@@ -141,6 +191,8 @@ void ui_water_reset() {
     lbl_drain = NULL;
     last_pump_state = -1;
     last_drain_state = -1;
+    water_press_start[0] = water_press_start[1] = 0;
+    water_hold_triggered[0] = water_hold_triggered[1] = false;
 }
 
 void ui_build_water(lv_obj_t *parent) {
@@ -251,9 +303,7 @@ void ui_build_water(lv_obj_t *parent) {
         lv_obj_set_style_text_align(lbl_pump, LV_TEXT_ALIGN_CENTER, 0);
         lv_obj_center(lbl_pump);
 
-        lv_obj_add_event_cb(btn_pump, [](lv_event_t * e) {
-            on_pump_click();
-        }, LV_EVENT_CLICKED, NULL);
+        lv_obj_add_event_cb(btn_pump, water_btn_event_cb, LV_EVENT_ALL, (void*)(intptr_t)0);
 
         btn_drain = lv_btn_create(parent);
         lv_obj_set_size(btn_drain, 214, 64);
@@ -268,10 +318,7 @@ void ui_build_water(lv_obj_t *parent) {
         lv_obj_set_style_text_align(lbl_drain, LV_TEXT_ALIGN_CENTER, 0);
         lv_obj_center(lbl_drain);
 
-        lv_obj_add_event_cb(btn_drain, [](lv_event_t * e) {
-            toggle_water_relay(state.drain_relay);
-            update_water_button_visuals();
-        }, LV_EVENT_CLICKED, NULL);
+        lv_obj_add_event_cb(btn_drain, water_btn_event_cb, LV_EVENT_ALL, (void*)(intptr_t)1);
 
     } else if (has_pump) {
         // Only pump button (440px wide, centered)
@@ -288,9 +335,7 @@ void ui_build_water(lv_obj_t *parent) {
         lv_obj_set_style_text_align(lbl_pump, LV_TEXT_ALIGN_CENTER, 0);
         lv_obj_center(lbl_pump);
 
-        lv_obj_add_event_cb(btn_pump, [](lv_event_t * e) {
-            on_pump_click();
-        }, LV_EVENT_CLICKED, NULL);
+        lv_obj_add_event_cb(btn_pump, water_btn_event_cb, LV_EVENT_ALL, (void*)(intptr_t)0);
 
     } else if (has_drain) {
         // Only drain button (440px wide, centered)
@@ -307,10 +352,7 @@ void ui_build_water(lv_obj_t *parent) {
         lv_obj_set_style_text_align(lbl_drain, LV_TEXT_ALIGN_CENTER, 0);
         lv_obj_center(lbl_drain);
 
-        lv_obj_add_event_cb(btn_drain, [](lv_event_t * e) {
-            toggle_water_relay(state.drain_relay);
-            update_water_button_visuals();
-        }, LV_EVENT_CLICKED, NULL);
+        lv_obj_add_event_cb(btn_drain, water_btn_event_cb, LV_EVENT_ALL, (void*)(intptr_t)1);
     }
 
     last_pump_state = -1;

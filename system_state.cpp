@@ -252,7 +252,9 @@ state.display_brightness = prefs.getInt("disp_bright", 100);
     }
 
     for (int i = 0; i < TEMP_SOURCE_COUNT; ++i) {
-        state.temp_sensors[i] = 0; state.temp_is_humidity[i] = false;
+        state.temp_sensors[i] = 0;
+        state.temp_humidity[i] = 0.0f;
+        state.temp_is_humidity[i] = false;
         if (i >= 4) state.temp_sensor_names[i] = "Ruuvi " + String(i - 4);
     }
     state.indoor_temp = 0.0f;
