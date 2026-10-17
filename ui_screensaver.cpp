@@ -18,8 +18,13 @@ uint8_t ui_screensaver_brightness_to_pwm(int brightness_pct) {
     // ST7701S backlight on CH32V003 IO expander:
     // Inverted PWM (255 = 0% duty / off, 0 = 100% duty / full brightness).
     // Hardware boost converter cuts out below ~10% duty (PWM > 230), turning backlight off.
-    // Map user range 1%..100% smoothly across stable visible hardware range [230 .. 0]:
-    return (uint8_t)(230 - ((b - 1) * 230 / 99));
+    // Use a perceptual curve (50% linear + 50% quadratic) across [230 .. 0] so mid-high
+    // settings save significantly more current without losing perceived contrast.
+    uint32_t norm = (uint32_t)(b - 1); // 0..99
+    uint32_t lin_part = norm * 99U;    // 0..9801
+    uint32_t quad_part = norm * norm;  // 0..9801
+    uint32_t curved = (lin_part + quad_part) / 2U; // 0..9801
+    return (uint8_t)(230U - (curved * 230U / 9801U));
 }
 
 void ui_screensaver_init() {
@@ -135,7 +140,7 @@ void ui_screensaver_exit() {
     }
 
     // Restore user-configured brightness only after the screen has redrawn without screensaver
-    uint8_t pwm = 255 - (state.display_brightness * 255 / 100);
+    uint8_t pwm = ui_screensaver_brightness_to_pwm(state.display_brightness);
     WS_CH32_IO::setPwm(Wire, pwm);
     lv_disp_trig_activity(nullptr);
     USBSerial.println("[SCREENSAVER] Deactivated (brightness restored)");

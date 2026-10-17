@@ -1,5 +1,6 @@
 #include "http_handler.h"
 #include "ui_main.h"
+#include "ui_screensaver.h"
 #include "maxxfan_client.h"
 #include "relay_click_filter.h"
 #include <math.h>
@@ -778,6 +779,7 @@ static int shore_404_count = 0;
 static int shore_fail_count = 0;
 
 static void fetch_shore_data() {
+    if (!state.power_show_shore || shore_404_count >= 3) return;
     if (WiFi.status() != WL_CONNECTED || state.vanpi_ip.length() < 7) return;
 
     HTTPClient http;
@@ -829,6 +831,7 @@ static int booster_404_count = 0;
 static int booster_fail_count = 0;
 
 static void fetch_booster_data() {
+    if (!state.power_show_alt || booster_404_count >= 3) return;
     if (WiFi.status() != WL_CONNECTED || state.vanpi_ip.length() < 7) return;
 
     HTTPClient http;
@@ -877,6 +880,7 @@ void http_loop() {
     state.wifi_rssi = state.wifi_connected ? WiFi.RSSI() : 0;
     static bool demo_relays_seeded = false;
     static bool demo_dimmers_seeded = false;
+    static uint32_t last_uart_log_ms = 0;
     if (state.data_is_demo != state.debug_mode) {
         state.battery_fields = state.solar_fields = state.temp_fields = state.tank_fields = 0;
         state.relay_fields = state.dimmer_fields = 0;
@@ -896,17 +900,20 @@ void http_loop() {
             state.switch_state[i] = false; state.dimmer_val[i] = 0;
         }
         demo_relays_seeded = demo_dimmers_seeded = false;
+        shore_404_count = booster_404_count = 0;
         poll_step = 0;
         last_http_poll = 0;
         state.vanpi_connected = false;
         state.data_is_demo = state.debug_mode;
     }
+
+    const bool low_power_poll = !display_is_on || ui_screensaver_is_active();
     // =========================================================================
     // Simulation / Debug Mode: Use realistic dummy JSON payloads with strings
     // =========================================================================
     if (state.debug_mode) {
-
-        if (millis() - last_http_poll > 500) {
+        uint32_t demo_interval = low_power_poll ? 2500UL : 500UL;
+        if (millis() - last_http_poll > demo_interval) {
             switch (poll_step) {
                 case 0: {
                     // String-encoded float/int values with all energy producers simulated
@@ -1020,8 +1027,8 @@ void http_loop() {
                 }
             }
 
-            // Print UART diagnostic line on every full cycle for validation
-            if (poll_step == 7) {
+            if (poll_step == 7 && !low_power_poll && (millis() - last_uart_log_ms >= 60000UL)) {
+                last_uart_log_ms = millis();
                 Serial.printf("[CAMPER_UART] Batt: %.2fV, %.2fA, %d%% | Solar: %.1fW | TempIn: %.1fC, Out: %.1fC | Level: Pitch=%.1f°, Roll=%.1f°\n",
                               state.bat_voltage, state.bat_current, state.bat_soc,
                               state.solar_power,
@@ -1053,12 +1060,21 @@ void http_loop() {
     }
 
     static uint32_t last_level_fast_poll = 0;
-    if (ui_is_level_tab_active() && millis() - last_level_fast_poll >= 400) {
+    if (!low_power_poll && ui_is_level_tab_active() && millis() - last_level_fast_poll >= 400) {
         last_level_fast_poll = millis();
         fetch_endpoint("/position_sensor/?request=true", parse_position_json);
     }
 
-    if (millis() - last_http_poll > (ui_is_level_tab_active() ? 1000UL : 500UL)) {
+    uint32_t poll_interval_ms = low_power_poll ? 2500UL : (ui_is_level_tab_active() ? 1000UL : 500UL);
+    if (millis() - last_http_poll > poll_interval_ms) {
+        // When display is completely off, skip UI-only endpoints (/relay, /dimmer, /level, /position_sensor, /wrelay)
+        // and only poll endpoints needed for background history, heater status, or clock sync.
+        if (!display_is_on) {
+            while (poll_step == 1 || poll_step == 2 || poll_step == 3 || poll_step == 7 || poll_step == 8) {
+                poll_step++;
+            }
+        }
+
         switch (poll_step) {
             case 0: fetch_endpoint("/batt",    parse_batt_json);    break;
             case 1: fetch_endpoint("/relay",   parse_relay_json);   break;
@@ -1092,7 +1108,8 @@ void http_loop() {
                 break;
         }
 
-        if (poll_step == 7) {
+        if (poll_step == 7 && !low_power_poll && (millis() - last_uart_log_ms >= 60000UL)) {
+            last_uart_log_ms = millis();
             Serial.printf("[CAMPER_UART] Batt: %.2fV, %.2fA, %d%% | Solar: %.1fW | TempIn: %.1fC | Level: Pitch=%.1f°, Roll=%.1f°\n",
                           state.bat_voltage, state.bat_current, state.bat_soc,
                           state.solar_power,
@@ -1226,7 +1243,8 @@ static void http_background_task(void *pvParameters) {
         http_loop();
 
         // Short sleep so other Core 0 tasks (WiFi driver, idle) get time
-        vTaskDelay(pdMS_TO_TICKS(15));
+        uint32_t worker_sleep_ms = (!display_is_on || ui_screensaver_is_active()) ? 50 : 15;
+        vTaskDelay(pdMS_TO_TICKS(worker_sleep_ms));
     }
 }
 

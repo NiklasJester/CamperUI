@@ -60,7 +60,7 @@ void wifi_connect_configured() {
     last_reconnect_attempt.store(now);
     WiFi.persistent(false);
     WiFi.mode(WIFI_STA);
-    WiFi.setSleep(false);
+    WiFi.setSleep(true);
     WiFi.setAutoReconnect(true);
     WiFi.setHostname("esp32s3-camper-ui");
     if (state.wifi_ssid.isEmpty()) return;

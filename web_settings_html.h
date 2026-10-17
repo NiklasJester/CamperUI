@@ -633,16 +633,6 @@ static const char SETTINGS_HTML[] PROGMEM = R"rawliteral(
           </div>
           <div class="toggle-row">
             <div class="toggle-info">
-              <div class="toggle-title">Touch-Ton (Buzzer)</div>
-              <div class="toggle-desc">Akustisches Feedback bei Fingertipp</div>
-            </div>
-            <label class="switch">
-              <input type="checkbox" id="buzzer_enabled">
-              <span class="slider"></span>
-            </label>
-          </div>
-          <div class="toggle-row">
-            <div class="toggle-info">
               <div class="toggle-title">Demo / Simulation</div>
               <div class="toggle-desc">Generiert Testdaten ohne VanPi-Verbindung</div>
             </div>
@@ -1100,7 +1090,7 @@ static const char SETTINGS_HTML[] PROGMEM = R"rawliteral(
       fetch('/api/settings')
         .then(r => r.json())
         .then(data => {
-          document.getElementById('badgeVer').innerText = data.version || 'V1.7.1';
+          document.getElementById('badgeVer').innerText = data.version || 'V1.8.0';
           
           // Network
           document.getElementById('wifi_ssid').value = data.wifi_ssid || '';
@@ -1109,7 +1099,6 @@ static const char SETTINGS_HTML[] PROGMEM = R"rawliteral(
 
           // Display
           document.getElementById('dark_mode').checked = !!data.dark_mode;
-          document.getElementById('buzzer_enabled').checked = !!data.buzzer_enabled;
           document.getElementById('debug_mode').checked = !!data.debug_mode;
           document.getElementById('display_brightness').value = data.display_brightness || 80;
           document.getElementById('val_bright').innerText = (data.display_brightness || 80) + '%';
@@ -1439,7 +1428,6 @@ static const char SETTINGS_HTML[] PROGMEM = R"rawliteral(
         vanpi_ip: document.getElementById('vanpi_ip').value,
 
         dark_mode: document.getElementById('dark_mode').checked,
-        buzzer_enabled: document.getElementById('buzzer_enabled').checked,
         debug_mode: document.getElementById('debug_mode').checked,
         display_brightness: parseInt(document.getElementById('display_brightness').value),
         display_timeout: parseInt(document.getElementById('display_timeout').value),

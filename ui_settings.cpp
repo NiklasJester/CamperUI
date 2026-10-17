@@ -347,7 +347,7 @@ void ui_update_settings_tab() {
 static void ta_event_cb(lv_event_t * e) {
     lv_event_code_t code = lv_event_get_code(e);
     lv_obj_t * ta = lv_event_get_target(e);
-    if(code == LV_EVENT_FOCUSED || code == LV_EVENT_CLICKED) {
+    if(code == LV_EVENT_CLICKED) {
         lv_keyboard_set_textarea(kb, ta);
         lv_obj_clear_flag(kb, LV_OBJ_FLAG_HIDDEN);
         lv_obj_move_foreground(kb); // Bring keyboard to front
@@ -636,6 +636,9 @@ void ui_settings_screen_init() {
     lv_obj_set_size(tv, 480, 416); // Leaves space at bottom for the Save button
     lv_obj_align(tv, LV_ALIGN_TOP_MID, 0, 0);
     lv_obj_clear_flag(tv, LV_OBJ_FLAG_SCROLLABLE);
+    if (lv_tabview_get_content(tv)) {
+        lv_obj_clear_flag(lv_tabview_get_content(tv), LV_OBJ_FLAG_SCROLLABLE);
+    }
     
     lv_obj_t *t_net  = lv_tabview_add_tab(tv, MDI_WIFI);
     lv_obj_t *t_gen  = lv_tabview_add_tab(tv, MDI_COG);
@@ -645,6 +648,13 @@ void ui_settings_screen_init() {
     victron_settings_index = lv_obj_get_child_cnt(lv_tabview_get_content(tv));
     lv_obj_t *t_gx = lv_tabview_add_tab(tv, "VE");
     ui_victron_settings_build(t_gx, ta_event_cb);
+
+    lv_obj_t *scroll_tabs[] = {t_net, t_vis, t_val, t_alm, t_gx};
+    for (lv_obj_t *st : scroll_tabs) {
+        if (!st) continue;
+        lv_obj_add_flag(st, LV_OBJ_FLAG_SCROLL_MOMENTUM);
+        lv_obj_clear_flag(st, LV_OBJ_FLAG_SCROLL_ELASTIC | LV_OBJ_FLAG_SCROLL_CHAIN_HOR);
+    }
 
     lv_obj_t *tab_btns = lv_tabview_get_tab_btns(tv);
     if (tab_btns) {
@@ -796,13 +806,20 @@ void ui_settings_screen_init() {
     lv_slider_set_value(sl_bri, state.display_brightness, LV_ANIM_OFF);
     lv_obj_set_size(sl_bri, 125, 20);
     lv_obj_align(sl_bri, LV_ALIGN_TOP_LEFT, 85, 30);
+    lv_obj_clear_flag(sl_bri, LV_OBJ_FLAG_SCROLL_ON_FOCUS);
     lv_obj_add_event_cb(sl_bri, [](lv_event_t * e) {
+        static uint8_t last_pwm = 255;
         lv_obj_t *slider = lv_event_get_target(e);
         state.display_brightness = lv_slider_get_value(slider);
-        uint8_t pwm = 255 - (state.display_brightness * 255 / 100);
-        WS_CH32_IO::setPwm(Wire, pwm);
-        state_save();
+        uint8_t pwm = ui_screensaver_brightness_to_pwm(state.display_brightness);
+        if (pwm != last_pwm) {
+            last_pwm = pwm;
+            WS_CH32_IO::setPwm(Wire, pwm);
+        }
     }, LV_EVENT_VALUE_CHANGED, NULL);
+    lv_obj_add_event_cb(sl_bri, [](lv_event_t * e) {
+        state_save();
+    }, LV_EVENT_RELEASED, NULL);
     
     // Dunkler Modus Row
     lv_obj_t *sw_theme = lv_switch_create(t_gen);
@@ -876,9 +893,9 @@ void ui_settings_screen_init() {
     lv_obj_set_style_text_font(l_reboot, &lv_font_montserrat_16, 0);
     lv_obj_center(l_reboot);
 
-    // Right Column: Navigation & Touch
+    // Right Column: Navigation & Screensaver
     lv_obj_t *l_ui_sec = lv_label_create(t_gen);
-    lv_label_set_text(l_ui_sec, "Navigation & Feedback");
+    lv_label_set_text(l_ui_sec, "Navigation & Schoner");
     lv_obj_set_style_text_font(l_ui_sec, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(l_ui_sec, lv_color_hex(UI_COLOR_PRIMARY), 0);
     lv_obj_align(l_ui_sec, LV_ALIGN_TOP_LEFT, 230, 0);
@@ -893,26 +910,11 @@ void ui_settings_screen_init() {
     lv_obj_set_style_text_font(lbl_nav_m, &lv_font_montserrat_14, 0);
     lv_obj_center(lbl_nav_m);
 
-    // Buzzer Feedback Switch
-    lv_obj_t *sw_buzzer = lv_switch_create(t_gen);
-    lv_obj_set_size(sw_buzzer, 48, 26);
-    if(state.buzzer_enabled) lv_obj_add_state(sw_buzzer, LV_STATE_CHECKED);
-    lv_obj_align(sw_buzzer, LV_ALIGN_TOP_LEFT, 230, 90);
-    lv_obj_add_event_cb(sw_buzzer, [](lv_event_t * e) {
-        lv_obj_t *sw = lv_event_get_target(e);
-        state.buzzer_enabled = lv_obj_has_state(sw, LV_STATE_CHECKED);
-        state_save();
-    }, LV_EVENT_VALUE_CHANGED, NULL);
-    lv_obj_t *l_buzzer = lv_label_create(t_gen);
-    lv_label_set_text(l_buzzer, "Touch-Ton");
-    lv_obj_set_style_text_font(l_buzzer, &lv_font_montserrat_14, 0);
-    lv_obj_align(l_buzzer, LV_ALIGN_TOP_LEFT, 288, 94);
-
     // Screensaver Switch
     lv_obj_t *sw_scrsave = lv_switch_create(t_gen);
     lv_obj_set_size(sw_scrsave, 48, 26);
     if(state.screensaver_enabled) lv_obj_add_state(sw_scrsave, LV_STATE_CHECKED);
-    lv_obj_align(sw_scrsave, LV_ALIGN_TOP_LEFT, 230, 130);
+    lv_obj_align(sw_scrsave, LV_ALIGN_TOP_LEFT, 230, 90);
     lv_obj_add_event_cb(sw_scrsave, [](lv_event_t * e) {
         lv_obj_t *sw = lv_event_get_target(e);
         state.screensaver_enabled = lv_obj_has_state(sw, LV_STATE_CHECKED);
@@ -921,19 +923,20 @@ void ui_settings_screen_init() {
     lv_obj_t *l_scrsave = lv_label_create(t_gen);
     lv_label_set_text(l_scrsave, "Screensaver");
     lv_obj_set_style_text_font(l_scrsave, &lv_font_montserrat_14, 0);
-    lv_obj_align(l_scrsave, LV_ALIGN_TOP_LEFT, 288, 134);
+    lv_obj_align(l_scrsave, LV_ALIGN_TOP_LEFT, 288, 94);
 
     // Screensaver Brightness
     lv_obj_t *l_scrsave_bri = lv_label_create(t_gen);
     lv_label_set_text_fmt(l_scrsave_bri, "Schoner: %d%%", state.screensaver_brightness);
     lv_obj_set_style_text_font(l_scrsave_bri, &lv_font_montserrat_14, 0);
-    lv_obj_align(l_scrsave_bri, LV_ALIGN_TOP_LEFT, 230, 168);
+    lv_obj_align(l_scrsave_bri, LV_ALIGN_TOP_LEFT, 230, 132);
 
     lv_obj_t *sl_scrsave_bri = lv_slider_create(t_gen);
     lv_slider_set_range(sl_scrsave_bri, 1, 100);
     lv_slider_set_value(sl_scrsave_bri, state.screensaver_brightness, LV_ANIM_OFF);
     lv_obj_set_size(sl_scrsave_bri, 115, 20);
-    lv_obj_align(sl_scrsave_bri, LV_ALIGN_TOP_LEFT, 325, 168);
+    lv_obj_align(sl_scrsave_bri, LV_ALIGN_TOP_LEFT, 325, 132);
+    lv_obj_clear_flag(sl_scrsave_bri, LV_OBJ_FLAG_SCROLL_ON_FOCUS);
     lv_obj_set_user_data(sl_scrsave_bri, l_scrsave_bri);
     lv_obj_add_event_cb(sl_scrsave_bri, [](lv_event_t * e) {
         lv_obj_t *slider = lv_event_get_target(e);
@@ -943,8 +946,10 @@ void ui_settings_screen_init() {
         if (ui_screensaver_is_active()) {
             WS_CH32_IO::setPwm(Wire, ui_screensaver_brightness_to_pwm(state.screensaver_brightness));
         }
-        state_save();
     }, LV_EVENT_VALUE_CHANGED, NULL);
+    lv_obj_add_event_cb(sl_scrsave_bri, [](lv_event_t * e) {
+        state_save();
+    }, LV_EVENT_RELEASED, NULL);
     
     // ==========================================
     // TAB 3: SICHTBARKEIT (ANZEIGE - GROSSE TOGGLE SWITCHES)

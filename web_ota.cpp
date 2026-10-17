@@ -12,11 +12,12 @@
 #include "debug_log.h"
 #include "web_terminal_html.h"
 #include "web_settings.h"
+#include "ui_screensaver.h"
 
 extern TwoWire Wire;
 
 static void web_ota_restore_backlight() {
-    uint8_t pwm = 255 - (state.display_brightness * 255 / 100);
+    uint8_t pwm = ui_screensaver_brightness_to_pwm(state.display_brightness);
     WS_CH32_IO::setPwm(Wire, pwm);
 }
 
@@ -417,6 +418,7 @@ void web_ota_init() {
         HTTPUpload& upload = server.upload();
         if (upload.status == UPLOAD_FILE_START) {
             Serial.printf("[WEB-OTA] Update Start: %s\n", upload.filename.c_str());
+            WiFi.setSleep(false);
             is_updating = true;
             // Keep the panel lit. CH32 PWM survives an ESP-only reset.
             upload_finished = false; restart_at = 0;
@@ -431,6 +433,7 @@ void web_ota_init() {
                 Update.printError(Serial);
                 update_status = "Fehler: " + String(Update.errorString());
                 state.web_ota_msg = update_status;
+                WiFi.setSleep(true);
                 web_ota_restore_backlight();
             }
         } else if (upload.status == UPLOAD_FILE_WRITE) {
@@ -439,6 +442,7 @@ void web_ota_init() {
                 Update.printError(Serial);
                 update_status = "Schreibfehler!";
                 state.web_ota_msg = update_status;
+                WiFi.setSleep(true);
                 web_ota_restore_backlight();
             } else {
                 size_t total_len = server.header("Content-Length").toInt();
@@ -463,6 +467,7 @@ void web_ota_init() {
                 is_updating = false;
                 update_status = "Fehler beim Abschluss";
                 state.web_ota_msg = update_status;
+                WiFi.setSleep(true);
                 web_ota_restore_backlight();
             }
         } else if (upload.status == UPLOAD_FILE_ABORTED) {
@@ -472,6 +477,7 @@ void web_ota_init() {
             state.web_ota_active = false;
             update_status = "Abgebrochen";
             state.web_ota_msg = update_status;
+            WiFi.setSleep(true);
             web_ota_restore_backlight();
         }
     });

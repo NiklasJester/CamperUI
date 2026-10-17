@@ -80,7 +80,7 @@ void state_init() {
     state.vanpi_ip = prefs.getString("vanpi_ip", "100.80.161.23");
 
     
-state.display_brightness = prefs.getInt("disp_bright", 100);
+    state.display_brightness = prefs.getInt("disp_bright", 80);
     if (state.display_brightness > 100) state.display_brightness = 100;
     
     state.display_timeout = prefs.getInt("disp_timeout", 30);
@@ -328,6 +328,19 @@ state.display_brightness = prefs.getInt("disp_bright", 100);
     state.web_ota_msg = "Bereit";
 }
 
+static void put_string_if_changed(const char *key, const String &val) {
+    if (prefs.getString(key, "\x01") != val) {
+        prefs.putString(key, val);
+    }
+}
+
+static void put_bytes_if_changed(const char *key, const void *buf, size_t len) {
+    uint8_t cur[32];
+    if (len > sizeof(cur) || prefs.getBytes(key, cur, len) != len || memcmp(cur, buf, len) != 0) {
+        prefs.putBytes(key, buf, len);
+    }
+}
+
 void state_save() {
     victron_settings_changed();
     StateLockGuard lock;
@@ -348,22 +361,22 @@ void state_save() {
     prefs.putBool("gx_ka", state.victron_keepalive);
     prefs.putBool("gx_starter", state.victron_starter);
     prefs.putInt("gx_bat_inst", state.victron_battery_instance);
-    prefs.putString("gx_host", state.victron_host);
-    prefs.putString("gx_portal", state.victron_portal);
+    put_string_if_changed("gx_host", state.victron_host);
+    put_string_if_changed("gx_portal", state.victron_portal);
     prefs.putUInt("gx_port", state.victron_port);
     prefs.putInt("gx_inst", state.victron_instance);
-    prefs.putString("gx_user", state.victron_user);
-    prefs.putString("gx_pass", state.victron_password);
-    prefs.putString("gx_r0", state.victron_relay_names[0]);
-    prefs.putString("gx_r1", state.victron_relay_names[1]);
+    put_string_if_changed("gx_user", state.victron_user);
+    put_string_if_changed("gx_pass", state.victron_password);
+    put_string_if_changed("gx_r0", state.victron_relay_names[0]);
+    put_string_if_changed("gx_r1", state.victron_relay_names[1]);
     prefs.putInt("home_tank", state.home_water_source);
     prefs.putBool("pwr_solar", state.power_show_solar);
     prefs.putBool("pwr_shore", state.power_show_shore);
     prefs.putBool("pwr_alt", state.power_show_alt);
     prefs.putBool("pwr_calcload", state.power_calc_load);
-    prefs.putString("wifi_ssid", state.wifi_ssid);
-    prefs.putString("wifi_pass", state.wifi_pass);
-    prefs.putString("vanpi_ip", state.vanpi_ip);
+    put_string_if_changed("wifi_ssid", state.wifi_ssid);
+    put_string_if_changed("wifi_pass", state.wifi_pass);
+    put_string_if_changed("vanpi_ip", state.vanpi_ip);
     prefs.putInt("disp_bright", state.display_brightness);
     prefs.putInt("disp_timeout", state.display_timeout);
     prefs.putInt("disp_rot", state.display_rotation);
@@ -388,8 +401,8 @@ void state_save() {
     prefs.putInt("t_cust0", state.temps_custom_sensor[0]);
     prefs.putInt("t_cust1", state.temps_custom_sensor[1]);
     prefs.putInt("t_win", state.temps_history_window);
-    prefs.putBytes("tab_order", state.tab_order, sizeof(state.tab_order));
-    prefs.putBytes("tab_en", state.tab_enabled, sizeof(state.tab_enabled));
+    put_bytes_if_changed("tab_order", state.tab_order, sizeof(state.tab_order));
+    put_bytes_if_changed("tab_en", state.tab_enabled, sizeof(state.tab_enabled));
 
     prefs.putInt("tank_cnt", state.tank_count);
     prefs.putBool("tank_liters", state.tank_show_liters);
@@ -401,7 +414,7 @@ void state_save() {
         sprintf(key_un, "tank%d_un", i);
         prefs.putInt(key_max, state.tank_max[i]);
         prefs.putBool(key_en, state.tank_enabled[i]);
-        prefs.putString(key_nm, state.tank_names[i]);
+        put_string_if_changed(key_nm, state.tank_names[i]);
         prefs.putInt(key_un, state.tank_unit[i]);
     }
     
@@ -412,8 +425,8 @@ void state_save() {
         sprintf(key_dim, "dim%d_nm", i);
         sprintf(key_sw_vis, "sw%d_vis", i);
         sprintf(key_dim_vis, "dim%d_vis", i);
-        prefs.putString(key_sw, state.switch_names[i]);
-        prefs.putString(key_dim, state.dimmer_names[i]);
+        put_string_if_changed(key_sw, state.switch_names[i]);
+        put_string_if_changed(key_dim, state.dimmer_names[i]);
         prefs.putBool(key_sw_vis, state.switch_visible[i]);
         prefs.putBool(key_dim_vis, state.dimmer_visible[i]);
     }
@@ -431,10 +444,9 @@ void state_save() {
         char key_w_nm[16], key_w_vis[16];
         sprintf(key_w_nm, "wr%d_nm", i);
         sprintf(key_w_vis, "wr%d_vis", i);
-        prefs.putString(key_w_nm, state.wrelay_names[i]);
+        put_string_if_changed(key_w_nm, state.wrelay_names[i]);
         prefs.putBool(key_w_vis, state.wrelay_visible[i]);
     }
-
 
     display_request_resync();
 }
@@ -446,6 +458,7 @@ void state_set_switch_locked(int idx, bool locked) {
     char key[16];
     snprintf(key, sizeof(key), "sw%d_lock", idx);
     prefs.putBool(key, locked);
+    display_request_resync();
 }
 
 void state_set_wrelay_locked(int idx, bool locked) {
@@ -455,5 +468,6 @@ void state_set_wrelay_locked(int idx, bool locked) {
     char key[16];
     snprintf(key, sizeof(key), "wr%d_lock", idx);
     prefs.putBool(key, locked);
+    display_request_resync();
 }
 

@@ -43,6 +43,45 @@ bool CamperRGBPanel::begin(int32_t speed)
   return true;
 }
 
+#if (defined(ESP_ARDUINO_VERSION_MAJOR)) && (ESP_ARDUINO_VERSION_MAJOR >= 3)
+static volatile bool s_force_bb_resync = false;
+
+// In ESP-IDF 5.x (Arduino ESP32 3.3.x), rgb_lcd_default_isr_handler resets GDMA to
+// bounce_buffer[0] on VSYNC without resetting bb_eof_count (offset 0x128) or forcing
+// bounce_pos_px (offset 0x124) to 0 when bounce_pos_px == 9600 (1 missed EOF).
+// If any Flash/PSRAM/IRQ stall ever delays a single GDMA bounce-buffer EOF interrupt,
+// bb_eof_count becomes odd at VSYNC, permanently swapping bounce_buffer[0] and [1]
+// (which shifts the entire display down by 20-40 lines with bottom wrapping to top).
+// This VSYNC callback runs inside rgb_lcd_default_isr_handler right before its restart
+// check and guarantees bounce_pos_px and bb_eof_count stay in 100% lockstep with VSYNC.
+static bool IRAM_ATTR rgb_vsync_bounce_guard_cb(esp_lcd_panel_handle_t panel,
+                                                const esp_lcd_rgb_panel_event_data_t *edata,
+                                                void *user_ctx)
+{
+  (void)edata;
+  (void)user_ctx;
+  uint8_t *raw = (uint8_t *)panel;
+  uint32_t bb_bytes = *(volatile uint32_t *)(raw + 0x88); // bounce_buffer_size_bytes (19200)
+  if (bb_bytes > 0)
+  {
+    volatile uint32_t *p_bounce_pos_px = (volatile uint32_t *)(raw + 0x124);
+    volatile uint32_t *p_bb_eof_count  = (volatile uint32_t *)(raw + 0x128);
+    // 2 bounce buffers of (bb_bytes / 2) pixels = bb_bytes pixels (19200) pre-filled at VSYNC
+    if (s_force_bb_resync || *p_bounce_pos_px != bb_bytes || (*p_bb_eof_count & 1U) != 0U)
+    {
+      s_force_bb_resync = false;
+      *p_bounce_pos_px = 0;
+      *p_bb_eof_count = 0;
+    }
+    else
+    {
+      *p_bb_eof_count = 0;
+    }
+  }
+  return false;
+}
+#endif
+
 uint16_t *CamperRGBPanel::getFrameBuffer(int16_t w, int16_t h)
 {
   esp_lcd_rgb_panel_config_t panel_config = {
@@ -135,6 +174,12 @@ uint16_t *CamperRGBPanel::getFrameBuffer(int16_t w, int16_t h)
 
   ESP_ERROR_CHECK(esp_lcd_new_rgb_panel(&panel_config, &_panel_handle));
 
+#if (defined(ESP_ARDUINO_VERSION_MAJOR)) && (ESP_ARDUINO_VERSION_MAJOR >= 3)
+  esp_lcd_rgb_panel_event_callbacks_t cbs = {};
+  cbs.on_vsync = rgb_vsync_bounce_guard_cb;
+  ESP_ERROR_CHECK(esp_lcd_rgb_panel_register_event_callbacks(_panel_handle, &cbs, this));
+#endif
+
   ESP_ERROR_CHECK(esp_lcd_panel_reset(_panel_handle));
   ESP_ERROR_CHECK(esp_lcd_panel_init(_panel_handle));
 
@@ -156,6 +201,9 @@ uint16_t *CamperRGBPanel::getFrameBuffer(int16_t w, int16_t h)
 #if defined(ESP32) && CONFIG_IDF_TARGET_ESP32S3
 esp_err_t CamperRGBPanel::restartTransmission() {
   if (!_panel_handle) return ESP_ERR_INVALID_STATE;
+#if (defined(ESP_ARDUINO_VERSION_MAJOR)) && (ESP_ARDUINO_VERSION_MAJOR >= 3)
+  s_force_bb_resync = true;
+#endif
   return esp_lcd_rgb_panel_restart(_panel_handle);
 }
 #endif

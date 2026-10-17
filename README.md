@@ -75,10 +75,10 @@
 * **Integrierter Debug-Modus:** Simuliert realistische Sensordaten per Knopfdruck – ideal zum Testen ohne Fahrzeug.
 * **VanPi Tailscale Gateway:** Teste das Display live am Schreibtisch über deinen PC via Tailscale, auch wenn der Camper weit entfernt steht (siehe [Gateway-Anleitung](tools/vanpi_gateway/README.md)).
 
-### 9. 🔊 Haptisches Feedback (Touch-Ton)
-* **Onboard-Buzzer Anbindung:** Akustische Rückmeldung für Berührungen und Tastendrücke über den hardwareseitigen Piezo-Buzzer des Displays.
-* **Präziser 3-ms Klick:** Extrem kurzer Mikrosekunden-Impuls erzeugt ein dezentes mechanisches "Tick"-Geräusch statt eines störenden Piepens.
-* **In den Einstellungen konfigurierbar:** Unter *Einstellungen → Allgemein* per Schalter ("Touch-Ton") jederzeit an- und abschaltbar.
+### 9. 🔋 Intelligentes Energiemanagement & Smartphone-Scrolling
+* **Über 50 % weniger Eigenverbrauch (~17–18 Wh bzw. ~1,4 Ah Ersparnis pro Tag):** Durch mehrstufiges Power-Management (WiFi Modem-Sleep, ST7701S Hardware-Panel-Sleep im Standby, adaptives HTTP-Polling und wahrnehmungslineare Backlight-Kurve) sinkt der Standby-Verbrauch von ~1,22 W auf ~0,50 W.
+* **Smartphone-Momentum-Scrolling:** Alle Listen (Dimmer, Relais, Einstellungen, Navigationsleiste) lassen sich flüssig „anschieben" und gleiten sanft aus; ein einzelnes Antippen stoppt die Bewegung sofort, ohne versehentlich Schalter auszulösen.
+* **Hardware-VSYNC-Schutz:** Ein IRAM-basierter VSYNC-Bounce-Buffer-Guard verhindert dauerhaft vertikale Bildverschiebungen des RGB-Panels.
 
 ### 10. 📟 Web-Terminal & Live Debug-Monitor
 * **Drahtlose Fehlerdiagnose:** Vollständiger Zugriff auf serielle Meldungen und Debug-Logs direkt im Browser unter `http://<IP>/status` – ohne USB-Kabel.

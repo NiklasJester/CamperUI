@@ -461,7 +461,8 @@ void ui_init() {
         lv_obj_set_style_border_width(pages[i], 0, 0);
         lv_obj_set_style_bg_opa(pages[i], LV_OPA_TRANSP, 0);
         lv_obj_set_scroll_dir(pages[i], LV_DIR_VER);
-        lv_obj_clear_flag(pages[i], LV_OBJ_FLAG_SCROLL_CHAIN_HOR);
+        lv_obj_add_flag(pages[i], LV_OBJ_FLAG_SCROLL_MOMENTUM);
+        lv_obj_clear_flag(pages[i], LV_OBJ_FLAG_SCROLL_CHAIN_HOR | LV_OBJ_FLAG_SCROLL_ELASTIC);
         lv_obj_add_flag(pages[i], LV_OBJ_FLAG_HIDDEN);
 
         if (i != TAB_HOME) {

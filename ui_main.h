@@ -5,7 +5,7 @@
 #include "system_state.h"
 #include "ui_mdi_icons.h"
 #include "ui_fonts.h"
-#define CAMPERUI_VERSION "v1.7.2"
+#define CAMPERUI_VERSION "v1.8.0"
 
 #if !LV_MEM_CUSTOM && LV_MEM_SIZE < (512U * 1024U)
 #error "CamperUI needs config/lv_conf.h: copy it to Arduino/libraries/lv_conf.h (LV_MEM_SIZE >= 512 KiB)."
@@ -102,7 +102,8 @@ static inline void ui_label_set_float(lv_obj_t *lbl, const char *fmt, float val)
 void ui_init();
 void ui_debug_navigation(const char *stage, bool force = false);
 
-// Hardware Touch State (defined in CamperUI.ino)
+// Hardware Touch & Display State (defined in CamperUI.ino)
+extern bool display_is_on;
 extern bool touch_is_pressed;
 extern bool ignore_touch_until_release;
 extern lv_point_t touch_last_point;

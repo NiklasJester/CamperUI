@@ -186,7 +186,6 @@ void ui_temps_reset(void) {
 static void card_clicked_cb(lv_event_t *e) {
     int idx = (int)(intptr_t)lv_event_get_user_data(e);
     if (idx >= 0 && idx < 4) {
-        buzzer_beep(3);
         plot_track_visible[idx] = !plot_track_visible[idx];
         last_rendered_hist_ver = 0xFFFFFFFF; // force curve re-render
         ui_update_temps_tab();

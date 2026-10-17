@@ -447,6 +447,7 @@ void ui_build_switches(lv_obj_t *parent) {
     lv_obj_set_style_pad_row(cont_sw, 12, 0);
     lv_obj_set_style_pad_column(cont_sw, 16, 0);
     lv_obj_set_style_flex_main_place(cont_sw, LV_FLEX_ALIGN_CENTER, 0);
+    lv_obj_clear_flag(cont_sw, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_align(cont_sw, LV_ALIGN_TOP_MID, 0, 0);
 
     for (int i = 0; i < 8; i++) {

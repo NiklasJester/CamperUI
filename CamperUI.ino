@@ -81,20 +81,56 @@ bool touch_input_enabled = true;
 bool touch_is_pressed = false;
 lv_point_t touch_last_point = {0, 0};
 
-// Feedback on valid touch interactions (buttons, switches, tabs)
-static void my_touchpad_feedback(lv_indev_drv_t *indev_driver, uint8_t event_code) {
-    if (event_code == LV_EVENT_CLICKED) {
-        buzzer_beep(3);
+static void st7701_panel_sleep(bool sleep) {
+    if (!bus) return;
+    if (sleep) {
+        bus->sendCommand(0x28); // Display Off
+        delay(20);
+        bus->sendCommand(0x10); // Sleep In
+    } else {
+        bus->sendCommand(0x11); // Sleep Out
+        delay(20);
+        bus->sendCommand(0x29); // Display On
     }
 }
 
+static lv_indev_t *touch_indev = nullptr;
+static bool momentum_coasting = false;
+
 // Read only fresh GT911 frames; retain a held touch between sensor updates.
 void my_touchpad_read(lv_indev_drv_t *, lv_indev_data_t *data) {
+    struct TouchSample {
+        int16_t x;
+        int16_t y;
+        uint32_t ms;
+    };
     static lv_point_t last_valid_point = {0, 0};
+    static TouchSample hist[5] = {};
+    static uint8_t hist_count = 0;
+    static uint8_t stationary_fresh_cnt = 0;
+    static uint32_t last_move_fresh_ms = 0;
+    static uint32_t last_coast_ms = 0;
+    static int32_t vel_x_q8 = 0;
+    static int32_t vel_y_q8 = 0;
+    static int32_t rem_x_q8 = 0;
+    static int32_t rem_y_q8 = 0;
+    static lv_dir_t saved_scroll_dir = LV_DIR_NONE;
+    static bool was_held = false;
+    static bool was_pressed = false;
     static TouchReleaseFilter release_filter;
+
+    lv_indev_t *indev = lv_indev_get_act();
+    if (!indev) indev = touch_indev;
+
     data->point = last_valid_point;
     if (!gt911_available || !touch_input_enabled) {
         release_filter.reset();
+        momentum_coasting = false;
+        vel_x_q8 = 0;
+        vel_y_q8 = 0;
+        hist_count = 0;
+        was_held = false;
+        was_pressed = false;
         data->state = LV_INDEV_STATE_REL;
         touch_is_pressed = false;
         return;
@@ -134,15 +170,186 @@ void my_touchpad_read(lv_indev_drv_t *, lv_indev_data_t *data) {
             } else if (!display_is_on) {
                 display_is_on = true;
                 ignore_touch_until_release = true;
-                WS_CH32_IO::setPwm(Wire, 255 - (state.display_brightness * 255 / 100));
+                st7701_panel_sleep(false);
+                WS_CH32_IO::setPwm(Wire, ui_screensaver_brightness_to_pwm(state.display_brightness));
                 lv_disp_trig_activity(nullptr);
             }
         }
     }
     bool held = release_filter.update(fresh, pressed, now);
     if (!held) ignore_touch_until_release = false;
+
+    if (momentum_coasting && (!indev || indev->proc.types.pointer.scroll_obj == nullptr)) {
+        momentum_coasting = false;
+        vel_x_q8 = 0;
+        vel_y_q8 = 0;
+    }
+
+    // Tap-to-stop: if a list/page is actively coasting and the user touches the screen,
+    // stop the momentum scroll immediately and swallow the click so no underlying control triggers.
+    if (!was_held && held && !ignore_touch_until_release && momentum_coasting &&
+        indev && indev->proc.types.pointer.scroll_obj != nullptr) {
+        momentum_coasting = false;
+        vel_x_q8 = 0;
+        vel_y_q8 = 0;
+        rem_x_q8 = 0;
+        rem_y_q8 = 0;
+        indev->proc.types.pointer.scroll_dir = saved_scroll_dir;
+        indev->proc.types.pointer.scroll_throw_vect.x = 0;
+        indev->proc.types.pointer.scroll_throw_vect.y = 0;
+        indev->proc.types.pointer.scroll_throw_vect_ori.x = 0;
+        indev->proc.types.pointer.scroll_throw_vect_ori.y = 0;
+        ignore_touch_until_release = true;
+        lv_disp_trig_activity(nullptr);
+    }
+
+    was_held = held;
     touch_is_pressed = held && !ignore_touch_until_release;
     data->state = touch_is_pressed ? LV_INDEV_STATE_PR : LV_INDEV_STATE_REL;
+
+    if (touch_is_pressed) {
+        if (!was_pressed) {
+            hist[0] = {last_valid_point.x, last_valid_point.y, now};
+            hist_count = 1;
+            stationary_fresh_cnt = 0;
+            last_move_fresh_ms = now;
+            vel_x_q8 = 0;
+            vel_y_q8 = 0;
+            rem_x_q8 = 0;
+            rem_y_q8 = 0;
+            momentum_coasting = false;
+        } else if (fresh && pressed) {
+            TouchSample & prev = hist[hist_count - 1];
+            int16_t dx = last_valid_point.x - prev.x;
+            int16_t dy = last_valid_point.y - prev.y;
+            if (dx != 0 || dy != 0) {
+                if (hist_count < 5) {
+                    hist[hist_count++] = {last_valid_point.x, last_valid_point.y, now};
+                } else {
+                    for (uint8_t i = 0; i < 4; ++i) hist[i] = hist[i + 1];
+                    hist[4] = {last_valid_point.x, last_valid_point.y, now};
+                }
+                stationary_fresh_cnt = 0;
+                last_move_fresh_ms = now;
+            } else {
+                stationary_fresh_cnt++;
+                // Only clear swipe history if user deliberately held finger still for >= 6 fresh frames AND > 180ms
+                if (stationary_fresh_cnt >= 6 && (now - last_move_fresh_ms > 180)) {
+                    hist[0] = {last_valid_point.x, last_valid_point.y, now};
+                    hist_count = 1;
+                }
+            }
+        }
+    } else if (was_pressed) {
+        // Finger just released: compute flick velocity from fresh touch history
+        lv_obj_t *scroll_obj = indev ? indev->proc.types.pointer.scroll_obj : nullptr;
+        lv_dir_t dir = indev ? indev->proc.types.pointer.scroll_dir : LV_DIR_NONE;
+        if (scroll_obj && lv_obj_has_flag(scroll_obj, LV_OBJ_FLAG_SCROLL_MOMENTUM) &&
+            hist_count >= 2 && stationary_fresh_cnt < 6) {
+            const TouchSample & newest = hist[hist_count - 1];
+            int32_t best_vx_q8 = 0;
+            int32_t best_vy_q8 = 0;
+            for (int i = (int)hist_count - 2; i >= 0; --i) {
+                uint32_t dt = newest.ms - hist[i].ms;
+                if (dt == 0) dt = 8;
+                if (dt > 220 && i < (int)hist_count - 2) break;
+                uint32_t clamped_dt = dt < 8 ? 8 : (dt > 180 ? 180 : dt);
+                int32_t vx = ((int32_t)(newest.x - hist[i].x) * 256 * 10) / (int32_t)clamped_dt;
+                int32_t vy = ((int32_t)(newest.y - hist[i].y) * 256 * 10) / (int32_t)clamped_dt;
+                if (abs(vx) > abs(best_vx_q8)) best_vx_q8 = vx;
+                if (abs(vy) > abs(best_vy_q8)) best_vy_q8 = vy;
+            }
+            if (dir == LV_DIR_VER || (dir != LV_DIR_HOR && abs(best_vy_q8) >= abs(best_vx_q8))) {
+                dir = LV_DIR_VER;
+                vel_x_q8 = 0;
+                vel_y_q8 = constrain((best_vy_q8 * 3) / 2, -48 * 256, 48 * 256);
+            } else {
+                dir = LV_DIR_HOR;
+                vel_y_q8 = 0;
+                vel_x_q8 = constrain((best_vx_q8 * 3) / 2, -48 * 256, 48 * 256);
+            }
+            if (abs(vel_x_q8) >= 256 || abs(vel_y_q8) >= 256) {
+                momentum_coasting = true;
+                saved_scroll_dir = dir;
+                last_coast_ms = now;
+                rem_x_q8 = 0;
+                rem_y_q8 = 0;
+            }
+        }
+        if (!momentum_coasting && indev) {
+            vel_x_q8 = 0;
+            vel_y_q8 = 0;
+            indev->proc.types.pointer.scroll_throw_vect.x = 0;
+            indev->proc.types.pointer.scroll_throw_vect.y = 0;
+            indev->proc.types.pointer.scroll_throw_vect_ori.x = 0;
+            indev->proc.types.pointer.scroll_throw_vect_ori.y = 0;
+        }
+    }
+
+    if (momentum_coasting && !touch_is_pressed && indev) {
+        lv_obj_t *scroll_obj = indev->proc.types.pointer.scroll_obj;
+        if (!scroll_obj || !lv_obj_is_valid(scroll_obj)) {
+            momentum_coasting = false;
+            vel_x_q8 = 0;
+            vel_y_q8 = 0;
+        } else {
+            uint32_t dt_coast = now - last_coast_ms;
+            if (dt_coast == 0) dt_coast = 10;
+            else if (dt_coast > 60) dt_coast = 60;
+            last_coast_ms = now;
+
+            if (saved_scroll_dir == LV_DIR_VER) {
+                if ((vel_y_q8 > 0 && lv_obj_get_scroll_top(scroll_obj) <= 0) ||
+                    (vel_y_q8 < 0 && lv_obj_get_scroll_bottom(scroll_obj) <= 0)) {
+                    vel_y_q8 = 0;
+                    rem_y_q8 = 0;
+                }
+            } else if (saved_scroll_dir == LV_DIR_HOR) {
+                if ((vel_x_q8 > 0 && lv_obj_get_scroll_left(scroll_obj) <= 0) ||
+                    (vel_x_q8 < 0 && lv_obj_get_scroll_right(scroll_obj) <= 0)) {
+                    vel_x_q8 = 0;
+                    rem_x_q8 = 0;
+                }
+            }
+
+            // Frame-time-normalized exponential friction (~800ms glide regardless of page render time)
+            int32_t decay = constrain((int32_t)(dt_coast * 10) / 10, 6, 56);
+            vel_x_q8 = (vel_x_q8 * (256 - decay)) / 256;
+            vel_y_q8 = (vel_y_q8 * (256 - decay)) / 256;
+
+            if (abs(vel_x_q8) < 48 && abs(vel_y_q8) < 48) {
+                momentum_coasting = false;
+                vel_x_q8 = 0;
+                vel_y_q8 = 0;
+                rem_x_q8 = 0;
+                rem_y_q8 = 0;
+                indev->proc.types.pointer.scroll_dir = saved_scroll_dir;
+                indev->proc.types.pointer.scroll_throw_vect.x = 0;
+                indev->proc.types.pointer.scroll_throw_vect.y = 0;
+                indev->proc.types.pointer.scroll_throw_vect_ori.x = 0;
+                indev->proc.types.pointer.scroll_throw_vect_ori.y = 0;
+            } else {
+                rem_x_q8 += (vel_x_q8 * (int32_t)dt_coast) / 10;
+                rem_y_q8 += (vel_y_q8 * (int32_t)dt_coast) / 10;
+                int16_t step_x = (int16_t)(rem_x_q8 / 256);
+                int16_t step_y = (int16_t)(rem_y_q8 / 256);
+                rem_x_q8 -= (int32_t)step_x * 256;
+                rem_y_q8 -= (int32_t)step_y * 256;
+
+                if (step_x != 0 || step_y != 0) {
+                    indev->proc.types.pointer.scroll_dir = saved_scroll_dir;
+                    indev->proc.types.pointer.scroll_throw_vect.x = step_x;
+                    indev->proc.types.pointer.scroll_throw_vect.y = step_y;
+                    indev->proc.types.pointer.scroll_throw_vect_ori = indev->proc.types.pointer.scroll_throw_vect;
+                } else {
+                    // Sub-pixel tail tick: pause throw handler for 1 tick without ending scroll_obj
+                    indev->proc.types.pointer.scroll_dir = LV_DIR_NONE;
+                }
+            }
+        }
+    }
+
+    was_pressed = touch_is_pressed;
 }
 
 void i2c_scan() {
@@ -222,7 +429,7 @@ void setup() {
         USBSerial.println("CH32V003 IO expander initialized");
         delay(20);
         USBSerial.printf("Setting PWM to %d\n", state.display_brightness);
-        uint8_t pwm = 255 - (state.display_brightness * 255 / 100);
+        uint8_t pwm = ui_screensaver_brightness_to_pwm(state.display_brightness);
         WS_CH32_IO::setPwm(Wire, pwm);
         buzzer_init();
     }
@@ -245,7 +452,7 @@ void setup() {
 
     // Re-affirm backlight PWM now that the ST7701S panel is fully initialized
     {
-        uint8_t pwm = 255 - (state.display_brightness * 255 / 100);
+        uint8_t pwm = ui_screensaver_brightness_to_pwm(state.display_brightness);
         WS_CH32_IO::setPwm(Wire, pwm);
     }
 
@@ -307,10 +514,9 @@ void setup() {
         lv_indev_drv_init(&indev_drv);
         indev_drv.type = LV_INDEV_TYPE_POINTER;
         indev_drv.read_cb = my_touchpad_read;
-        indev_drv.feedback_cb = my_touchpad_feedback;
         indev_drv.scroll_limit = 6; // 6px threshold balances crisp scrolling and reliable button taps
-        indev_drv.scroll_throw = 15; // Smooth momentum deceleration
-        lv_indev_drv_register(&indev_drv);
+        indev_drv.scroll_throw = 0; // Handled by Q8 fixed-point momentum engine in my_touchpad_read
+        touch_indev = lv_indev_drv_register(&indev_drv);
     }
 
     const esp_timer_create_args_t lvgl_tick_timer_args = {
@@ -354,6 +560,8 @@ void loop() {
         return;
     }
 
+    uint32_t wait_ms = lv_timer_handler();
+
     if (display_resync_pending) {
         display_resync_pending = false;
         // Flash writes have returned and cache access is available again.
@@ -363,7 +571,6 @@ void loop() {
         USBSerial.printf("[DISPLAY " CAMPERUI_VERSION "] RGB resync scheduled after save/manual command: %s\n",
                          esp_err_to_name(result));
     }
-    uint32_t wait_ms = lv_timer_handler();
 
     if (state.display_timeout > 0 && lv_disp_get_inactive_time(NULL) > (uint32_t)(state.display_timeout * 1000)) {
         if (state.screensaver_enabled) {
@@ -373,6 +580,7 @@ void loop() {
         } else if (display_is_on) {
             display_is_on = false;
             WS_CH32_IO::setPwm(Wire, 255); // 255 is OFF for inverted PWM
+            st7701_panel_sleep(true);
         }
     }
 
@@ -474,9 +682,15 @@ void loop() {
     
     web_ota_loop();
     wifi_diagnostics_loop();
-    bool high_fps_needed = (lv_anim_count_running() > 0) || touch_is_pressed;
-    if (wait_ms > 0 && !high_fps_needed) {
-        if (wait_ms > 5) wait_ms = 5;
+    bool high_fps_needed = (lv_anim_count_running() > 0) || touch_is_pressed || momentum_coasting;
+    if (!display_is_on) {
+        delay(40);
+    } else if (ui_screensaver_is_active() && !touch_is_pressed) {
+        uint32_t sleep_ms = wait_ms > 35 ? 35 : (wait_ms > 0 ? wait_ms : 10);
+        delay(sleep_ms);
+    } else if (wait_ms > 0 && !high_fps_needed) {
+        uint32_t max_sleep = (lv_disp_get_inactive_time(NULL) > 3000) ? 15 : 5;
+        if (wait_ms > max_sleep) wait_ms = max_sleep;
         delay(wait_ms);
     } else {
         yield();
