@@ -1,5 +1,6 @@
 #include "ui_main.h"
 #include "http_handler.h"
+#include "ui_chart_style.h"
 
 static lv_obj_t *lbl_indoor;
 static lv_obj_t *lbl_outdoor;
@@ -16,6 +17,68 @@ static lv_obj_t *lbl_heater_status;
 static int last_heating_state = -1;
 
 #define HEATER_HOLD_MS 5000
+
+static lv_obj_t *diagnostics_overlay = nullptr;
+static lv_obj_t *diagnostics_values[4] = {};
+static lv_obj_t *diagnostics_status = nullptr, *diagnostics_error = nullptr, *diagnostics_notice = nullptr;
+
+static void close_diagnostics(lv_event_t *) {
+    if (!diagnostics_overlay) return;
+    lv_obj_del_async(diagnostics_overlay);
+    diagnostics_overlay = nullptr;
+    for (auto &value : diagnostics_values) value = nullptr;
+    diagnostics_status = diagnostics_error = diagnostics_notice = nullptr;
+}
+static void update_diagnostics();
+static lv_obj_t *diagnostic_label(lv_obj_t *parent, const char *caption, int x, int y, int width, const lv_font_t *font) {
+    lv_obj_t *label = lv_label_create(parent);
+    lv_label_set_text(label, caption); lv_obj_set_pos(label, x, y); lv_obj_set_width(label, width);
+    lv_obj_set_style_text_font(label, font, 0); lv_obj_set_style_text_color(label, ui_theme_text(), 0);
+    lv_label_set_long_mode(label, LV_LABEL_LONG_WRAP);
+    return label;
+}
+static void open_diagnostics(lv_event_t *) {
+    if (diagnostics_overlay) return;
+    lv_mem_monitor_t memory; lv_mem_monitor(&memory);
+    if (memory.free_biggest_size < 32768) {
+        lv_obj_t *box = lv_msgbox_create(nullptr, "Diagnose", "Zu wenig freier Speicher.", nullptr, true);
+        if (box) lv_obj_center(box);
+        return;
+    }
+    // Opaque modal avoids the large opacity buffers used by translucent full-screen containers.
+    diagnostics_overlay = lv_obj_create(lv_layer_top());
+    lv_obj_remove_style_all(diagnostics_overlay);
+    lv_obj_set_size(diagnostics_overlay, 480, 480); lv_obj_set_pos(diagnostics_overlay, 0, 0);
+    lv_obj_set_style_bg_color(diagnostics_overlay, ui_theme_bg(), 0);
+    lv_obj_set_style_bg_opa(diagnostics_overlay, LV_OPA_COVER, 0);
+    lv_obj_clear_flag(diagnostics_overlay, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_flag(diagnostics_overlay, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_t *panel = ui_create_card(diagnostics_overlay, 456, 440);
+    lv_obj_center(panel); lv_obj_set_style_pad_all(panel, 0, 0);
+    lv_obj_clear_flag(panel, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_t *back = lv_btn_create(panel);
+    lv_obj_set_pos(back, 12, 12); lv_obj_set_size(back, 108, 44);
+    ui_chart_button_style(back, false);
+    lv_obj_add_event_cb(back, close_diagnostics, LV_EVENT_CLICKED, nullptr);
+    lv_obj_t *caption = lv_label_create(back); lv_label_set_text(caption, LV_SYMBOL_LEFT " Zurück");
+    lv_obj_set_style_text_font(caption, &lv_font_montserrat_14, 0); lv_obj_center(caption);
+    diagnostic_label(panel, "Autoterm Diagnose", 134, 25, 310, &lv_font_montserrat_18);
+    diagnostics_status = diagnostic_label(panel, "Warte auf Daten...", 16, 70, 424, &lv_font_montserrat_16);
+    lv_obj_set_height(diagnostics_status, 44);
+    const char *names[] = {"Spannung", "Lüfterdrehzahl", "Kraftstoffpumpe", "Heizgerätetemperatur"};
+    for (int i = 0; i < 4; ++i) {
+        lv_obj_t *card = ui_create_card(panel, 212, 84);
+        lv_obj_set_pos(card, 12 + (i % 2) * 220, 124 + (i / 2) * 96);
+        lv_obj_set_style_pad_all(card, 0, 0);
+        diagnostic_label(card, names[i], 10, 10, 192, &lv_font_montserrat_14);
+        diagnostics_values[i] = diagnostic_label(card, "--", 10, 39, 192, &lv_font_montserrat_24);
+        lv_obj_set_style_text_color(diagnostics_values[i], lv_color_hex(UI_COLOR_PRIMARY), 0);
+    }
+    diagnostics_error = diagnostic_label(panel, "", 16, 320, 424, &lv_font_montserrat_14);
+    lv_obj_set_height(diagnostics_error, 48);
+    diagnostics_notice = diagnostic_label(panel, "", 16, 380, 424, &lv_font_montserrat_12);
+    update_diagnostics();
+}
 
 // Translate the raw Autoterm "heatstatus" text from VanPi into a short German label.
 // Unknown values are shown as-is.
@@ -39,6 +102,38 @@ static String heater_status_text(const String &raw) {
     if (l.indexOf("no fuel") >= 0)              return "Kein Kraftstoff? Neuer Versuch";
     if (l == "unknown status")                  return "Status unbekannt";
     return s;
+}
+
+static void update_diagnostics() {
+    if (!diagnostics_overlay) return;
+    StateLockGuard lock;
+    const auto &diag = state.heater_diagnostics;
+    const bool same_source = state.data_is_demo == state.debug_mode && diag.demo == state.debug_mode;
+    const bool connected = state.wifi_connected && state.vanpi_connected;
+    const bool fresh = same_source && diag.fresh(millis(), state.debug_mode, connected);
+    const char *formats[] = {"%.1f V", "%.0f U/min", "%.2f Hz", "%.0f °C"};
+    for (int i = 0; i < 4; ++i) {
+        if (fresh && (diag.fields & (1U << i))) ui_label_set_float(diagnostics_values[i], formats[i], diag.values[i]);
+        else ui_label_set_text_if_changed(diagnostics_values[i], "--");
+    }
+    String status = fresh ? heater_status_text(state.heater_status) : "Keine aktuellen Heizungsdaten";
+    ui_label_set_text_if_changed(diagnostics_status, status.c_str());
+    String error = state.heater_error; error.trim();
+    bool no_error = error.equalsIgnoreCase("no") || error == "0" || error.equalsIgnoreCase("none");
+    String error_text = !fresh || !error.length() || error.equalsIgnoreCase("null") ? "Fehlerstatus: --" :
+                        no_error ? "Fehlerstatus: Kein Fehler gemeldet" : "Fehler: " + error;
+    ui_label_set_text_if_changed(diagnostics_error, error_text.c_str());
+    ui_text_color_if_changed(diagnostics_error, fresh && !no_error && error.length() && !error.equalsIgnoreCase("null") ?
+                                lv_color_hex(UI_COLOR_DANGER) : ui_theme_muted());
+    char notice[160];
+    if (!same_source || !diag.received) snprintf(notice, sizeof(notice), "Warte auf Autoterm-1-Daten vom VanPi.");
+    else if (!state.debug_mode && !connected) snprintf(notice, sizeof(notice), "VanPi nicht verbunden. Letzte Werte werden ausgeblendet.");
+    else if (!fresh) snprintf(notice, sizeof(notice), "VanPi-Antwort veraltet (über 45 s). Messwerte ausgeblendet.");
+    else snprintf(notice, sizeof(notice), "%s | VanPi-Antwort vor %lu s\n%s",
+                  state.debug_mode ? "DEMO / Beispielwerte" : "LIVE / Autoterm 1",
+                  (unsigned long)((millis() - diag.updated) / 1000),
+                  diag.fields == 15 ? "Werte werden automatisch aktualisiert." : "-- = Messwert nicht verfügbar.");
+    ui_label_set_text_if_changed(diagnostics_notice, notice);
 }
 
 static void update_status_label() {
@@ -239,6 +334,7 @@ void ui_update_climate_tab() {
     }
 
     update_status_label();
+    update_diagnostics();
 
     if (btn_temp_minus && btn_temp_plus) {
         if (state.heater_temp_buttons) {
@@ -290,6 +386,7 @@ void ui_update_climate_tab() {
 }
 
 void ui_climate_reset() {
+    close_diagnostics(nullptr);
     lbl_indoor = nullptr;
     lbl_outdoor = nullptr;
     lbl_target = nullptr;
@@ -459,6 +556,19 @@ void ui_build_climate(lv_obj_t *parent) {
     lv_obj_set_style_text_font(lbl_btn_start_stop, &lv_font_montserrat_20, 0);
     lv_obj_center(lbl_btn_start_stop);
     
+    // Read-only diagnosis, directly beside the Start/Stop control.
+    lv_obj_t *diagnosis = lv_btn_create(parent);
+    lv_obj_set_size(diagnosis, 54, 54);
+    lv_obj_align_to(diagnosis, btn_start_stop, LV_ALIGN_OUT_RIGHT_MID, 12, 0);
+    ui_chart_button_style(diagnosis, false);
+    lv_obj_set_style_radius(diagnosis, 14, 0); lv_obj_set_style_pad_all(diagnosis, 0, 0);
+    lv_obj_add_event_cb(diagnosis, open_diagnostics, LV_EVENT_CLICKED, nullptr);
+    lv_obj_t *diagnosis_icon = lv_label_create(diagnosis);
+    lv_label_set_text(diagnosis_icon, MDI_STETHOSCOPE);
+    lv_obj_set_style_text_font(diagnosis_icon, &ui_font_mdi_32, 0);
+    lv_obj_set_style_text_color(diagnosis_icon, lv_color_hex(UI_COLOR_PRIMARY), 0);
+    lv_obj_center(diagnosis_icon);
+
     last_heating_state = -1;
     update_ui_from_mode();
 }

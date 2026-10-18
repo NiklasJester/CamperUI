@@ -2,7 +2,7 @@
 
 ## Architektur
 
-Basis ist CamperUI V1.6.1 mit Websettings, Truma-Erweiterungen, neuem Energie-Dashboard und den RV3D.89-Verläufen. VanPi-HTTP und dessen Datenmodell bleiben eigenständig. Ein eigener, niedrig priorisierter MQTT-Worker auf Core 0 bedient genau eine GX-Verbindung. LVGL wird ausschließlich auf dem UI-Thread verwendet. Beide Victron-Ansichten und GX-Favoriten lesen denselben Cache; Befehle laufen über eine begrenzte Queue.
+Basis ist CamperUI V1.8.0 mit Websettings, Truma-Erweiterungen, Energie-Dashboard, Screensaver und den RV3D.89-Verläufen. VanPi-HTTP und dessen Datenmodell bleiben eigenständig. Ein eigener, niedrig priorisierter MQTT-Worker auf Core 0 bedient genau eine GX-Verbindung. LVGL wird ausschließlich auf dem UI-Thread verwendet. Beide Victron-Ansichten und GX-Favoriten lesen denselben Cache; Befehle laufen über eine begrenzte Queue.
 
 Die Anbindung startet deaktiviert, ohne persönlichen Host oder Relaisnamen. MQTT TCP (1883, optional andere TCP-Ports) mit optionaler Anmeldung. TLS/VRM-Cloud gehören nicht zu dieser ersten lokalen Integration. Ein leerer Host ist eine unkonfigurierte Verbindung, keine Broadcast-Adresse. Benutzername/Passwort sind optional; Passwörter werden nicht geloggt.
 
@@ -89,3 +89,19 @@ Auf Home und im VE-Tab wird AUS nur kurz blau markiert: maximal zehn Sekunden na
 Der Entwicklungsstand heißt `V1.6.1-RV3D.90-dev`. V1.6.1 (`ef54f4141c24da032d1291f7a8a592fd9f391f49`) ist vollständig als Basis enthalten, einschließlich Energiefluss-/Erzeugerauswahl, Truma Gas/Diesel/Elektro, Improv-Konfiguration und ST7701S-Reset. Der VE-Tab wird an den Upstream-Truma-Tab angehängt: Truma=10, Victron=11. Die früheren RV3D.90-Einstellungen mit VE=10 werden unter Beibehaltung von Position/Sichtbarkeit migriert. Die alten zehn Tabs und ein bereits gespeicherter Stock-V1.6.1-Truma-Tab bleiben ebenso erhalten. Ein Schema-Marker verhindert eine wiederholte Umdeutung nach dem Speichern.
 
 Die frühere RV3D-Auswahl Keine/Deaktiviert (`heater_type=2`) wird zur neuen V1.6.1-Kennung 3 migriert. Victron- und VanPi-Energiequellen bleiben getrennt. Der neue Upstream-Energiefluss nutzt weiterhin VanPi-Daten; die eigene MP-Home-Kachel nutzt den GX-Cache. Nach dem Update sind Navigation, Truma-Auswahl, Erzeuger-Einstellungen, Display-Neustarts und GX-Live-Bedienung am Gerät erneut zu prüfen.
+
+## Integration auf V1.7.0
+
+Der aktuelle Entwicklungsstand heißt `V1.7.0-RV3D.90-dev`, basierend auf Release-Tag V1.7.0 (`362a4fea3d0a9b96743ebe246b3ebb9ecae5a082`). Die VE-Seite, Einstellungen am Display und im Browser, GX-Favoriten, die optionale Starterspannung und die dynamische MultiPlus-Home-Kachel bleiben erhalten. Die AUS-Rückmeldung bleibt auf zehn Sekunden begrenzt. Die neuen VanPi-Relaissperren werden auch bei Home-Favoriten berücksichtigt; GX-Relais behalten ihre separate Freigabeprüfung.
+
+V1.7.0 liefert Energie-Arcs, Nacht-Screensaver und VanPi-Uhrzeitsynchronisation. Die bisherige manuelle/NTP-Uhrzeiteinstellung entfällt entsprechend Upstream. Die vorhandene Migration für Truma/VE-Tab-IDs bleibt bestehen. Die Landstrom-/Lichtmaschinen-Datenquellen und Schätzungen bleiben vorerst unverändert; sie sind nicht automatisch auf Cerbo umgestellt. Nach dem Update sind Screensaver/Aufwecken, gesperrte Home-Relais und VE-Steuerung am Gerät zu prüfen.
+
+## Integration auf V1.7.1
+
+Der aktuelle lokale Entwicklungsstand heißt `V1.7.1-RV3D.90-dev`. Das offizielle Release enthält die RV3D.90-VE-Erweiterungen und die Home-Anpassungen bereits: GX-Favoriten mit Befehlsrückmeldung, Home-Relaissperren, MultiPlus-Steuerung, dynamische AC/DC-Kachel und zehnsekündige AUS-Rückmeldung. Die Home-Abweichungen zur lokalen V1.7.0-Integration waren ausschließlich Formatierung; die Release-Fassung übernimmt diese Funktionen vollständig.
+
+V1.7.1 entfernt die internen Leistungs-Rückrechnungen für Landstrom und Lichtmaschine, ergänzt Erzeuger-Auswahl und Maximalwerte in den Websettings sowie optionale Heizungs-Plus/Minus-Tasten. Dies ersetzt noch keine konfigurierbare Zuordnung zwischen Cerbo- und VanPi-Datenquellen. Hardware- und Langzeittests dieses zusammengeführten Stands stehen aus.
+
+## Integration auf V1.8.0
+
+Der lokale Entwicklungsstand heißt `V1.8.0-RV3D.91-dev`. Release V1.8.0 enthält die Home- und VE-Anpassungen unverändert gegenüber V1.7.1. Momentum-Scrolling, adaptiver Standby, Panel-Sleep, WLAN-Stromsparmodus und die neuen VanPi-Erzeuger-Endpunkte werden entsprechend Upstream übernommen. Nach dem Update sind Aufwecken, Scrollen und GX-Steuerung im Betrieb am Gerät erneut zu prüfen; die Release-Angaben zur Leistungsaufnahme wurden lokal nicht nachgemessen.

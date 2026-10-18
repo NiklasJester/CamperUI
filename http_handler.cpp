@@ -419,7 +419,7 @@ static void parse_heater_json(const char *payload) {
     DynamicJsonDocument doc(2048);
     if (deserializeJson(doc, payload)) return;
 
-    bool has_at = doc.containsKey("autoterm1");
+    bool has_at = doc["autoterm1"].is<JsonObject>();
     JsonObject at;
     if (has_at) at = doc["autoterm1"];
 
@@ -440,6 +440,22 @@ static void parse_heater_json(const char *payload) {
     if (!raw_err) raw_err = "";
 
     StateLockGuard lock;
+    // Read diagnostics before the control hold-off: telemetry keeps updating during interaction.
+    JsonObject source = has_at ? at : doc.as<JsonObject>();
+    auto &diag = state.heater_diagnostics;
+    const bool present = has_at || source.containsKey("heatstatus") || source.containsKey("heatvolt") ||
+                         source.containsKey("heatfan") || source.containsKey("heattemp") ||
+                         source.containsKey("heatpump") || source.containsKey("heatglow");
+    diag.begin(millis(), state.data_is_demo, present);
+    // The bundled VanPi flow exposes fuel-pump frequency as historical key heatglow.
+    const char *keys[4] = {"heatvolt", "heatfan", source.containsKey("heatpump") ? "heatpump" : "heatglow", "heattemp"};
+    for (unsigned i = 0; i < 4; ++i) {
+        JsonVariant v = source[keys[i]];
+        if (validEnergyNumber(v)) {
+            float number = jsonFloat(v);
+            diag.set(i, number, i == 3 || number >= 0.0f);
+        }
+    }
     if (state.heater_status != raw_hs) {
         state.heater_status = raw_hs;
         state.heater_status.trim();
@@ -904,6 +920,7 @@ void http_loop() {
         poll_step = 0;
         last_http_poll = 0;
         state.vanpi_connected = false;
+        state.heater_diagnostics = HeaterDiagnostics();
         state.data_is_demo = state.debug_mode;
     }
 
@@ -956,7 +973,7 @@ void http_loop() {
                     break;
                 }
                 case 5: {
-                    const char *dummy = "{\"autoterm1\":{\"heatertoggle\":true,\"heatstatus\":\"heating\",\"heaterror\":\"no\",\"targettemp_vanpi\":\"21.5\",\"powerlevel\":\"5\",\"fanspeed\":0,\"mode\":\"temp mode\"}}";
+                    const char *dummy = "{\"autoterm1\":{\"heatertoggle\":true,\"heatstatus\":\"heating\",\"heaterror\":\"no\",\"targettemp_vanpi\":\"21.5\",\"powerlevel\":\"5\",\"fanspeed\":0,\"heatvolt\":13.0,\"heatfan\":\"4200\",\"heatglow\":1.5,\"heattemp\":\"144\",\"mode\":\"temp mode\"}}";
                     parse_heater_json(dummy);
                     break;
                 }
