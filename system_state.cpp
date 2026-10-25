@@ -265,6 +265,7 @@ void state_init() {
     state.heater_vent_mode = false;
     state.heater_power_mode = false;
     state.heater_power_level = 5;
+    state.heater_diagnostics = HeaterDiagnostics();
     state.heater_status = "";
     state.heater_error = "no";
     state.fan_on = false;

@@ -3,6 +3,7 @@
 
 #include <Arduino.h>
 #include <Preferences.h>
+#include "heater_diagnostics.h"
 
 enum TabId : uint8_t {
     TAB_HOME = 0,
@@ -188,6 +189,7 @@ struct SystemState {
     bool heater_power_mode;
     int heater_power_level;
     String heater_status;   // raw "heatstatus" from VanPi (e.g. "standby", "heating")
+    HeaterDiagnostics heater_diagnostics;
     String heater_error;    // raw "heaterror" from VanPi ("no" = no error)
     bool fan_on;
 

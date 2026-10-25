@@ -7,7 +7,7 @@
 extern "C" {
 #endif
 
-// Material Design Icons Unicode PUA Mappings (0xE001 .. 0xE016)
+// Material Design Icons Unicode PUA Mappings (0xE001 .. 0xE018)
 #define MDI_LIGHTBULB          "\xEE\x80\x81" // 0xE001: Dimmer / Licht
 #define MDI_BATTERY_CHARGING   "\xEE\x80\x82" // 0xE002: Power
 #define MDI_WATER              "\xEE\x80\x83" // 0xE003: Wasser
@@ -34,6 +34,7 @@ extern "C" {
 #define MDI_BELL               "\xEE\x80\x95" // 0xE015: Alarme
 #define MDI_CLOCK              "\xEE\x80\x96" // 0xE016: Zeit / Uhr
 #define MDI_LOCK               "\xEE\x80\x97" // 0xE017: Lock / Sperre
+#define MDI_STETHOSCOPE               "\xEE\x80\x98" // 0xE018: Stethoskop / Diagnose
 
 LV_FONT_DECLARE(ui_font_mdi_32);
 LV_FONT_DECLARE(ui_font_mdi_24);
