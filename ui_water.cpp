@@ -66,13 +66,13 @@ static void update_water_button_visuals(bool force = false) {
         if (force || (int)on != last_pump_state) {
             last_pump_state = (int)on;
             if (on) {
-                lv_obj_set_style_bg_color(btn_pump, lv_color_hex(UI_COLOR_SUCCESS), 0);
-                lv_obj_set_style_border_color(btn_pump, lv_color_hex(0x34d399), 0);
-                ui_text_color_if_changed(lbl_pump, lv_color_hex(0xffffff));
+                lv_obj_set_style_bg_color(btn_pump, ui_theme_relay(), 0);
+                lv_obj_set_style_border_color(btn_pump, ui_theme_relay(), 0);
+                ui_text_color_if_changed(lbl_pump, ui_theme_btn_active_text());
             } else {
                 lv_obj_set_style_bg_color(btn_pump, ui_theme_card(), 0);
                 lv_obj_set_style_border_color(btn_pump, ui_theme_border(), 0);
-                ui_text_color_if_changed(lbl_pump, ui_theme_text());
+                ui_text_color_if_changed(lbl_pump, ui_theme_btn_text());
             }
         }
 
@@ -90,11 +90,11 @@ static void update_water_button_visuals(bool force = false) {
             if (on) {
                 lv_obj_set_style_bg_color(btn_drain, lv_color_hex(UI_COLOR_WARNING), 0);
                 lv_obj_set_style_border_color(btn_drain, lv_color_hex(0xfbbf24), 0);
-                ui_text_color_if_changed(lbl_drain, lv_color_hex(0xffffff));
+                ui_text_color_if_changed(lbl_drain, ui_theme_btn_active_text());
             } else {
                 lv_obj_set_style_bg_color(btn_drain, ui_theme_card(), 0);
                 lv_obj_set_style_border_color(btn_drain, ui_theme_border(), 0);
-                ui_text_color_if_changed(lbl_drain, ui_theme_text());
+                ui_text_color_if_changed(lbl_drain, ui_theme_btn_text());
             }
         }
 
@@ -210,7 +210,7 @@ void ui_build_water(lv_obj_t *parent) {
     lv_obj_align(card_tanks, LV_ALIGN_TOP_MID, 0, 0);
 
     lv_color_t tank_colors[] = {
-        lv_color_hex(UI_COLOR_PRIMARY), // Sky Cyan (Frischwasser)
+        ui_theme_tank(),              // Frischwasser (Theme Tank Color)
         lv_color_hex(0x64748b),         // Slate Gray (Grauwasser)
         lv_color_hex(0x718093),         // Gray Slate (Grauwasser 2)
         lv_color_hex(0x334155)          // Deep Slate (Schwarzwasser)
@@ -246,8 +246,8 @@ void ui_build_water(lv_obj_t *parent) {
         lv_bar_set_range(bar_tanks[i], 0, 100);
         lv_bar_set_value(bar_tanks[i], 0, LV_ANIM_OFF);
         
-        lv_obj_set_style_radius(bar_tanks[i], 12, LV_PART_MAIN);
-        lv_obj_set_style_radius(bar_tanks[i], 12, LV_PART_INDICATOR);
+        lv_obj_set_style_radius(bar_tanks[i], ui_radius_card(), LV_PART_MAIN);
+        lv_obj_set_style_radius(bar_tanks[i], ui_radius_card(), LV_PART_INDICATOR);
         lv_obj_set_style_bg_color(bar_tanks[i], ui_theme_track(), LV_PART_MAIN);
         lv_obj_set_style_border_width(bar_tanks[i], 1, LV_PART_MAIN);
         lv_obj_set_style_border_color(bar_tanks[i], ui_theme_border(), LV_PART_MAIN);
@@ -293,7 +293,7 @@ void ui_build_water(lv_obj_t *parent) {
         btn_pump = lv_btn_create(parent);
         lv_obj_set_size(btn_pump, 214, 64);
         lv_obj_align(btn_pump, LV_ALIGN_BOTTOM_LEFT, 0, 0);
-        lv_obj_set_style_radius(btn_pump, 14, 0);
+        lv_obj_set_style_radius(btn_pump, ui_radius_button(), 0);
         lv_obj_set_style_border_width(btn_pump, 1, 0);
         lv_obj_set_style_shadow_width(btn_pump, 0, 0);
 
@@ -308,7 +308,7 @@ void ui_build_water(lv_obj_t *parent) {
         btn_drain = lv_btn_create(parent);
         lv_obj_set_size(btn_drain, 214, 64);
         lv_obj_align(btn_drain, LV_ALIGN_BOTTOM_RIGHT, 0, 0);
-        lv_obj_set_style_radius(btn_drain, 14, 0);
+        lv_obj_set_style_radius(btn_drain, ui_radius_button(), 0);
         lv_obj_set_style_border_width(btn_drain, 1, 0);
         lv_obj_set_style_shadow_width(btn_drain, 0, 0);
 
@@ -325,7 +325,7 @@ void ui_build_water(lv_obj_t *parent) {
         btn_pump = lv_btn_create(parent);
         lv_obj_set_size(btn_pump, 440, 64);
         lv_obj_align(btn_pump, LV_ALIGN_BOTTOM_MID, 0, 0);
-        lv_obj_set_style_radius(btn_pump, 14, 0);
+        lv_obj_set_style_radius(btn_pump, ui_radius_button(), 0);
         lv_obj_set_style_border_width(btn_pump, 1, 0);
         lv_obj_set_style_shadow_width(btn_pump, 0, 0);
 
@@ -342,7 +342,7 @@ void ui_build_water(lv_obj_t *parent) {
         btn_drain = lv_btn_create(parent);
         lv_obj_set_size(btn_drain, 440, 64);
         lv_obj_align(btn_drain, LV_ALIGN_BOTTOM_MID, 0, 0);
-        lv_obj_set_style_radius(btn_drain, 14, 0);
+        lv_obj_set_style_radius(btn_drain, ui_radius_button(), 0);
         lv_obj_set_style_border_width(btn_drain, 1, 0);
         lv_obj_set_style_shadow_width(btn_drain, 0, 0);
 

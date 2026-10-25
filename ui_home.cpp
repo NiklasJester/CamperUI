@@ -135,7 +135,7 @@ void ui_update_home() {
             snprintf(text, sizeof(text), "%s %s", name.c_str(), pending ? "Warte" : !valid ? "--" : on ? "EIN" : "AUS");
         }
         ui_label_set_text_if_changed(favorite_text[i], text);
-        ui_text_color_if_changed(favorite_text[i],valid&&on?lv_color_hex(0xffffff):ui_theme_text());
+        ui_text_color_if_changed(favorite_text[i],valid&&on?ui_theme_btn_active_text():ui_theme_btn_text());
         if (available) lv_obj_clear_state(favorites[i], LV_STATE_DISABLED); else lv_obj_add_state(favorites[i], LV_STATE_DISABLED);
         if (valid && on) lv_obj_add_state(favorites[i], LV_STATE_CHECKED); else lv_obj_clear_state(favorites[i], LV_STATE_CHECKED);
     }
@@ -196,9 +196,7 @@ void ui_build_home(lv_obj_t *parent) {
 
     for (int i = 0; i < 2; ++i) {
         favorites[i] = lv_btn_create(parent); ui_favorite_button_style(favorites[i]);
-        lv_obj_set_style_radius(favorites[i], 12, 0); lv_obj_set_style_bg_color(favorites[i], ui_theme_card(), 0);
-        lv_obj_set_style_bg_color(favorites[i], lv_color_hex(UI_COLOR_PRIMARY), LV_STATE_CHECKED);
-        lv_obj_set_style_text_color(favorites[i], lv_color_hex(0xffffff), LV_STATE_CHECKED);
+        lv_obj_set_style_text_color(favorites[i], ui_theme_btn_active_text(), LV_STATE_CHECKED);
         lv_obj_add_event_cb(favorites[i], favorite_click, LV_EVENT_CLICKED, (void *)(uintptr_t)i);
         favorite_text[i] = label(favorites[i], "--", 0, 0, &lv_font_montserrat_16);
         lv_label_set_long_mode(favorite_text[i], LV_LABEL_LONG_DOT);
@@ -226,6 +224,7 @@ void ui_build_home(lv_obj_t *parent) {
     water_value = label(water, "--", 360, 0, &lv_font_montserrat_22);
     water_bar = lv_bar_create(water); lv_obj_set_pos(water_bar, 0, 26); lv_obj_set_size(water_bar, 438, 8);
     lv_bar_set_range(water_bar, 0, 100); lv_obj_set_style_bg_color(water_bar, ui_theme_track(), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(water_bar, ui_theme_tank(), LV_PART_INDICATOR);
     for (auto card : temperatures) link(card, state.tab_enabled[TAB_TEMPS] ? TAB_TEMPS : (state.tab_enabled[TAB_TRUMA] ? TAB_TRUMA : TAB_CLIMATE));
     link(battery, TAB_POWER); link(solar, TAB_POWER); link(water, TAB_WATER);
     update_mp_activity();layout();

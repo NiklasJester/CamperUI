@@ -17,9 +17,10 @@ static lv_color_t dimmer_color_for_val(int val) {
     int v = val;
     if (v < 0) v = 0;
     else if (v > 100) v = 100;
-    uint8_t s = (uint8_t)(12 + (v * 88) / 100);
-    uint8_t b = (uint8_t)(60 + (v * 40) / 100);
-    return lv_color_hsv_to_rgb(28, s, b);
+    lv_color_t target = ui_theme_dimmer();
+    if (v >= 100) return target;
+    if (v <= 0) return ui_theme_muted();
+    return lv_color_mix(target, ui_theme_muted(), (uint8_t)(v * 255 / 100));
 }
 
 static void update_dimmer_visuals(int idx) {
@@ -50,16 +51,16 @@ static void update_switch_visual(int idx, bool force = false) {
     last_switch_state[idx] = (int)on;
 
     if (on) {
-        lv_obj_set_style_bg_color(switches[idx], lv_color_hex(UI_COLOR_SUCCESS), 0);
-        lv_obj_set_style_border_color(switches[idx], lv_color_hex(0x34d399), 0);
+        lv_obj_set_style_bg_color(switches[idx], ui_theme_relay(), 0);
+        lv_obj_set_style_border_color(switches[idx], ui_theme_relay(), 0);
         if (lbl_switch_name[idx]) {
-            ui_text_color_if_changed(lbl_switch_name[idx], lv_color_hex(0xffffff));
+            ui_text_color_if_changed(lbl_switch_name[idx], ui_theme_btn_active_text());
         }
     } else {
         lv_obj_set_style_bg_color(switches[idx], ui_theme_card(), 0);
         lv_obj_set_style_border_color(switches[idx], ui_theme_border(), 0);
         if (lbl_switch_name[idx]) {
-            ui_text_color_if_changed(lbl_switch_name[idx], ui_theme_text());
+            ui_text_color_if_changed(lbl_switch_name[idx], ui_theme_btn_text());
         }
     }
 }
@@ -71,16 +72,16 @@ static void update_wswitch_visual(int idx, bool force = false) {
     last_wswitch_state[idx] = (int)on;
 
     if (on) {
-        lv_obj_set_style_bg_color(w_switches[idx], lv_color_hex(UI_COLOR_SUCCESS), 0);
-        lv_obj_set_style_border_color(w_switches[idx], lv_color_hex(0x34d399), 0);
+        lv_obj_set_style_bg_color(w_switches[idx], ui_theme_relay(), 0);
+        lv_obj_set_style_border_color(w_switches[idx], ui_theme_relay(), 0);
         if (lbl_wswitch_name[idx]) {
-            ui_text_color_if_changed(lbl_wswitch_name[idx], lv_color_hex(0xffffff));
+            ui_text_color_if_changed(lbl_wswitch_name[idx], ui_theme_btn_active_text());
         }
     } else {
         lv_obj_set_style_bg_color(w_switches[idx], ui_theme_card(), 0);
         lv_obj_set_style_border_color(w_switches[idx], ui_theme_border(), 0);
         if (lbl_wswitch_name[idx]) {
-            ui_text_color_if_changed(lbl_wswitch_name[idx], ui_theme_text());
+            ui_text_color_if_changed(lbl_wswitch_name[idx], ui_theme_btn_text());
         }
     }
 }
@@ -238,12 +239,12 @@ void ui_trigger_dimmers_anim() {
 static void switches_anim_cb(void *var, int32_t ratio) {
     (void)var;
     uint8_t r = (uint8_t)(ratio > 255 ? 255 : (ratio < 0 ? 0 : ratio));
-    lv_color_t bg_target = lv_color_hex(UI_COLOR_SUCCESS);
-    lv_color_t border_target = lv_color_hex(0x34d399);
-    lv_color_t text_target = lv_color_hex(0xffffff);
+    lv_color_t bg_target = ui_theme_relay();
+    lv_color_t border_target = ui_theme_relay();
+    lv_color_t text_target = ui_theme_btn_active_text();
     lv_color_t bg_start = ui_theme_card();
     lv_color_t border_start = ui_theme_border();
-    lv_color_t text_start = ui_theme_text();
+    lv_color_t text_start = ui_theme_btn_text();
 
     lv_color_t cur_bg = lv_color_mix(bg_target, bg_start, r);
     lv_color_t cur_border = lv_color_mix(border_target, border_start, r);
@@ -294,14 +295,14 @@ void ui_trigger_switches_anim() {
             lv_obj_set_style_bg_color(switches[i], ui_theme_card(), 0);
             lv_obj_set_style_border_color(switches[i], ui_theme_border(), 0);
             if (lbl_switch_name[i]) {
-                lv_obj_set_style_text_color(lbl_switch_name[i], ui_theme_text(), 0);
+                lv_obj_set_style_text_color(lbl_switch_name[i], ui_theme_btn_text(), 0);
             }
         }
         if (state.show_wrelay && state.wrelay_visible[i] && w_switches[i] && state.wrelay_state[i]) {
             lv_obj_set_style_bg_color(w_switches[i], ui_theme_card(), 0);
             lv_obj_set_style_border_color(w_switches[i], ui_theme_border(), 0);
             if (lbl_wswitch_name[i]) {
-                lv_obj_set_style_text_color(lbl_wswitch_name[i], ui_theme_text(), 0);
+                lv_obj_set_style_text_color(lbl_wswitch_name[i], ui_theme_btn_text(), 0);
             }
         }
     }
@@ -459,8 +460,8 @@ void ui_build_switches(lv_obj_t *parent) {
         // 3 rows = 3 * 94 + 2 * 12 = 306px <= 360px (no scrollbar for <= 6 buttons)
         switches[i] = lv_btn_create(cont_sw);
         lv_obj_set_size(switches[i], 212, 94);
-        lv_obj_set_style_radius(switches[i], 14, 0);
-        lv_obj_set_style_border_width(switches[i], 1, 0);
+        lv_obj_set_style_radius(switches[i], ui_radius_card(), 0);
+        lv_obj_set_style_border_width(switches[i], ui_border_width(), 0);
         lv_obj_set_style_shadow_width(switches[i], 0, 0);
         lv_obj_clear_flag(switches[i], LV_OBJ_FLAG_SCROLL_ON_FOCUS);
         lv_obj_add_event_cb(switches[i], relay_btn_event_cb, LV_EVENT_ALL, (void*)(intptr_t)i);
@@ -492,8 +493,8 @@ void ui_build_switches(lv_obj_t *parent) {
 
         w_switches[i] = lv_btn_create(cont_sw);
         lv_obj_set_size(w_switches[i], 212, 94);
-        lv_obj_set_style_radius(w_switches[i], 14, 0);
-        lv_obj_set_style_border_width(w_switches[i], 1, 0);
+        lv_obj_set_style_radius(w_switches[i], ui_radius_card(), 0);
+        lv_obj_set_style_border_width(w_switches[i], ui_border_width(), 0);
         lv_obj_set_style_shadow_width(w_switches[i], 0, 0);
         lv_obj_clear_flag(w_switches[i], LV_OBJ_FLAG_SCROLL_ON_FOCUS);
         lv_obj_add_event_cb(w_switches[i], wrelay_btn_event_cb, LV_EVENT_ALL, (void*)(intptr_t)i);
@@ -554,13 +555,13 @@ void ui_build_dimmers(lv_obj_t *parent) {
         
         // Track styling (capsule pill shape)
         lv_obj_set_style_bg_color(dimmers[i], ui_theme_track(), LV_PART_MAIN);
-        lv_obj_set_style_radius(dimmers[i], 16, LV_PART_MAIN);
-        lv_obj_set_style_border_width(dimmers[i], 1, LV_PART_MAIN);
+        lv_obj_set_style_radius(dimmers[i], ui_radius_button(), LV_PART_MAIN);
+        lv_obj_set_style_border_width(dimmers[i], ui_border_width(), LV_PART_MAIN);
         lv_obj_set_style_border_color(dimmers[i], ui_theme_border(), LV_PART_MAIN);
         lv_obj_set_style_clip_corner(dimmers[i], true, LV_PART_MAIN);
         
         // Indicator styling
-        lv_obj_set_style_radius(dimmers[i], 16, LV_PART_INDICATOR);
+        lv_obj_set_style_radius(dimmers[i], ui_radius_button(), LV_PART_INDICATOR);
         lv_obj_set_style_bg_color(dimmers[i], dimmer_color_for_val(state.dimmer_val[i]), LV_PART_INDICATOR);
         
         // Completely remove knob (no ball at the start or anywhere)

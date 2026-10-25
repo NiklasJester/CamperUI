@@ -406,6 +406,11 @@ static void parse_temp_json(const char *payload) {
     state.outdoor_temp = state.temp_sensors[out_idx];
     int in_idx = constrain(state.indoor_temp_sensor, 0, TEMP_SOURCE_COUNT - 1);
     state.indoor_temp = state.temp_sensors[in_idx];
+    if (state.fridge_temp_sensor >= 0 && state.fridge_temp_sensor < TEMP_SOURCE_COUNT) {
+        state.fridge_temp = state.temp_sensors[state.fridge_temp_sensor];
+    } else {
+        state.fridge_temp = -999.0f;
+    }
     if (state.temp_humidity[in_idx] > 0.5f) {
         state.indoor_humidity = state.temp_humidity[in_idx];
     } else if (out_idx != 2 && in_idx != 2) {
@@ -415,6 +420,8 @@ static void parse_temp_json(const char *payload) {
 
 // GET /heater -> { "autoterm1": { "heatertoggle": bool, "heatstatus": str, "heaterror": str,
 //   "targettemp_vanpi": num, "mode": str, "powerlevel": int, "fanspeed": int }, ... }
+static void parse_dometic_object(JsonObject rc10);
+
 static void parse_heater_json(const char *payload) {
     DynamicJsonDocument doc(2048);
     if (deserializeJson(doc, payload)) return;
@@ -422,9 +429,10 @@ static void parse_heater_json(const char *payload) {
     bool has_at = doc["autoterm1"].is<JsonObject>();
     JsonObject at;
     if (has_at) at = doc["autoterm1"];
+    bool use_at = has_at && (state.heater_type == HEATER_TYPE_AUTOTERM);
 
     const char *raw_hs = "";
-    if (has_at && at.containsKey("heatstatus")) {
+    if (use_at && at.containsKey("heatstatus")) {
         raw_hs = at["heatstatus"].as<const char*>();
     } else if (doc.containsKey("heatstatus")) {
         raw_hs = doc["heatstatus"].as<const char*>();
@@ -432,7 +440,7 @@ static void parse_heater_json(const char *payload) {
     if (!raw_hs) raw_hs = "";
 
     const char *raw_err = "";
-    if (has_at && at.containsKey("heaterror")) {
+    if (use_at && at.containsKey("heaterror")) {
         raw_err = at["heaterror"].as<const char*>();
     } else if (doc.containsKey("heaterror")) {
         raw_err = doc["heaterror"].as<const char*>();
@@ -441,7 +449,7 @@ static void parse_heater_json(const char *payload) {
 
     StateLockGuard lock;
     // Read diagnostics before the control hold-off: telemetry keeps updating during interaction.
-    JsonObject source = has_at ? at : doc.as<JsonObject>();
+    JsonObject source = use_at ? at : doc.as<JsonObject>();
     auto &diag = state.heater_diagnostics;
     const bool present = has_at || source.containsKey("heatstatus") || source.containsKey("heatvolt") ||
                          source.containsKey("heatfan") || source.containsKey("heattemp") ||
@@ -454,6 +462,14 @@ static void parse_heater_json(const char *payload) {
         if (validEnergyNumber(v)) {
             float number = jsonFloat(v);
             diag.set(i, number, i == 3 || number >= 0.0f);
+        }
+    }
+    if (is_webasto_heater(state.heater_type)) {
+        if (doc.containsKey("heatvolt") && validEnergyNumber(doc["heatvolt"])) {
+            state.webasto_voltage = jsonFloat(doc["heatvolt"]);
+        }
+        if (doc.containsKey("heattemp") && validEnergyNumber(doc["heattemp"])) {
+            state.webasto_temp = jsonFloat(doc["heattemp"]);
         }
     }
     if (state.heater_status != raw_hs) {
@@ -494,15 +510,21 @@ static void parse_heater_json(const char *payload) {
         }
     }
 
-    // Running state: Check all indicators from VanPi / Autoterm
+    // Running state: Check all indicators from VanPi / Autoterm / Webasto
     bool is_on = false;
-    if (has_at && at.containsKey("heatertoggle")) {
-        const char *ht = at["heatertoggle"].as<const char*>();
-        if (ht && (strcasecmp(ht, "true") == 0 || strcmp(ht, "1") == 0)) is_on = true;
+    if (use_at && at.containsKey("heatertoggle")) {
+        if (at["heatertoggle"].is<bool>()) is_on = at["heatertoggle"].as<bool>();
+        else {
+            const char *ht = at["heatertoggle"].as<const char*>();
+            if (ht && (strcasecmp(ht, "true") == 0 || strcmp(ht, "1") == 0)) is_on = true;
+        }
     }
     if (!is_on && doc.containsKey("heatertoggle")) {
-        const char *ht = doc["heatertoggle"].as<const char*>();
-        if (ht && (strcasecmp(ht, "true") == 0 || strcmp(ht, "1") == 0)) is_on = true;
+        if (doc["heatertoggle"].is<bool>()) is_on = doc["heatertoggle"].as<bool>();
+        else {
+            const char *ht = doc["heatertoggle"].as<const char*>();
+            if (ht && (strcasecmp(ht, "true") == 0 || strcmp(ht, "1") == 0)) is_on = true;
+        }
     }
 
     auto is_active_status = [](const char *s) {
@@ -521,7 +543,7 @@ static void parse_heater_json(const char *payload) {
         state.heating_on = is_on;
     }
 
-    if (has_at && at.containsKey("targettemp_vanpi")) {
+    if (use_at && at.containsKey("targettemp_vanpi")) {
         float t = jsonFloat(at["targettemp_vanpi"]);
         if (t > 0 && !is_truma_heater(state.heater_type)) state.target_temp = t;
     } else if (doc.containsKey("targettemp_vanpi")) {
@@ -670,6 +692,67 @@ static void parse_heater_json(const char *payload) {
             }
             state.heater_error = (state.truma_error != "none") ? state.truma_error : "no";
         }
+    }
+
+    // --- Dometic RC10 CI Telemetry Parsing (if present in /heater) ---
+    if (doc.containsKey("dometic_rc10_CI") && doc["dometic_rc10_CI"].is<JsonObject>()) {
+        parse_dometic_object(doc["dometic_rc10_CI"].as<JsonObject>());
+    }
+}
+
+// --- Dometic RC10 CI-Bus Standalone Parsing ---
+static void parse_dometic_object(JsonObject rc10) {
+    if (rc10.isNull() || rc10.size() == 0) return;
+
+    StateLockGuard lock;
+    state.fridge_last_update = millis();
+
+    if (rc10.containsKey("diagnostics") && rc10["diagnostics"].is<JsonObject>()) {
+        JsonObject diag = rc10["diagnostics"];
+        const char *err = diag["error"] | "none";
+        strncpy(state.fridge_error, err, sizeof(state.fridge_error) - 1);
+        state.fridge_error[sizeof(state.fridge_error) - 1] = '\0';
+    }
+
+    if (rc10.containsKey("status") && rc10["status"].is<JsonObject>()) {
+        JsonObject st = rc10["status"];
+        if (st.containsKey("power_source")) {
+            const char *ps = st["power_source"] | "unk";
+            strncpy(state.fridge_power_source, ps, sizeof(state.fridge_power_source) - 1);
+            state.fridge_power_source[sizeof(state.fridge_power_source) - 1] = '\0';
+        }
+        if (st.containsKey("compressor_on")) {
+            state.fridge_compressor = st["compressor_on"].as<bool>();
+        }
+        if (st.containsKey("condensor_fan_on")) {
+            state.fridge_fan = st["condensor_fan_on"].as<bool>();
+        }
+
+        // Only update control targets if user hold-off has expired
+        if ((int32_t)(millis() - state.fridge_hold_until) >= 0) {
+            if (st.containsKey("power_on")) {
+                state.fridge_power = st["power_on"].as<bool>();
+            }
+            if (st.containsKey("user_mode")) {
+                const char *m = st["user_mode"] | "performance";
+                if (strcasecmp(m, "silent") == 0) state.fridge_mode = 1;
+                else if (strcasecmp(m, "turbo") == 0) state.fridge_mode = 2;
+                else state.fridge_mode = 0;
+            }
+            if (st.containsKey("set_step")) {
+                int step = st["set_step"].as<int>();
+                if (step >= 1 && step <= 5) state.fridge_step = (uint8_t)step;
+            }
+        }
+    }
+}
+
+static void parse_dometic_json(const char *payload) {
+    if (!payload || payload[0] == '\0' || strcmp(payload, "null") == 0) return;
+    StaticJsonDocument<1024> doc;
+    if (deserializeJson(doc, payload)) return;
+    if (doc.is<JsonObject>()) {
+        parse_dometic_object(doc.as<JsonObject>());
     }
 }
 
@@ -1042,6 +1125,19 @@ void http_loop() {
                     }
                     break;
                 }
+                case 12: {
+                    if (state.tab_enabled[TAB_FRIDGE]) {
+                        state.fridge_last_update = millis();
+                        if (state.fridge_power) {
+                            state.fridge_compressor = ((millis() / 15000) % 2 == 0);
+                            state.fridge_fan = state.fridge_compressor;
+                        } else {
+                            state.fridge_compressor = false;
+                            state.fridge_fan = false;
+                        }
+                    }
+                    break;
+                }
             }
 
             if (poll_step == 7 && !low_power_poll && (millis() - last_uart_log_ms >= 60000UL)) {
@@ -1054,7 +1150,7 @@ void http_loop() {
             }
 
             poll_step++;
-            if (poll_step > 11) poll_step = 0;
+            if (poll_step > 12) poll_step = 0;
             last_http_poll = millis();
         }
         return;
@@ -1099,7 +1195,7 @@ void http_loop() {
             case 3: fetch_endpoint("/level",   parse_level_json);   break;
             case 4: fetch_endpoint("/temp",    parse_temp_json);    break;
             case 5:
-                if (state.tab_enabled[TAB_CLIMATE] || state.tab_enabled[TAB_TRUMA] || state.heater_type != HEATER_TYPE_NONE) {
+                if (state.tab_enabled[TAB_CLIMATE] || state.tab_enabled[TAB_TRUMA] || state.tab_enabled[TAB_FRIDGE] || state.heater_type != HEATER_TYPE_NONE) {
                     fetch_endpoint("/heater", parse_heater_json);
                 }
                 break;
@@ -1123,6 +1219,11 @@ void http_loop() {
             case 11:
                 fetch_booster_data();
                 break;
+            case 12:
+                if (state.tab_enabled[TAB_FRIDGE]) {
+                    fetch_endpoint("/dometic_rc10_ci/", parse_dometic_json);
+                }
+                break;
         }
 
         if (poll_step == 7 && !low_power_poll && (millis() - last_uart_log_ms >= 60000UL)) {
@@ -1145,7 +1246,7 @@ void http_loop() {
         }
 
         poll_step++;
-        if (poll_step > 11) poll_step = 0;
+        if (poll_step > 12) poll_step = 0;
         last_http_poll = millis();
     }
 }
@@ -1206,6 +1307,24 @@ void http_publish_heater_cmd(String mode, int value) {
     queue_cmd(path);
 }
 
+void http_publish_webasto(bool on, int temp) {
+    state.heater_hold_until = millis() + 5000;
+    char path[64];
+    if (!on) {
+        state.heating_on = false;
+        snprintf(path, sizeof(path), "/heater/false");
+    } else {
+        state.heating_on = true;
+        if (temp > 0) {
+            state.target_temp = (float)temp;
+            snprintf(path, sizeof(path), "/heater/true/%d", constrain(temp, 5, 35));
+        } else {
+            snprintf(path, sizeof(path), "/heater/true");
+        }
+    }
+    queue_cmd(path);
+}
+
 void http_publish_truma_air(int temp) {
     state.truma_hold_until = millis() + 4000;
     char path[64];
@@ -1237,6 +1356,22 @@ void http_publish_truma_energy(const char *mode) {
     state.truma_energy_mode = mode ? mode : "fuel";
     char path[64];
     snprintf(path, sizeof(path), "/truma_ci/energymix/%s", state.truma_energy_mode.c_str());
+    queue_cmd(path);
+}
+
+void http_publish_fridge(bool power, const char *mode, int step) {
+    state.fridge_hold_until = millis() + 4000;
+    state.fridge_power = power;
+    if (mode) {
+        if (strcasecmp(mode, "silent") == 0) state.fridge_mode = 1;
+        else if (strcasecmp(mode, "turbo") == 0) state.fridge_mode = 2;
+        else state.fridge_mode = 0;
+    }
+    state.fridge_step = constrain(step, 1, 5);
+
+    const char *mode_str = (state.fridge_mode == 1) ? "silent" : ((state.fridge_mode == 2) ? "turbo" : "performance");
+    char path[64];
+    snprintf(path, sizeof(path), "/dometic_rc10_ci/%s/%s/%d", power ? "on" : "off", mode_str, state.fridge_step);
     queue_cmd(path);
 }
 

@@ -174,7 +174,7 @@ void ui_build_level(lv_obj_t *parent) {
     bubble_obj = lv_obj_create(bubble_container);
     lv_obj_set_size(bubble_obj, 30, 30);
     lv_obj_set_style_radius(bubble_obj, LV_RADIUS_CIRCLE, 0);
-    lv_obj_set_style_bg_color(bubble_obj, lv_color_hex(UI_COLOR_PRIMARY), 0);
+    lv_obj_set_style_bg_color(bubble_obj, ui_theme_primary(), 0);
     lv_obj_set_style_border_width(bubble_obj, 2, 0);
     lv_obj_set_style_border_color(bubble_obj, lv_color_hex(0xffffff), 0);
     lv_obj_set_style_shadow_width(bubble_obj, 0, 0);
@@ -266,14 +266,14 @@ void ui_build_level(lv_obj_t *parent) {
     btn_calibrate = lv_btn_create(card_level_main);
     lv_obj_set_size(btn_calibrate, 210, 44);
     lv_obj_align(btn_calibrate, LV_ALIGN_BOTTOM_LEFT, 8, -6);
-    lv_obj_set_style_radius(btn_calibrate, 8, 0);
-    lv_obj_set_style_bg_color(btn_calibrate, lv_color_hex(UI_COLOR_PRIMARY), 0);
+    lv_obj_set_style_radius(btn_calibrate, ui_radius_button(), 0);
+    lv_obj_set_style_bg_color(btn_calibrate, ui_theme_primary(), 0);
     lv_obj_add_event_cb(btn_calibrate, calibrate_click_cb, LV_EVENT_CLICKED, NULL);
 
     lv_obj_t *lbl_btn = lv_label_create(btn_calibrate);
     lv_label_set_text_fmt(lbl_btn, "%s Nullpunkt Tara", LV_SYMBOL_REFRESH);
     lv_obj_set_style_text_font(lbl_btn, &lv_font_montserrat_14, 0);
-    lv_obj_set_style_text_color(lbl_btn, lv_color_hex(0xffffff), 0);
+    lv_obj_set_style_text_color(lbl_btn, ui_theme_btn_active_text(), 0);
     lv_obj_center(lbl_btn);
 
     lbl_cal_msg = lv_label_create(card_level_main);

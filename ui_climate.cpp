@@ -13,6 +13,9 @@ static lv_obj_t *lbl_btn_temp_plus = nullptr;
 static lv_obj_t *btn_start_stop;
 static lv_obj_t *lbl_btn_start_stop;
 static lv_obj_t *dd_mode;
+static lv_obj_t *card_webasto = nullptr;
+static lv_obj_t *lbl_webasto_temp = nullptr;
+static lv_obj_t *lbl_webasto_volt = nullptr;
 static lv_obj_t *lbl_heater_status;
 static int last_heating_state = -1;
 
@@ -191,6 +194,33 @@ static void update_arc_color(lv_obj_t *arc) {
 }
 
 static void update_ui_from_mode() {
+    if (is_webasto_heater(state.heater_type)) {
+        if (dd_mode) lv_obj_add_flag(dd_mode, LV_OBJ_FLAG_HIDDEN);
+        if (card_webasto) lv_obj_clear_flag(card_webasto, LV_OBJ_FLAG_HIDDEN);
+
+        lv_arc_set_range(arc_target, 10, 35);
+        int t = (int)(state.target_temp + 0.5f);
+        if (t < 10) t = 20;
+        if (t > 35) t = 35;
+        lv_arc_set_value(arc_target, t);
+        lv_label_set_text_fmt(lbl_target, "Ziel: %d C", t);
+        update_arc_color(arc_target);
+
+        if (state.heating_on) {
+            lv_obj_set_style_bg_color(btn_start_stop, lv_color_hex(UI_COLOR_DANGER), 0);
+            lv_obj_set_style_border_color(btn_start_stop, lv_color_hex(0xf87171), 0);
+            ui_label_set_text_if_changed(lbl_btn_start_stop, "Stop");
+        } else {
+            lv_obj_set_style_bg_color(btn_start_stop, lv_color_hex(UI_COLOR_SUCCESS), 0);
+            lv_obj_set_style_border_color(btn_start_stop, lv_color_hex(0x34d399), 0);
+            ui_label_set_text_if_changed(lbl_btn_start_stop, "Start");
+        }
+        return;
+    }
+
+    if (card_webasto) lv_obj_add_flag(card_webasto, LV_OBJ_FLAG_HIDDEN);
+    if (dd_mode) lv_obj_clear_flag(dd_mode, LV_OBJ_FLAG_HIDDEN);
+
     if (state.heater_vent_mode) {
         lv_dropdown_set_selected(dd_mode, 2);
         lv_arc_set_range(arc_target, 1, 10);
@@ -246,6 +276,20 @@ static void dd_mode_event_cb(lv_event_t * e) {
 
 static void btn_start_stop_event_cb(lv_event_t * e) {
     state.heater_hold_until = millis() + HEATER_HOLD_MS;
+    if (is_webasto_heater(state.heater_type)) {
+        if (state.heating_on) {
+            http_publish_webasto(false, 0);
+            state.heating_on = false;
+        } else {
+            int val = (int)(state.target_temp + 0.5f);
+            if (val < 10) val = 20;
+            http_publish_webasto(true, val);
+            state.heating_on = true;
+        }
+        update_ui_from_mode();
+        return;
+    }
+
     if (state.heating_on) {
         http_publish_heater_cmd("stop", 0);
         state.heating_on = false;
@@ -266,6 +310,18 @@ static void arc_target_event_cb(lv_event_t * e) {
     int val = lv_arc_get_value(arc);
     state.heater_hold_until = millis() + HEATER_HOLD_MS;
     
+    if (is_webasto_heater(state.heater_type)) {
+        state.target_temp = val;
+        lv_label_set_text_fmt(lbl_target, "Ziel: %d C", val);
+        update_arc_color(arc);
+        if (lv_event_get_code(e) == LV_EVENT_RELEASED) {
+            if (state.heating_on) {
+                http_publish_webasto(true, val);
+            }
+        }
+        return;
+    }
+
     if (state.heater_vent_mode) {
         state.heater_power_level = val;
         lv_label_set_text_fmt(lbl_target, "Luefter Stufe: %d", val);
@@ -292,6 +348,24 @@ static void arc_target_event_cb(lv_event_t * e) {
 static void btn_temp_adjust_event_cb(lv_event_t *e) {
     int delta = (int)(intptr_t)lv_event_get_user_data(e);
     state.heater_hold_until = millis() + HEATER_HOLD_MS;
+
+    if (is_webasto_heater(state.heater_type)) {
+        int cur = (int)(state.target_temp + 0.5f);
+        if (cur < 10) cur = 20;
+        cur = constrain(cur + delta, 10, 35);
+        state.target_temp = cur;
+        if (arc_target) {
+            lv_arc_set_value(arc_target, cur);
+            update_arc_color(arc_target);
+        }
+        if (lbl_target) {
+            lv_label_set_text_fmt(lbl_target, "Ziel: %d C", cur);
+        }
+        if (state.heating_on) {
+            http_publish_webasto(true, cur);
+        }
+        return;
+    }
 
     if (state.heater_vent_mode || state.heater_power_mode) {
         int cur = state.heater_power_level > 0 ? state.heater_power_level : 1;
@@ -336,6 +410,27 @@ void ui_update_climate_tab() {
     update_status_label();
     update_diagnostics();
 
+    if (is_webasto_heater(state.heater_type)) {
+        if (lbl_webasto_temp) {
+            if (state.webasto_temp > 0.0f) {
+                char buf[32];
+                snprintf(buf, sizeof(buf), "Heizer: %.0f C", state.webasto_temp);
+                ui_label_set_text_if_changed(lbl_webasto_temp, buf);
+            } else {
+                ui_label_set_text_if_changed(lbl_webasto_temp, "Heizer: -- C");
+            }
+        }
+        if (lbl_webasto_volt) {
+            if (state.webasto_voltage > 5.0f) {
+                char buf[32];
+                snprintf(buf, sizeof(buf), "Spannung: %.1f V", state.webasto_voltage);
+                ui_label_set_text_if_changed(lbl_webasto_volt, buf);
+            } else {
+                ui_label_set_text_if_changed(lbl_webasto_volt, "Spannung: --.- V");
+            }
+        }
+    }
+
     if (btn_temp_minus && btn_temp_plus) {
         if (state.heater_temp_buttons) {
             lv_obj_clear_flag(btn_temp_minus, LV_OBJ_FLAG_HIDDEN);
@@ -347,7 +442,29 @@ void ui_update_climate_tab() {
     }
 
     // Don't touch controls while the user is interacting with them
-    if (lv_obj_has_state(arc_target, LV_STATE_PRESSED) || lv_dropdown_is_open(dd_mode)) return;
+    if (lv_obj_has_state(arc_target, LV_STATE_PRESSED) || (!is_webasto_heater(state.heater_type) && lv_dropdown_is_open(dd_mode))) return;
+
+    if (is_webasto_heater(state.heater_type)) {
+        int expected_val = (int)(state.target_temp + 0.5f);
+        if (expected_val < 10) expected_val = 20;
+        if (expected_val > 35) expected_val = 35;
+        if (lv_arc_get_value(arc_target) != expected_val) {
+            update_ui_from_mode();
+            last_heating_state = (int)state.heating_on;
+        } else if ((int)state.heating_on != last_heating_state) {
+            last_heating_state = (int)state.heating_on;
+            if (state.heating_on) {
+                lv_obj_set_style_bg_color(btn_start_stop, lv_color_hex(UI_COLOR_DANGER), 0);
+                lv_obj_set_style_border_color(btn_start_stop, lv_color_hex(0xf87171), 0);
+                ui_label_set_text_if_changed(lbl_btn_start_stop, "Stop");
+            } else {
+                lv_obj_set_style_bg_color(btn_start_stop, lv_color_hex(UI_COLOR_SUCCESS), 0);
+                lv_obj_set_style_border_color(btn_start_stop, lv_color_hex(0x34d399), 0);
+                ui_label_set_text_if_changed(lbl_btn_start_stop, "Start");
+            }
+        }
+        return;
+    }
     
     int expected_sel = 0;
     if (state.heater_vent_mode) expected_sel = 2;
@@ -398,6 +515,9 @@ void ui_climate_reset() {
     btn_start_stop = nullptr;
     lbl_btn_start_stop = nullptr;
     dd_mode = nullptr;
+    card_webasto = nullptr;
+    lbl_webasto_temp = nullptr;
+    lbl_webasto_volt = nullptr;
     lbl_heater_status = nullptr;
     last_heating_state = -1;
 }
@@ -451,6 +571,31 @@ void ui_build_climate(lv_obj_t *parent) {
     lv_obj_set_style_border_color(list, ui_theme_border(), 0);
     lv_obj_add_event_cb(dd_mode, dd_mode_event_cb, LV_EVENT_VALUE_CHANGED, NULL);
 
+    // Right: Webasto Telemetry Card (shown when Webasto is active)
+    card_webasto = ui_create_card(parent, 190, 58);
+    lv_obj_align(card_webasto, LV_ALIGN_TOP_RIGHT, 0, 0);
+    lv_obj_set_style_pad_all(card_webasto, 8, 0);
+
+    lbl_webasto_temp = lv_label_create(card_webasto);
+    lv_label_set_text(lbl_webasto_temp, "Heizer: -- C");
+    lv_obj_set_style_text_font(lbl_webasto_temp, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_color(lbl_webasto_temp, ui_theme_text(), 0);
+    lv_obj_align(lbl_webasto_temp, LV_ALIGN_TOP_LEFT, 4, 2);
+
+    lbl_webasto_volt = lv_label_create(card_webasto);
+    lv_label_set_text(lbl_webasto_volt, "Spannung: --.- V");
+    lv_obj_set_style_text_font(lbl_webasto_volt, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_color(lbl_webasto_volt, ui_theme_muted(), 0);
+    lv_obj_align(lbl_webasto_volt, LV_ALIGN_BOTTOM_LEFT, 4, -2);
+
+    if (is_webasto_heater(state.heater_type)) {
+        lv_obj_add_flag(dd_mode, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_clear_flag(card_webasto, LV_OBJ_FLAG_HIDDEN);
+    } else {
+        lv_obj_clear_flag(dd_mode, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_add_flag(card_webasto, LV_OBJ_FLAG_HIDDEN);
+    }
+
     // ==========================================
     // 2. Thermostat Arc Gauge
     // ==========================================
@@ -484,7 +629,7 @@ void ui_build_climate(lv_obj_t *parent) {
     lbl_btn_temp_minus = lv_label_create(btn_temp_minus);
     lv_label_set_text(lbl_btn_temp_minus, LV_SYMBOL_MINUS);
     lv_obj_set_style_text_font(lbl_btn_temp_minus, &lv_font_montserrat_24, 0);
-    lv_obj_set_style_text_color(lbl_btn_temp_minus, ui_theme_text(), 0);
+    lv_obj_set_style_text_color(lbl_btn_temp_minus, ui_theme_btn_text(), 0);
     lv_obj_center(lbl_btn_temp_minus);
 
     // Plus Button (Right of Arc)
@@ -501,7 +646,7 @@ void ui_build_climate(lv_obj_t *parent) {
     lbl_btn_temp_plus = lv_label_create(btn_temp_plus);
     lv_label_set_text(lbl_btn_temp_plus, LV_SYMBOL_PLUS);
     lv_obj_set_style_text_font(lbl_btn_temp_plus, &lv_font_montserrat_24, 0);
-    lv_obj_set_style_text_color(lbl_btn_temp_plus, ui_theme_text(), 0);
+    lv_obj_set_style_text_color(lbl_btn_temp_plus, ui_theme_btn_text(), 0);
     lv_obj_center(lbl_btn_temp_plus);
 
     if (!state.heater_temp_buttons) {

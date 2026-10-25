@@ -30,7 +30,11 @@ static void update_row_display() {
             lv_obj_set_style_text_color(rows[i].lbl_icon, cur_enabled[tab_id] ? lv_color_hex(UI_COLOR_PRIMARY) : ui_theme_muted(), 0);
         }
         if (rows[i].lbl_name) {
-            snprintf(buf, sizeof(buf), "%d. %s", i + 1, TAB_METAS[tab_id].name);
+            const char *name = TAB_METAS[tab_id].name;
+            if (tab_id == TAB_CLIMATE && is_webasto_heater(state.heater_type)) {
+                name = "Webasto";
+            }
+            snprintf(buf, sizeof(buf), "%d. %s", i + 1, name);
             lv_label_set_text(rows[i].lbl_name, buf);
             lv_obj_set_style_text_color(rows[i].lbl_name, cur_enabled[tab_id] ? ui_theme_text() : ui_theme_muted(), 0);
         }
@@ -287,7 +291,7 @@ static void open_nav_settings_deferred(void *) {
         lv_obj_t *lbl_save = lv_label_create(btn_save);
         lv_label_set_text(lbl_save, LV_SYMBOL_SAVE "  Speichern & Neustarten");
         lv_obj_set_style_text_font(lbl_save, &lv_font_montserrat_18, 0);
-        lv_obj_set_style_text_color(lbl_save, lv_color_hex(0xffffff), 0);
+        lv_obj_set_style_text_color(lbl_save, ui_theme_btn_active_text(), 0);
         lv_obj_center(lbl_save);
     }
 

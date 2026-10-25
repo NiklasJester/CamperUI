@@ -36,6 +36,25 @@ bool wifi_is_scanning() {
     return is_scanning.load();
 }
 
+void wifi_prepare_for_scan() {
+    is_scanning.store(true);
+    WiFi.setSleep(false);
+    if (WiFi.status() != WL_CONNECTED) {
+        WiFi.disconnect(false, false);
+        delay(60);
+    }
+    WiFi.mode(WIFI_STA);
+    WiFi.scanDelete();
+}
+
+void wifi_finish_scan() {
+    is_scanning.store(false);
+    WiFi.setSleep(true);
+    if (WiFi.status() != WL_CONNECTED && !state.wifi_ssid.isEmpty()) {
+        wifi_connect_configured();
+    }
+}
+
 #include "improv_serial.h"
 
 void wifi_diagnostics_init() {

@@ -36,6 +36,8 @@ lv_font_t ui_font_montserrat_42;
 
 static lv_font_t ui_font_de_16_wrapper;
 static lv_font_t ui_font_de_18_wrapper;
+static lv_font_t ui_font_de_20_wrapper;
+static lv_font_t ui_font_de_22_wrapper;
 static lv_font_t ui_font_de_24_wrapper;
 static lv_font_t ui_font_de_32_wrapper;
 
@@ -59,11 +61,15 @@ void ui_fonts_init(void) {
     ui_font_montserrat_18 = lv_font_montserrat_18;
     ui_font_montserrat_18.fallback = &ui_font_de_18_wrapper;
 
+    ui_font_de_20_wrapper = ui_font_de_20;
+    ui_font_de_20_wrapper.fallback = &ui_font_mdi_18;
     ui_font_montserrat_20 = lv_font_montserrat_20;
-    ui_font_montserrat_20.fallback = &ui_font_de_20;
+    ui_font_montserrat_20.fallback = &ui_font_de_20_wrapper;
 
+    ui_font_de_22_wrapper = ui_font_de_22;
+    ui_font_de_22_wrapper.fallback = &ui_font_mdi_18;
     ui_font_montserrat_22 = lv_font_montserrat_22;
-    ui_font_montserrat_22.fallback = &ui_font_de_22;
+    ui_font_montserrat_22.fallback = &ui_font_de_22_wrapper;
 
     ui_font_de_24_wrapper = ui_font_de_24;
     ui_font_de_24_wrapper.fallback = &ui_font_mdi_24;

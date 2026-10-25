@@ -5,7 +5,7 @@
 #include "system_state.h"
 #include "ui_mdi_icons.h"
 #include "ui_fonts.h"
-#define CAMPERUI_VERSION "V1.8.0-RV3D.91-dev"
+#define CAMPERUI_VERSION "V1.9.0"
 
 #if !LV_MEM_CUSTOM && LV_MEM_SIZE < (512U * 1024U)
 #error "CamperUI needs config/lv_conf.h: copy it to Arduino/libraries/lv_conf.h (LV_MEM_SIZE >= 512 KiB)."
@@ -35,20 +35,29 @@
 
 inline lv_color_t ui_battery_soc_color(int soc) {
     return lv_color_hex(soc <= state.warn_bat_soc ? UI_COLOR_DANGER :
-        soc <= state.warn_bat_yellow_soc ? 0xffdf00 : UI_COLOR_PRIMARY);
+        soc <= state.warn_bat_yellow_soc ? 0xffdf00 : state.theme.color_primary);
 }
 inline int ui_home_temperature_source(int slot) {
     return slot == 0 ? state.indoor_temp_sensor :
         slot == 1 ? state.outdoor_temp_sensor : state.temps_custom_sensor[0];
 }
 
-// Inline helpers for theme-aware colors
-static inline lv_color_t ui_theme_bg() { return state.dark_mode ? lv_color_hex(UI_COLOR_BG_DARK) : lv_color_hex(UI_COLOR_BG_LIGHT); }
-static inline lv_color_t ui_theme_card() { return state.dark_mode ? lv_color_hex(UI_COLOR_CARD_DARK) : lv_color_hex(UI_COLOR_CARD_LIGHT); }
-static inline lv_color_t ui_theme_border() { return state.dark_mode ? lv_color_hex(UI_COLOR_BORDER_DARK) : lv_color_hex(UI_COLOR_BORDER_LIGHT); }
-static inline lv_color_t ui_theme_text() { return state.dark_mode ? lv_color_hex(UI_COLOR_TEXT_DARK) : lv_color_hex(UI_COLOR_TEXT_LIGHT); }
-static inline lv_color_t ui_theme_muted() { return state.dark_mode ? lv_color_hex(UI_COLOR_MUTED_DARK) : lv_color_hex(UI_COLOR_MUTED_LIGHT); }
-static inline lv_color_t ui_theme_track() { return state.dark_mode ? lv_color_hex(UI_COLOR_TRACK_DARK) : lv_color_hex(UI_COLOR_TRACK_LIGHT); }
+// Inline helpers for theme-aware colors & geometry
+static inline lv_color_t ui_theme_primary() { return lv_color_hex(state.theme.color_primary); }
+static inline lv_color_t ui_theme_dimmer()  { return lv_color_hex(state.theme.color_dimmer); }
+static inline lv_color_t ui_theme_relay()   { return lv_color_hex(state.theme.color_relay); }
+static inline lv_color_t ui_theme_tank()    { return lv_color_hex(state.theme.color_tank); }
+static inline lv_color_t ui_theme_bg() { return state.dark_mode ? lv_color_hex(state.theme.color_bg) : lv_color_hex(UI_COLOR_BG_LIGHT); }
+static inline lv_color_t ui_theme_card() { return state.dark_mode ? lv_color_hex(state.theme.color_card) : lv_color_hex(UI_COLOR_CARD_LIGHT); }
+static inline lv_color_t ui_theme_border() { return state.dark_mode ? lv_color_hex(state.theme.color_border) : lv_color_hex(UI_COLOR_BORDER_LIGHT); }
+static inline lv_color_t ui_theme_text() { return state.dark_mode ? lv_color_hex(state.theme.color_text) : lv_color_hex(UI_COLOR_TEXT_LIGHT); }
+static inline lv_color_t ui_theme_muted() { return state.dark_mode ? lv_color_hex(state.theme.color_muted) : lv_color_hex(UI_COLOR_MUTED_LIGHT); }
+static inline lv_color_t ui_theme_track() { return state.dark_mode ? lv_color_hex(state.theme.color_track) : lv_color_hex(UI_COLOR_TRACK_LIGHT); }
+static inline lv_color_t ui_theme_btn_text() { return state.dark_mode ? lv_color_hex(state.theme.color_btn_text) : lv_color_hex(UI_COLOR_TEXT_LIGHT); }
+static inline lv_color_t ui_theme_btn_active_text() { return lv_color_hex(state.theme.color_btn_text_active); }
+static inline uint8_t ui_radius_card() { return state.theme.radius_card; }
+static inline uint8_t ui_radius_button() { return state.theme.radius_button; }
+static inline uint8_t ui_border_width() { return state.theme.border_width; }
 
 // Avoid reallocating text and invalidating a label when its display is unchanged.
 static inline void ui_label_set_text_if_changed(lv_obj_t *lbl, const char *text) {
@@ -136,6 +145,7 @@ void ui_update_power_tab();
 void ui_update_water_tab();
 void ui_update_climate_tab();
 void ui_update_truma_tab();
+void ui_update_fridge_tab();
 void ui_update_switches_tab();
 void ui_update_dimmers_tab();
 void ui_update_level_tab();
@@ -157,6 +167,9 @@ void ui_rebuild_power(void);
 void ui_build_climate(lv_obj_t *parent);
 void ui_build_truma(lv_obj_t *parent);
 void ui_truma_reset();
+void ui_build_fridge(lv_obj_t *parent);
+void ui_update_fridge(void);
+void ui_fridge_reset(void);
 void ui_build_switches(lv_obj_t *parent);
 void ui_build_dimmers(lv_obj_t *parent);
 void ui_build_level(lv_obj_t *parent);

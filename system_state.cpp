@@ -91,6 +91,19 @@ void state_init() {
     state.screensaver_enabled = prefs.getBool("scrsave_en", false);
     state.screensaver_brightness = constrain(prefs.getInt("scrsave_brt", 5), 1, 100);
     state.debug_mode = prefs.getBool("dbg_sim", true);
+
+    ThemeConfig saved_theme;
+    size_t theme_sz = prefs.getBytes("theme_cfg", &saved_theme, sizeof(ThemeConfig));
+    if (theme_sz == sizeof(ThemeConfig) && saved_theme.version == 3) {
+        state.theme = saved_theme;
+    } else if (saved_theme.version == 2) {
+        state.theme = saved_theme;
+        state.theme.version = 3;
+        state.theme.color_btn_text = saved_theme.color_text ? saved_theme.color_text : 0xf1f5f9;
+        state.theme.color_btn_text_active = 0xffffff;
+    } else {
+        theme_config_init_default(state.theme);
+    }
     
     state.bat_capacity_ah = prefs.getFloat("bat_cap_ah", 100.0f);
     state.solar_max_w = prefs.getFloat("solar_max_w", 200.0f);
@@ -105,6 +118,7 @@ void state_init() {
 
     state.outdoor_temp_sensor = constrain(prefs.getInt("out_temp_idx", 1), 0, TEMP_SOURCE_COUNT - 1);
     state.indoor_temp_sensor = constrain(prefs.getInt("in_temp_idx", 0), 0, TEMP_SOURCE_COUNT - 1);
+    state.fridge_temp_sensor = constrain(prefs.getInt("fridge_t_idx", -1), -1, TEMP_SOURCE_COUNT - 1);
     state.temps_custom_sensor[0] = constrain(prefs.getInt("t_cust0", -1), -1, TEMP_SOURCE_COUNT - 1);
     state.temps_custom_sensor[1] = constrain(prefs.getInt("t_cust1", -1), -1, TEMP_SOURCE_COUNT - 1);
     state.temps_history_window = prefs.getInt("t_win", 1);
@@ -154,6 +168,10 @@ void state_init() {
     size_t r_order = prefs.getBytes("tab_order", state.tab_order, sizeof(state.tab_order));
     const size_t saved_order_bytes=r_order;
     r_order = rv_migrate_tab_order(state.tab_order, r_order, legacy_rv_tabs);
+    if (r_order == TAB_COUNT - 1) {
+        state.tab_order[TAB_COUNT - 1] = TAB_FRIDGE;
+        r_order = sizeof(state.tab_order);
+    }
     if (r_order != sizeof(state.tab_order)) {
         for (uint8_t i = 0; i < TAB_COUNT; ++i) state.tab_order[i] = i;
     } else {
@@ -173,8 +191,12 @@ void state_init() {
 
     size_t r_en = prefs.getBytes("tab_en", state.tab_enabled, sizeof(state.tab_enabled));
     r_en = rv_migrate_tab_visibility(state.tab_enabled, r_en, legacy_rv_tabs);
+    if (r_en == TAB_COUNT - 1) {
+        state.tab_enabled[TAB_FRIDGE] = false;
+        r_en = sizeof(state.tab_enabled);
+    }
     if (r_en != sizeof(state.tab_enabled)) {
-        for (uint8_t i = 0; i < TAB_COUNT; ++i) state.tab_enabled[i] = i != TAB_VICTRON;
+        for (uint8_t i = 0; i < TAB_COUNT; ++i) state.tab_enabled[i] = (i != TAB_VICTRON && i != TAB_FRIDGE);
     }
 
     state.tank_count = prefs.getInt("tank_cnt", 2);
@@ -259,18 +281,32 @@ void state_init() {
     }
     state.indoor_temp = 0.0f;
     state.outdoor_temp = 0.0f;
+    state.fridge_temp = -999.0f;
     state.indoor_humidity = 0.0f;
     state.target_temp = 20.0f;
     state.heating_on = false;
     state.heater_vent_mode = false;
+
+    // Dometic RC10 Fridge defaults
+    state.fridge_power = false;
+    state.fridge_mode = 0; // performance
+    state.fridge_step = 3;
+    strncpy(state.fridge_power_source, "DC12", sizeof(state.fridge_power_source));
+    state.fridge_compressor = false;
+    state.fridge_fan = false;
+    strncpy(state.fridge_error, "none", sizeof(state.fridge_error));
+    state.fridge_last_update = 0;
+    state.fridge_hold_until = 0;
     state.heater_power_mode = false;
     state.heater_power_level = 5;
     state.heater_diagnostics = HeaterDiagnostics();
     state.heater_status = "";
     state.heater_error = "no";
     state.fan_on = false;
+    state.webasto_temp = 0.0f;
+    state.webasto_voltage = 0.0f;
     state.heater_type = constrain(rv_migrate_heater_type(prefs.getInt("heater_type", HEATER_TYPE_AUTOTERM),
-        rv_cfg_version<2 && (legacy_rv_tabs || saved_order_bytes<=10)), 0, 3);
+        rv_cfg_version<2 && (legacy_rv_tabs || saved_order_bytes<=10)), 0, 4);
     state.heater_temp_buttons = prefs.getBool("ht_btns", false);
 
     // Truma Climate & Boiler defaults
@@ -290,7 +326,7 @@ void state_init() {
     if (is_truma_heater(state.heater_type)) {
         state.tab_enabled[TAB_TRUMA] = true;
         state.tab_enabled[TAB_CLIMATE] = false;
-    } else if (state.heater_type == HEATER_TYPE_AUTOTERM) {
+    } else if (state.heater_type == HEATER_TYPE_AUTOTERM || is_webasto_heater(state.heater_type)) {
         state.tab_enabled[TAB_CLIMATE] = true;
         state.tab_enabled[TAB_TRUMA] = false;
     } else {
@@ -336,10 +372,13 @@ static void put_string_if_changed(const char *key, const String &val) {
 }
 
 static void put_bytes_if_changed(const char *key, const void *buf, size_t len) {
-    uint8_t cur[32];
-    if (len > sizeof(cur) || prefs.getBytes(key, cur, len) != len || memcmp(cur, buf, len) != 0) {
-        prefs.putBytes(key, buf, len);
+    if (len <= 128) {
+        uint8_t cur[128];
+        if (prefs.getBytes(key, cur, len) == len && memcmp(cur, buf, len) == 0) {
+            return;
+        }
     }
+    prefs.putBytes(key, buf, len);
 }
 
 void state_save() {
@@ -399,6 +438,7 @@ void state_save() {
 
     prefs.putInt("out_temp_idx", state.outdoor_temp_sensor);
     prefs.putInt("in_temp_idx", state.indoor_temp_sensor);
+    prefs.putInt("fridge_t_idx", state.fridge_temp_sensor);
     prefs.putInt("t_cust0", state.temps_custom_sensor[0]);
     prefs.putInt("t_cust1", state.temps_custom_sensor[1]);
     prefs.putInt("t_win", state.temps_history_window);
@@ -449,6 +489,14 @@ void state_save() {
         prefs.putBool(key_w_vis, state.wrelay_visible[i]);
     }
 
+    put_bytes_if_changed("theme_cfg", &state.theme, sizeof(ThemeConfig));
+
+    display_request_resync();
+}
+
+void state_save_theme() {
+    StateLockGuard lock;
+    put_bytes_if_changed("theme_cfg", &state.theme, sizeof(ThemeConfig));
     display_request_resync();
 }
 

@@ -43,11 +43,11 @@ static void style_segmented_button(lv_obj_t *btn, lv_obj_t *lbl, bool active, ui
     if (active) {
         ui_bg_color_if_changed(btn, lv_color_hex(active_color_hex));
         ui_border_color_if_changed(btn, lv_color_hex(active_color_hex));
-        if (lbl) ui_text_color_if_changed(lbl, lv_color_hex(0xffffff));
+        if (lbl) ui_text_color_if_changed(lbl, ui_theme_btn_active_text());
     } else {
         ui_bg_color_if_changed(btn, ui_theme_card());
         ui_border_color_if_changed(btn, ui_theme_border());
-        if (lbl) ui_text_color_if_changed(lbl, ui_theme_text());
+        if (lbl) ui_text_color_if_changed(lbl, ui_theme_btn_text());
     }
 }
 
@@ -299,7 +299,7 @@ void ui_build_truma(lv_obj_t *parent) {
     lbl_btn_temp_minus = lv_label_create(btn_temp_minus);
     lv_label_set_text(lbl_btn_temp_minus, LV_SYMBOL_MINUS);
     lv_obj_set_style_text_font(lbl_btn_temp_minus, &lv_font_montserrat_24, 0);
-    lv_obj_set_style_text_color(lbl_btn_temp_minus, ui_theme_text(), 0);
+    lv_obj_set_style_text_color(lbl_btn_temp_minus, ui_theme_btn_text(), 0);
     lv_obj_center(lbl_btn_temp_minus);
 
     // Plus Button (Right of Arc)
@@ -316,7 +316,7 @@ void ui_build_truma(lv_obj_t *parent) {
     lbl_btn_temp_plus = lv_label_create(btn_temp_plus);
     lv_label_set_text(lbl_btn_temp_plus, LV_SYMBOL_PLUS);
     lv_obj_set_style_text_font(lbl_btn_temp_plus, &lv_font_montserrat_24, 0);
-    lv_obj_set_style_text_color(lbl_btn_temp_plus, ui_theme_text(), 0);
+    lv_obj_set_style_text_color(lbl_btn_temp_plus, ui_theme_btn_text(), 0);
     lv_obj_center(lbl_btn_temp_plus);
 
     if (!state.heater_temp_buttons) {
@@ -368,6 +368,7 @@ void ui_build_truma(lv_obj_t *parent) {
     lbl_btn_start_stop = lv_label_create(btn_start_stop);
     lv_label_set_text(lbl_btn_start_stop, "Start");
     lv_obj_set_style_text_font(lbl_btn_start_stop, &lv_font_montserrat_20, 0);
+    lv_obj_set_style_text_color(lbl_btn_start_stop, ui_theme_btn_active_text(), 0);
     lv_obj_center(lbl_btn_start_stop);
 
     // Warmwasser Auswahl (rechts in klein)

@@ -91,6 +91,22 @@
 
 ---
 
+
+### 12. 🎨 Dynamische Theme-Engine & Web-Designer
+* **Vollständig personalisierbare Farbgebung:** Eigene Farben für Dimmer, Relais, Wassertanks, Kacheln, Rahmen, Hintergründe und Button-Schriftfarben (aktiv & normal).
+* **Live-Vorschau & Echtzeit-Übernahme:** Themes werden im Web-Interface (/settings -> *Theme & Design*) mit Live-Vorschau konfiguriert und beim Klick auf *Speichern* **ohne Neustart** in unter 100 ms live auf das Display angewendet.
+* **Presets & JSON-Import/Export:** Vordefinierte Designvorlagen (*Camper Slate, Nordic Amber, Forest Green, Ocean Breeze, Modern Minimal, Sunset Terracotta*) sowie vollständiger Download und Upload eigener Theme-Dateien.
+* **Entwickler-Dokumentation:** Ausführliche Anleitung für Entwickler zum Erstellen neuer Tabs im [Theme & Styling Guide](docs/THEMES.md).
+
+### 13. ❄️ Dometic RC10 CI-Bus Kühlschrank
+* **Eigener Kühlschrank-Tab:** Vollständige CI-Bus-Steuerung für Dometic 10er-Serien (z. B. RC 10.4T, RCL 10.4ET).
+* **Kühlstufen 1–5:** Feinfühlige Regelung über Minus/Plus-Tasten oder direktes Antippen der 5 interaktiven Segment-Balken.
+* **Modus-Umschaltung:** Schneller Wechsel zwischen *Performance*, *Silent* (flüsterleiser Nachtbetrieb, max. Stufe 3) und *Turbo* (maximale Kälteleistung, feste Stufe 5).
+* **CI-Bus Live-Telemetrie:** Anzeige von Stromquelle (12V DC / 24V DC / 230V AC), Kompressor- und Lüfter-Aktivität sowie Klartext-Fehlerdiagnose.
+* **Kühlschranktemperatur:** Optionaler Temperatursensor (aus den VanPi-Sensoren zuweisbar) mit dezenter Anzeige oben rechts im Karten-Header.
+
+---
+
 ## 🛠️ Hardware-Anforderungen
 
 * **Board:** [Waveshare ESP32-S3-Touch-LCD-4](https://www.waveshare.com/esp32-s3-touch-lcd-4.htm)

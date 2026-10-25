@@ -16,7 +16,6 @@ lv_obj_t *scr_settings;
 
 static lv_obj_t *status_bar;
 static lv_obj_t *lbl_time;
-static lv_obj_t *lbl_version;
 static lv_obj_t *lbl_wifi;
 static lv_obj_t *lbl_soc_icon;
 static lv_obj_t *lbl_soc;
@@ -43,7 +42,8 @@ const TabMeta TAB_METAS[TAB_COUNT] = {
     {TAB_LEVEL, "Level", MDI_SPIRIT_LEVEL},
     {TAB_SETTINGS, "Einstellungen", MDI_TUNE},
     {TAB_TRUMA, "Truma", MDI_FIRE},
-    {TAB_VICTRON, "Victron", "VE"}
+    {TAB_VICTRON, "Victron", "VE"},
+    {TAB_FRIDGE, "Kühlschrank", MDI_SNOWFLAKE}
 };
 
 static constexpr uint8_t PAGE_COUNT = TAB_COUNT;
@@ -156,6 +156,8 @@ static void select_page(uint8_t index) {
 }
 
 bool ui_page_available(TabId page) { return page < TAB_COUNT && pages[page] && state.tab_enabled[page]; }
+void ui_update_fridge_tab() { ui_update_fridge(); }
+
 void ui_navigate_to(TabId page) { if (ui_page_available(page)) select_page(page); }
 bool ui_is_level_tab_active() {
     return scr_main != nullptr && !rebuild_pending && active_page == TAB_LEVEL && state.tab_enabled[TAB_LEVEL];
@@ -238,10 +240,10 @@ lv_obj_t* ui_create_card(lv_obj_t *parent, int w, int h) {
     
     // Theme colors
     lv_obj_set_style_bg_color(card, ui_theme_card(), 0);
-    lv_obj_set_style_border_width(card, 1, 0);
+    lv_obj_set_style_border_width(card, ui_border_width(), 0);
     lv_obj_set_style_border_color(card, ui_theme_border(), 0);
     
-    lv_obj_set_style_radius(card, 14, 0);
+    lv_obj_set_style_radius(card, ui_radius_card(), 0);
     lv_obj_set_style_pad_all(card, 12, 0);
     lv_obj_clear_flag(card, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_SCROLL_ON_FOCUS);
     return card;
@@ -250,7 +252,7 @@ lv_obj_t* ui_create_card(lv_obj_t *parent, int w, int h) {
 void ui_apply_theme() {
     lv_disp_t * disp = lv_disp_get_default();
     lv_theme_t * theme = lv_theme_default_init(disp, 
-                                               lv_color_hex(UI_COLOR_PRIMARY), 
+                                               ui_theme_primary(), 
                                                lv_color_hex(UI_COLOR_DANGER), 
                                                state.dark_mode, 
                                                &lv_font_montserrat_14);
@@ -261,7 +263,7 @@ void ui_apply_theme() {
     lv_obj_set_style_bg_color(scr, bg_color, 0);
     
     // Refresh status bar
-    lv_color_t bar_bg = state.dark_mode ? lv_color_hex(0x181c23) : lv_color_hex(0xe9edf3);
+    lv_color_t bar_bg = ui_theme_card();
     lv_obj_set_style_bg_color(status_bar, bar_bg, 0);
     lv_obj_set_style_border_color(status_bar, ui_theme_border(), 0);
     lv_obj_set_style_text_color(status_bar, ui_theme_text(), 0);
@@ -275,7 +277,7 @@ void ui_apply_theme() {
             lv_obj_set_style_bg_color(home_nav_buttons[i], ui_theme_card(), 0);
             lv_obj_set_style_text_color(home_nav_buttons[i], ui_theme_muted(), 0);
             lv_obj_set_style_bg_color(home_nav_buttons[i], ui_theme_track(), LV_STATE_PRESSED);
-            lv_obj_set_style_bg_color(home_nav_buttons[i], lv_color_hex(UI_COLOR_PRIMARY), LV_STATE_CHECKED);
+            lv_obj_set_style_bg_color(home_nav_buttons[i], ui_theme_primary(), LV_STATE_CHECKED);
             lv_obj_set_style_text_color(home_nav_buttons[i], lv_color_hex(0xffffff), LV_STATE_CHECKED);
         }
     }
@@ -302,6 +304,7 @@ static void rebuild_ui(void *) {
     ui_level_reset();
     ui_water_reset();
     ui_switches_reset();
+    ui_fridge_reset();
     if (old_main) lv_obj_del(old_main);
     if (old_settings) lv_obj_del(old_settings);
     scr_main = scr_settings = nullptr;
@@ -327,7 +330,7 @@ void ui_init() {
     }
     lv_disp_t * disp = lv_disp_get_default();
     lv_theme_t * theme = lv_theme_default_init(disp, 
-                                               lv_color_hex(UI_COLOR_PRIMARY), 
+                                               ui_theme_primary(), 
                                                lv_color_hex(UI_COLOR_DANGER), 
                                                state.dark_mode, 
                                                &lv_font_montserrat_14);
@@ -348,6 +351,9 @@ void ui_init() {
     // 1. Status Bar (Height = 40px)
     status_bar = lv_obj_create(scr_main);
     setup_fixed_region(status_bar, 0, STATUS_HEIGHT);
+    lv_obj_set_style_bg_color(status_bar, ui_theme_card(), 0);
+    lv_obj_set_style_border_color(status_bar, ui_theme_border(), 0);
+    lv_obj_set_style_text_color(status_bar, ui_theme_text(), 0);
     lv_obj_set_style_border_width(status_bar, 1, 0);
     lv_obj_set_style_border_side(status_bar, LV_BORDER_SIDE_BOTTOM, 0);
     lv_obj_clear_flag(status_bar, LV_OBJ_FLAG_SCROLLABLE);
@@ -366,16 +372,10 @@ void ui_init() {
     lv_obj_set_style_text_font(lbl_time, &lv_font_montserrat_16, 0);
     lv_obj_center(lbl_time);
 
-    lbl_version = lv_label_create(status_bar);
-    lv_obj_set_pos(lbl_version, 72, 2); lv_obj_set_size(lbl_version, 150, 13);
-    lv_obj_set_style_text_font(lbl_version, &lv_font_montserrat_10, 0);
-    lv_label_set_long_mode(lbl_version, LV_LABEL_LONG_CLIP);
-    lv_label_set_text(lbl_version, "");
-
     // Smart Header Badges Container (Middle)
     badge_cont = lv_obj_create(status_bar);
-    lv_obj_set_size(badge_cont, 130, 22);
-    lv_obj_set_pos(badge_cont, 72, 16);
+    lv_obj_set_size(badge_cont, 140, 24);
+    lv_obj_align(badge_cont, LV_ALIGN_LEFT_MID, 76, 0);
     lv_obj_set_style_bg_opa(badge_cont, LV_OPA_0, 0);
     lv_obj_set_style_border_width(badge_cont, 0, 0);
     lv_obj_set_style_pad_all(badge_cont, 0, 0);
@@ -482,6 +482,7 @@ void ui_init() {
             case TAB_LEVEL:    ui_build_level(pages[i]); break;
             case TAB_SETTINGS: ui_build_settings(pages[i]); break;
             case TAB_TRUMA:    ui_build_truma(pages[i]); break;
+            case TAB_FRIDGE:   ui_build_fridge(pages[i]); break;
             default: break;
         }
     }
@@ -535,9 +536,9 @@ void ui_init() {
         lv_obj_set_pos(button, pos_x, (NAV_HEIGHT - NAV_BUTTON_HEIGHT) / 2);
         lv_obj_set_size(button, NAV_BUTTON_WIDTH, NAV_BUTTON_HEIGHT);
         lv_obj_set_style_bg_opa(button, LV_OPA_COVER, 0);
-        lv_obj_set_style_radius(button, 10, 0);
+        lv_obj_set_style_radius(button, ui_radius_button(), 0);
         lv_obj_set_style_outline_width(button, 2, LV_STATE_FOCUS_KEY);
-        lv_obj_set_style_outline_color(button, lv_color_hex(UI_COLOR_PRIMARY), LV_STATE_FOCUS_KEY);
+        lv_obj_set_style_outline_color(button, ui_theme_primary(), LV_STATE_FOCUS_KEY);
         // Extend touch hit area into the margins so touches near borders cleanly register
         lv_obj_set_ext_click_area(button, (NAV_HEIGHT - NAV_BUTTON_HEIGHT) / 2);
 
@@ -616,6 +617,7 @@ void ui_update_visible_page() {
         case TAB_LEVEL: ui_update_level_tab(); break;
         case TAB_MAXXFAN: ui_update_maxxfan(); break;
         case TAB_TRUMA: ui_update_truma_tab(); break;
+        case TAB_FRIDGE: ui_update_fridge(); break;
         default: break;
     }
 }
@@ -623,9 +625,6 @@ void ui_update_visible_page() {
 void ui_update_data() {
     if (lv_scr_act() != scr_main) return;
 
-    if (lbl_version) {
-        ui_label_set_text_if_changed(lbl_version, state.debug_mode ? "Demo " CAMPERUI_VERSION : CAMPERUI_VERSION);
-    }
     // Update Status Bar Time
     if (lbl_time) {
         time_t now = time(nullptr);
@@ -714,7 +713,8 @@ void ui_update_data() {
     
     // Update Debug Info
     if (active_page == TAB_SETTINGS && lbl_debug_info != NULL) {
-        String debug_txt = wifi_connection_summary();
+        String debug_txt = state.debug_mode ? "Demo " CAMPERUI_VERSION : CAMPERUI_VERSION;
+        debug_txt += "\n" + wifi_connection_summary();
         if (WiFi.status() == WL_CONNECTED) debug_txt += "\nIP: " + WiFi.localIP().toString();
         debug_txt += state.debug_mode ? "\nDaten: Dummy" : "\nDaten: Live";
         ui_label_set_text_if_changed(lbl_debug_info, debug_txt.c_str());

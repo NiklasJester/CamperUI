@@ -16,7 +16,7 @@ extern TwoWire Wire;
 void web_settings_register_routes(WebServer &server) {
     // 1. Settings Web UI
     server.on("/settings", HTTP_GET, [&server]() {
-        server.send_P(200, "text/html", SETTINGS_HTML);
+        server.send_P(200, "text/html; charset=utf-8", SETTINGS_HTML);
     });
 
     // 2. GET /api/settings
@@ -71,6 +71,7 @@ void web_settings_register_routes(WebServer &server) {
 
             doc["outdoor_temp_sensor"] = state.outdoor_temp_sensor;
             doc["indoor_temp_sensor"] = state.indoor_temp_sensor;
+            doc["fridge_temp_sensor"] = state.fridge_temp_sensor;
             JsonArray t_cust = doc["temps_custom_sensor"].to<JsonArray>();
             t_cust.add(state.temps_custom_sensor[0]);
             t_cust.add(state.temps_custom_sensor[1]);
@@ -151,6 +152,7 @@ void web_settings_register_routes(WebServer &server) {
             JsonObject ht0 = ht_arr.add<JsonObject>(); ht0["id"] = 0; ht0["name"] = "Autoterm (Air 2D/4D)";
             JsonObject ht1 = ht_arr.add<JsonObject>(); ht1["id"] = 1; ht1["name"] = "Truma (Gas/Diesel)";
             JsonObject ht2 = ht_arr.add<JsonObject>(); ht2["id"] = 2; ht2["name"] = "Truma + Elektro (Combi E)";
+            JsonObject ht4 = ht_arr.add<JsonObject>(); ht4["id"] = 4; ht4["name"] = "Webasto (W-Bus)";
             JsonObject ht3 = ht_arr.add<JsonObject>(); ht3["id"] = 3; ht3["name"] = "Keine / Deaktiviert";
         }
         String out;
@@ -280,11 +282,11 @@ void web_settings_register_routes(WebServer &server) {
             if (doc["pump_relay"].is<int>()) state.pump_relay = doc["pump_relay"].as<int>();
             if (doc["drain_relay"].is<int>()) state.drain_relay = doc["drain_relay"].as<int>();
             if (doc["heater_type"].is<int>()) {
-                state.heater_type = constrain(doc["heater_type"].as<int>(), 0, 3);
+                state.heater_type = constrain(doc["heater_type"].as<int>(), 0, 4);
                 if (is_truma_heater(state.heater_type)) {
                     state.tab_enabled[TAB_TRUMA] = true;
                     state.tab_enabled[TAB_CLIMATE] = false;
-                } else if (state.heater_type == HEATER_TYPE_AUTOTERM) {
+                } else if (state.heater_type == HEATER_TYPE_AUTOTERM || is_webasto_heater(state.heater_type)) {
                     state.tab_enabled[TAB_CLIMATE] = true;
                     state.tab_enabled[TAB_TRUMA] = false;
                 } else {
@@ -310,6 +312,7 @@ void web_settings_register_routes(WebServer &server) {
 
             if (doc["outdoor_temp_sensor"].is<int>()) state.outdoor_temp_sensor = doc["outdoor_temp_sensor"].as<int>();
             if (doc["indoor_temp_sensor"].is<int>()) state.indoor_temp_sensor = doc["indoor_temp_sensor"].as<int>();
+            if (doc["fridge_temp_sensor"].is<int>()) state.fridge_temp_sensor = doc["fridge_temp_sensor"].as<int>();
             if (doc["temps_custom_sensor"].is<JsonArray>()) {
                 JsonArray arr = doc["temps_custom_sensor"].as<JsonArray>();
                 if (arr.size() > 0) state.temps_custom_sensor[0] = arr[0].as<int>();
@@ -380,9 +383,13 @@ void web_settings_register_routes(WebServer &server) {
 
     // 4. GET /api/wifi/scan
     server.on("/api/wifi/scan", HTTP_GET, [&server]() {
-        wifi_set_scanning(true);
+        wifi_prepare_for_scan();
         int n = WiFi.scanNetworks(false, false);
-        wifi_set_scanning(false);
+        if (n == WIFI_SCAN_FAILED) {
+            WiFi.disconnect(true, false);
+            delay(100);
+            n = WiFi.scanNetworks(false, false);
+        }
         JsonDocument doc;
         JsonArray arr = doc.to<JsonArray>();
         for (int i = 0; i < n; i++) {
@@ -392,6 +399,7 @@ void web_settings_register_routes(WebServer &server) {
             obj["secure"] = (WiFi.encryptionType(i) != WIFI_AUTH_OPEN);
         }
         WiFi.scanDelete();
+        wifi_finish_scan();
         String out;
         serializeJson(doc, out);
         server.send(200, "application/json", out);
@@ -400,9 +408,123 @@ void web_settings_register_routes(WebServer &server) {
     // 5. POST /api/restart
     server.on("/api/restart", HTTP_POST, [&server]() {
         server.send(200, "application/json", "{\"status\":\"ok\",\"message\":\"Neustart...\"}");
-        delay(300);
-        WS_CH32_IO::setPwm(Wire, 255);
-        delay(20);
-        ESP.restart();
+        lv_timer_t *t = lv_timer_create([](lv_timer_t *timer) {
+            lv_timer_del(timer);
+            WS_CH32_IO::setPwm(Wire, 255);
+            delay(20);
+            ESP.restart();
+        }, 500, nullptr);
+        if (t) lv_timer_set_repeat_count(t, 1);
+    });
+
+    // 6. GET /api/theme
+    server.on("/api/theme", HTTP_GET, [&server]() {
+        JsonDocument doc;
+        {
+            StateLockGuard lock;
+            doc["name"] = state.theme.name;
+            char hex[10];
+            snprintf(hex, sizeof(hex), "#%06lx", (unsigned long)(state.theme.color_primary & 0xffffff));
+            doc["color_primary"] = hex;
+            snprintf(hex, sizeof(hex), "#%06lx", (unsigned long)(state.theme.color_dimmer & 0xffffff));
+            doc["color_dimmer"] = hex;
+            snprintf(hex, sizeof(hex), "#%06lx", (unsigned long)(state.theme.color_relay & 0xffffff));
+            doc["color_relay"] = hex;
+            snprintf(hex, sizeof(hex), "#%06lx", (unsigned long)(state.theme.color_tank & 0xffffff));
+            doc["color_tank"] = hex;
+            snprintf(hex, sizeof(hex), "#%06lx", (unsigned long)(state.theme.color_bg & 0xffffff));
+            doc["color_bg"] = hex;
+            snprintf(hex, sizeof(hex), "#%06lx", (unsigned long)(state.theme.color_card & 0xffffff));
+            doc["color_card"] = hex;
+            snprintf(hex, sizeof(hex), "#%06lx", (unsigned long)(state.theme.color_border & 0xffffff));
+            doc["color_border"] = hex;
+            snprintf(hex, sizeof(hex), "#%06lx", (unsigned long)(state.theme.color_text & 0xffffff));
+            doc["color_text"] = hex;
+            snprintf(hex, sizeof(hex), "#%06lx", (unsigned long)(state.theme.color_muted & 0xffffff));
+            doc["color_muted"] = hex;
+            snprintf(hex, sizeof(hex), "#%06lx", (unsigned long)(state.theme.color_track & 0xffffff));
+            doc["color_track"] = hex;
+            snprintf(hex, sizeof(hex), "#%06lx", (unsigned long)(state.theme.color_btn_text & 0xffffff));
+            doc["color_btn_text"] = hex;
+            snprintf(hex, sizeof(hex), "#%06lx", (unsigned long)(state.theme.color_btn_text_active & 0xffffff));
+            doc["color_btn_text_active"] = hex;
+
+            doc["radius_card"] = state.theme.radius_card;
+            doc["radius_button"] = state.theme.radius_button;
+            doc["border_width"] = state.theme.border_width;
+        }
+        String out;
+        serializeJson(doc, out);
+        server.send(200, "application/json", out);
+    });
+
+    // 7. POST /api/theme
+    server.on("/api/theme", HTTP_POST, [&server]() {
+        String body = server.hasArg("plain") ? server.arg("plain") : (server.args() > 0 ? server.arg(0) : "");
+        if (body.length() == 0) {
+            server.send(400, "application/json", "{\"error\":\"Missing body\"}");
+            return;
+        }
+        JsonDocument doc;
+        DeserializationError err = deserializeJson(doc, body);
+        if (err) {
+            server.send(400, "application/json", "{\"error\":\"Invalid JSON\"}");
+            return;
+        }
+
+        auto parse_color = [](JsonVariant v, uint32_t def_val) -> uint32_t {
+            if (v.is<uint32_t>()) return v.as<uint32_t>();
+            if (v.is<const char*>()) {
+                const char *s = v.as<const char*>();
+                if (*s == '#') s++;
+                else if (s[0] == '0' && (s[1] == 'x' || s[1] == 'X')) s += 2;
+                char *endp = nullptr;
+                unsigned long val = strtoul(s, &endp, 16);
+                if (endp != s) return (uint32_t)val;
+            }
+            return def_val;
+        };
+
+        {
+            StateLockGuard lock;
+            if (doc["name"].is<const char*>()) {
+                strncpy(state.theme.name, doc["name"].as<const char*>(), sizeof(state.theme.name) - 1);
+                state.theme.name[sizeof(state.theme.name) - 1] = '\0';
+            }
+            state.theme.color_primary = parse_color(doc["color_primary"], state.theme.color_primary);
+            state.theme.color_dimmer  = parse_color(doc["color_dimmer"], state.theme.color_dimmer);
+            state.theme.color_relay   = parse_color(doc["color_relay"], state.theme.color_relay);
+            state.theme.color_tank    = parse_color(doc["color_tank"], state.theme.color_tank);
+            state.theme.color_bg      = parse_color(doc["color_bg"], state.theme.color_bg);
+            state.theme.color_card    = parse_color(doc["color_card"], state.theme.color_card);
+            state.theme.color_border  = parse_color(doc["color_border"], state.theme.color_border);
+            state.theme.color_text    = parse_color(doc["color_text"], state.theme.color_text);
+            state.theme.color_muted   = parse_color(doc["color_muted"], state.theme.color_muted);
+            state.theme.color_track   = parse_color(doc["color_track"], state.theme.color_track);
+            state.theme.color_btn_text = parse_color(doc["color_btn_text"], state.theme.color_btn_text);
+            state.theme.color_btn_text_active = parse_color(doc["color_btn_text_active"], state.theme.color_btn_text_active);
+
+            if (doc["radius_card"].is<int>())   state.theme.radius_card = constrain(doc["radius_card"].as<int>(), 0, 30);
+            if (doc["radius_button"].is<int>()) state.theme.radius_button = constrain(doc["radius_button"].as<int>(), 0, 20);
+            if (doc["border_width"].is<int>())  state.theme.border_width = constrain(doc["border_width"].as<int>(), 0, 3);
+            state.theme.version = 3;
+        }
+
+        state_save_theme();
+        ui_init(); // Trigger live async rebuild on display!
+
+        bool do_restart = !doc["restart"].isNull() && doc["restart"].as<bool>();
+        if (do_restart) {
+            server.send(200, "application/json", "{\"status\":\"ok\",\"rebooting\":true}");
+            lv_timer_t *t = lv_timer_create([](lv_timer_t *timer) {
+                lv_timer_del(timer);
+                WS_CH32_IO::setPwm(Wire, 255);
+                delay(20);
+                ESP.restart();
+            }, 500, nullptr);
+            if (t) lv_timer_set_repeat_count(t, 1);
+        } else {
+            server.send(200, "application/json", "{\"status\":\"ok\",\"message\":\"Theme gespeichert!\"}");
+        }
     });
 }

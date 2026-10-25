@@ -101,6 +101,7 @@ static lv_obj_t *dd_out_temp = NULL;
 static lv_obj_t *dd_in_temp = NULL;
 static lv_obj_t *dd_cust_temp1 = NULL;
 static lv_obj_t *dd_cust_temp2 = NULL;
+static lv_obj_t *dd_fridge_temp = NULL;
 static int temp_opt_map_primary[TEMP_SOURCE_COUNT];
 static int temp_opt_count_primary = 0;
 static int temp_opt_map_optional[TEMP_SOURCE_COUNT + 1];
@@ -317,7 +318,6 @@ void ui_update_settings_tab() {
         int n = WiFi.scanComplete();
         if (n >= 0) {
             scan_in_progress = false;
-            wifi_set_scanning(false);
             // Keep the saved WLAN selectable even when it is out of range.
             String options = state.wifi_ssid;
             for (int i = 0; i < n; ++i) {
@@ -330,16 +330,12 @@ void ui_update_settings_tab() {
             if (dd_wifi_ssid) lv_dropdown_set_options(dd_wifi_ssid, options.c_str());
             if (lbl_wifi_scan) lv_label_set_text(lbl_wifi_scan, "Scan");
             WiFi.scanDelete();
-            if (WiFi.status() != WL_CONNECTED && !state.wifi_ssid.isEmpty()) {
-                wifi_connect_configured();
-            }
+            wifi_finish_scan();
         } else if (n == WIFI_SCAN_FAILED) {
             scan_in_progress = false;
-            wifi_set_scanning(false);
+            WiFi.scanDelete();
             if (lbl_wifi_scan) lv_label_set_text(lbl_wifi_scan, "Scan");
-            if (WiFi.status() != WL_CONNECTED && !state.wifi_ssid.isEmpty()) {
-                wifi_connect_configured();
-            }
+            wifi_finish_scan();
         }
     }
 }
@@ -372,10 +368,14 @@ static void kb_event_cb(lv_event_t * e) {
 
 static void wifi_scan_cb(lv_event_t * e) {
     if(!scan_in_progress) {
-        wifi_set_scanning(true);
-        WiFi.mode(WIFI_STA);
+        wifi_prepare_for_scan();
         if (lbl_wifi_scan) lv_label_set_text(lbl_wifi_scan, "Scanne...");
-        WiFi.scanNetworks(true); // async
+        int16_t res = WiFi.scanNetworks(true); // async
+        if (res == WIFI_SCAN_FAILED) {
+            WiFi.disconnect(true, false);
+            delay(100);
+            WiFi.scanNetworks(true);
+        }
         scan_in_progress = true;
     }
 }
@@ -476,6 +476,10 @@ static void update_all_temp_dropdown_options() {
         lv_dropdown_set_options(dd_cust_temp2, opts_opt.c_str());
         select_in_map(dd_cust_temp2, temp_opt_map_optional, temp_opt_count_optional, state.temps_custom_sensor[1]);
     }
+    if (dd_fridge_temp) {
+        lv_dropdown_set_options(dd_fridge_temp, opts_opt.c_str());
+        select_in_map(dd_fridge_temp, temp_opt_map_optional, temp_opt_count_optional, state.fridge_temp_sensor);
+    }
 }
 
 static void open_settings_cb(lv_event_t * e) {
@@ -507,37 +511,37 @@ void ui_build_settings(lv_obj_t *parent) {
     // Modern Action Button
     lv_obj_t *btn_open = lv_btn_create(parent);
     lv_obj_set_size(btn_open, 320, 60);
-    lv_obj_set_style_radius(btn_open, 14, 0);
-    lv_obj_set_style_bg_color(btn_open, lv_color_hex(UI_COLOR_PRIMARY), 0);
+    lv_obj_set_style_radius(btn_open, ui_radius_button(), 0);
+    lv_obj_set_style_bg_color(btn_open, ui_theme_primary(), 0);
     lv_obj_set_style_shadow_width(btn_open, 0, 0);
     lv_obj_add_event_cb(btn_open, open_settings_cb, LV_EVENT_CLICKED, NULL);
 
     lv_obj_t *lbl_open = lv_label_create(btn_open);
     lv_label_set_text_fmt(lbl_open, "%s System-Einstellungen", LV_SYMBOL_SETTINGS);
     lv_obj_set_style_text_font(lbl_open, &lv_font_montserrat_18, 0);
-    lv_obj_set_style_text_color(lbl_open, lv_color_hex(0xffffff), 0);
+    lv_obj_set_style_text_color(lbl_open, ui_theme_btn_active_text(), 0);
     lv_obj_center(lbl_open);
     
     lv_obj_t *btn_home = lv_btn_create(parent);
     lv_obj_set_size(btn_home, 320, 46);
-    lv_obj_set_style_radius(btn_home, 14, 0);
-    lv_obj_set_style_bg_color(btn_home, lv_color_hex(UI_COLOR_PRIMARY), 0);
+    lv_obj_set_style_radius(btn_home, ui_radius_button(), 0);
+    lv_obj_set_style_bg_color(btn_home, ui_theme_primary(), 0);
     lv_obj_add_event_cb(btn_home, [](lv_event_t *) { ui_open_home_settings(); }, LV_EVENT_CLICKED, nullptr);
     lv_obj_t *lbl_home = lv_label_create(btn_home);
     lv_label_set_text(lbl_home, LV_SYMBOL_HOME " Home-Einstellungen");
     lv_obj_set_style_text_font(lbl_home, &lv_font_montserrat_16, 0);
-    lv_obj_set_style_text_color(lbl_home, lv_color_hex(0xffffff), 0);
+    lv_obj_set_style_text_color(lbl_home, ui_theme_btn_active_text(), 0);
     lv_obj_center(lbl_home);
 
     lv_obj_t *btn_nav = lv_btn_create(parent);
     lv_obj_set_size(btn_nav, 320, 46);
-    lv_obj_set_style_radius(btn_nav, 14, 0);
-    lv_obj_set_style_bg_color(btn_nav, lv_color_hex(UI_COLOR_PRIMARY), 0);
+    lv_obj_set_style_radius(btn_nav, ui_radius_button(), 0);
+    lv_obj_set_style_bg_color(btn_nav, ui_theme_primary(), 0);
     lv_obj_add_event_cb(btn_nav, [](lv_event_t *) { ui_open_nav_settings(); }, LV_EVENT_CLICKED, nullptr);
     lv_obj_t *lbl_nav = lv_label_create(btn_nav);
     lv_label_set_text(lbl_nav, LV_SYMBOL_LIST "  Menüleiste / Tabs anpassen");
     lv_obj_set_style_text_font(lbl_nav, &lv_font_montserrat_16, 0);
-    lv_obj_set_style_text_color(lbl_nav, lv_color_hex(0xffffff), 0);
+    lv_obj_set_style_text_color(lbl_nav, ui_theme_btn_active_text(), 0);
     lv_obj_center(lbl_nav);
 
     // Simulation / Debug Toggle Card
@@ -551,6 +555,7 @@ void ui_build_settings(lv_obj_t *parent) {
         lv_obj_t *sw = lv_event_get_target(e);
         state.debug_mode = lv_obj_has_state(sw, LV_STATE_CHECKED);
         ui_sync_demo_controls();
+        ui_update_data();
         state_save();
     }, LV_EVENT_VALUE_CHANGED, NULL);
     
@@ -561,11 +566,11 @@ void ui_build_settings(lv_obj_t *parent) {
     lv_obj_align(lbl_sw_dbg, LV_ALIGN_LEFT_MID, 65, 0);
 
     // Status Card
-    lv_obj_t *card_status = ui_create_card(parent, 360, 100);
+    lv_obj_t *card_status = ui_create_card(parent, 360, 110);
     lv_obj_set_style_pad_all(card_status, 12, 0);
     
     lbl_debug_info = lv_label_create(card_status);
-    lv_label_set_text(lbl_debug_info, "System Status:\nInitialisiere...");
+    lv_label_set_text_fmt(lbl_debug_info, "%s%s\nInitialisiere...", state.debug_mode ? "Demo " : "", CAMPERUI_VERSION);
     lv_obj_set_style_text_font(lbl_debug_info, &lv_font_montserrat_14, 0);
     lv_obj_set_style_text_align(lbl_debug_info, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_style_text_color(lbl_debug_info, ui_theme_text(), 0);
@@ -600,6 +605,7 @@ void ui_settings_reset() {
     dd_in_temp = nullptr;
     dd_cust_temp1 = nullptr;
     dd_cust_temp2 = nullptr;
+    dd_fridge_temp = nullptr;
     kb = nullptr;
     dd_rename_item = nullptr;
     ta_rename = nullptr;
@@ -692,7 +698,8 @@ void ui_settings_screen_init() {
     btn_wifi_scan = lv_btn_create(t_net);
     lv_obj_set_size(btn_wifi_scan, 125, 44);
     lv_obj_align(btn_wifi_scan, LV_ALIGN_TOP_LEFT, 315, 26);
-    lv_obj_set_style_bg_color(btn_wifi_scan, lv_color_hex(UI_COLOR_PRIMARY), 0);
+    lv_obj_set_style_radius(btn_wifi_scan, ui_radius_button(), 0);
+    lv_obj_set_style_bg_color(btn_wifi_scan, ui_theme_primary(), 0);
     lv_obj_add_event_cb(btn_wifi_scan, wifi_scan_cb, LV_EVENT_CLICKED, NULL);
     lbl_wifi_scan = lv_label_create(btn_wifi_scan);
     lv_label_set_text(lbl_wifi_scan, LV_SYMBOL_REFRESH " Scan");
@@ -903,7 +910,8 @@ void ui_settings_screen_init() {
     lv_obj_t *btn_nav_modal = lv_btn_create(t_gen);
     lv_obj_set_size(btn_nav_modal, 210, 46);
     lv_obj_align(btn_nav_modal, LV_ALIGN_TOP_LEFT, 230, 28);
-    lv_obj_set_style_bg_color(btn_nav_modal, lv_color_hex(UI_COLOR_PRIMARY), 0);
+    lv_obj_set_style_radius(btn_nav_modal, ui_radius_button(), 0);
+    lv_obj_set_style_bg_color(btn_nav_modal, ui_theme_primary(), 0);
     lv_obj_add_event_cb(btn_nav_modal, [](lv_event_t *) { ui_open_nav_settings(); }, LV_EVENT_CLICKED, nullptr);
     lv_obj_t *lbl_nav_m = lv_label_create(btn_nav_modal);
     lv_label_set_text(lbl_nav_m, LV_SYMBOL_LIST " Tabs anpassen");
@@ -1252,16 +1260,39 @@ void ui_settings_screen_init() {
         }
     }, LV_EVENT_VALUE_CHANGED, NULL);
 
+    // Kühlschranksensor
+    lv_obj_t *l_fridge_sens = lv_label_create(t_val);
+    lv_label_set_text(l_fridge_sens, "Kühlschranksensor:");
+    lv_obj_set_style_text_font(l_fridge_sens, &lv_font_montserrat_14, 0);
+    lv_obj_align(l_fridge_sens, LV_ALIGN_TOP_LEFT, 0, 284);
+
+    dd_fridge_temp = lv_dropdown_create(t_val);
+    lv_obj_set_size(dd_fridge_temp, 280, 44);
+    lv_obj_set_style_text_font(dd_fridge_temp, &lv_font_montserrat_14, 0);
+    lv_obj_align(dd_fridge_temp, LV_ALIGN_TOP_LEFT, 150, 274);
+    lv_obj_add_event_cb(dd_fridge_temp, [](lv_event_t * e) {
+        lv_obj_t *dd = lv_event_get_target(e);
+        int sel = lv_dropdown_get_selected(dd);
+        if (sel >= 0 && sel < temp_opt_count_optional) {
+            state.fridge_temp_sensor = temp_opt_map_optional[sel];
+            if (state.fridge_temp_sensor >= 0 && state.fridge_temp_sensor < TEMP_SOURCE_COUNT) {
+                state.fridge_temp = state.temp_sensors[state.fridge_temp_sensor];
+            } else {
+                state.fridge_temp = -999.0f;
+            }
+        }
+    }, LV_EVENT_VALUE_CHANGED, NULL);
+
     // Zusatzsensor 1
     lv_obj_t *l_cust1_sens = lv_label_create(t_val);
     lv_label_set_text(l_cust1_sens, "Zusatzsensor 1:");
     lv_obj_set_style_text_font(l_cust1_sens, &lv_font_montserrat_14, 0);
-    lv_obj_align(l_cust1_sens, LV_ALIGN_TOP_LEFT, 0, 284);
+    lv_obj_align(l_cust1_sens, LV_ALIGN_TOP_LEFT, 0, 338);
 
     dd_cust_temp1 = lv_dropdown_create(t_val);
     lv_obj_set_size(dd_cust_temp1, 280, 44);
     lv_obj_set_style_text_font(dd_cust_temp1, &lv_font_montserrat_14, 0);
-    lv_obj_align(dd_cust_temp1, LV_ALIGN_TOP_LEFT, 150, 274);
+    lv_obj_align(dd_cust_temp1, LV_ALIGN_TOP_LEFT, 150, 328);
     lv_obj_add_event_cb(dd_cust_temp1, [](lv_event_t * e) {
         lv_obj_t *dd = lv_event_get_target(e);
         int sel = lv_dropdown_get_selected(dd);
@@ -1274,12 +1305,12 @@ void ui_settings_screen_init() {
     lv_obj_t *l_cust2_sens = lv_label_create(t_val);
     lv_label_set_text(l_cust2_sens, "Zusatzsensor 2:");
     lv_obj_set_style_text_font(l_cust2_sens, &lv_font_montserrat_14, 0);
-    lv_obj_align(l_cust2_sens, LV_ALIGN_TOP_LEFT, 0, 338);
+    lv_obj_align(l_cust2_sens, LV_ALIGN_TOP_LEFT, 0, 392);
 
     dd_cust_temp2 = lv_dropdown_create(t_val);
     lv_obj_set_size(dd_cust_temp2, 280, 44);
     lv_obj_set_style_text_font(dd_cust_temp2, &lv_font_montserrat_14, 0);
-    lv_obj_align(dd_cust_temp2, LV_ALIGN_TOP_LEFT, 150, 328);
+    lv_obj_align(dd_cust_temp2, LV_ALIGN_TOP_LEFT, 150, 382);
     lv_obj_add_event_cb(dd_cust_temp2, [](lv_event_t * e) {
         lv_obj_t *dd = lv_event_get_target(e);
         int sel = lv_dropdown_get_selected(dd);
@@ -1295,42 +1326,42 @@ void ui_settings_screen_init() {
     lv_obj_t *l_solar = lv_label_create(t_val);
     lv_label_set_text(l_solar, "Solar Max (W):");
     lv_obj_set_style_text_font(l_solar, &lv_font_montserrat_14, 0);
-    lv_obj_align(l_solar, LV_ALIGN_TOP_LEFT, 0, 396);
+    lv_obj_align(l_solar, LV_ALIGN_TOP_LEFT, 0, 450);
 
     ta_solar_max = lv_textarea_create(t_val);
     lv_textarea_set_one_line(ta_solar_max, true);
     lv_textarea_set_text(ta_solar_max, String((int)state.solar_max_w).c_str());
     lv_obj_set_size(ta_solar_max, 140, 44);
     lv_obj_set_style_text_font(ta_solar_max, &lv_font_montserrat_14, 0);
-    lv_obj_align(ta_solar_max, LV_ALIGN_TOP_LEFT, 150, 386);
+    lv_obj_align(ta_solar_max, LV_ALIGN_TOP_LEFT, 150, 440);
     lv_obj_add_event_cb(ta_solar_max, ta_event_cb, LV_EVENT_ALL, NULL);
 
     // Landstrom Max
     lv_obj_t *l_shore = lv_label_create(t_val);
     lv_label_set_text(l_shore, "Landstrom Max (W):");
     lv_obj_set_style_text_font(l_shore, &lv_font_montserrat_14, 0);
-    lv_obj_align(l_shore, LV_ALIGN_TOP_LEFT, 0, 450);
+    lv_obj_align(l_shore, LV_ALIGN_TOP_LEFT, 0, 504);
 
     ta_shore_max = lv_textarea_create(t_val);
     lv_textarea_set_one_line(ta_shore_max, true);
     lv_textarea_set_text(ta_shore_max, String((int)state.shore_max_w).c_str());
     lv_obj_set_size(ta_shore_max, 140, 44);
     lv_obj_set_style_text_font(ta_shore_max, &lv_font_montserrat_14, 0);
-    lv_obj_align(ta_shore_max, LV_ALIGN_TOP_LEFT, 150, 440);
+    lv_obj_align(ta_shore_max, LV_ALIGN_TOP_LEFT, 150, 494);
     lv_obj_add_event_cb(ta_shore_max, ta_event_cb, LV_EVENT_ALL, NULL);
 
     // Lichtmaschine Max
     lv_obj_t *l_alt = lv_label_create(t_val);
     lv_label_set_text(l_alt, "Lichtmasch. Max (W):");
     lv_obj_set_style_text_font(l_alt, &lv_font_montserrat_14, 0);
-    lv_obj_align(l_alt, LV_ALIGN_TOP_LEFT, 0, 504);
+    lv_obj_align(l_alt, LV_ALIGN_TOP_LEFT, 0, 558);
 
     ta_alt_max = lv_textarea_create(t_val);
     lv_textarea_set_one_line(ta_alt_max, true);
     lv_textarea_set_text(ta_alt_max, String((int)state.alt_max_w).c_str());
     lv_obj_set_size(ta_alt_max, 140, 44);
     lv_obj_set_style_text_font(ta_alt_max, &lv_font_montserrat_14, 0);
-    lv_obj_align(ta_alt_max, LV_ALIGN_TOP_LEFT, 150, 494);
+    lv_obj_align(ta_alt_max, LV_ALIGN_TOP_LEFT, 150, 548);
     lv_obj_add_event_cb(ta_alt_max, ta_event_cb, LV_EVENT_ALL, NULL);
 
     // Section 3: Wassertanks Konfiguration
@@ -1338,20 +1369,20 @@ void ui_settings_screen_init() {
     lv_label_set_text(l_tanks, "Wassertanks Konfiguration");
     lv_obj_set_style_text_font(l_tanks, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(l_tanks, lv_color_hex(UI_COLOR_PRIMARY), 0);
-    lv_obj_align(l_tanks, LV_ALIGN_TOP_LEFT, 0, 554);
+    lv_obj_align(l_tanks, LV_ALIGN_TOP_LEFT, 0, 608);
 
     // Anzahl Tanks
     lv_obj_t *l_tank_cnt = lv_label_create(t_val);
     lv_label_set_text(l_tank_cnt, "Anzahl Tanks:");
     lv_obj_set_style_text_font(l_tank_cnt, &lv_font_montserrat_14, 0);
-    lv_obj_align(l_tank_cnt, LV_ALIGN_TOP_LEFT, 0, 594);
+    lv_obj_align(l_tank_cnt, LV_ALIGN_TOP_LEFT, 0, 648);
 
     dd_tank_count = lv_dropdown_create(t_val);
     lv_dropdown_set_options(dd_tank_count, "1 Tank\n2 Tanks\n3 Tanks\n4 Tanks");
     lv_dropdown_set_selected(dd_tank_count, constrain(state.tank_count, 1, 4) - 1);
     lv_obj_set_size(dd_tank_count, 250, 44);
     lv_obj_set_style_text_font(dd_tank_count, &lv_font_montserrat_14, 0);
-    lv_obj_align(dd_tank_count, LV_ALIGN_TOP_LEFT, 150, 584);
+    lv_obj_align(dd_tank_count, LV_ALIGN_TOP_LEFT, 150, 638);
     lv_obj_add_event_cb(dd_tank_count, [](lv_event_t * e) {
         lv_obj_t *dd = lv_event_get_target(e);
         state.tank_count = lv_dropdown_get_selected(dd) + 1;
@@ -1365,11 +1396,11 @@ void ui_settings_screen_init() {
     lv_obj_t *l_tank_liters = lv_label_create(t_val);
     lv_label_set_text(l_tank_liters, "Liter anzeigen:");
     lv_obj_set_style_text_font(l_tank_liters, &lv_font_montserrat_14, 0);
-    lv_obj_align(l_tank_liters, LV_ALIGN_TOP_LEFT, 0, 648);
+    lv_obj_align(l_tank_liters, LV_ALIGN_TOP_LEFT, 0, 702);
 
     sw_tank_liters = lv_switch_create(t_val);
     lv_obj_set_size(sw_tank_liters, 52, 28);
-    lv_obj_align(sw_tank_liters, LV_ALIGN_TOP_LEFT, 150, 642);
+    lv_obj_align(sw_tank_liters, LV_ALIGN_TOP_LEFT, 150, 696);
     if (state.tank_show_liters) lv_obj_add_state(sw_tank_liters, LV_STATE_CHECKED);
     lv_obj_add_event_cb(sw_tank_liters, [](lv_event_t * e) {
         lv_obj_t *sw = lv_event_get_target(e);
@@ -1380,13 +1411,13 @@ void ui_settings_screen_init() {
     lv_obj_t *l_tank_caps = lv_label_create(t_val);
     lv_label_set_text(l_tank_caps, "Kapazitäten & Einheit (L / kg):");
     lv_obj_set_style_text_font(l_tank_caps, &lv_font_montserrat_14, 0);
-    lv_obj_align(l_tank_caps, LV_ALIGN_TOP_LEFT, 0, 690);
+    lv_obj_align(l_tank_caps, LV_ALIGN_TOP_LEFT, 0, 744);
 
     for (int i = 0; i < 4; i++) {
         int row = i / 2;
         int col = i % 2;
         lv_coord_t col_x = col * 220;
-        lv_coord_t row_y = 722 + (row * 54);
+        lv_coord_t row_y = 776 + (row * 54);
 
         lbl_tank_max[i] = lv_label_create(t_val);
         lv_obj_set_style_text_font(lbl_tank_max[i], &lv_font_montserrat_14, 0);
@@ -1428,19 +1459,60 @@ void ui_settings_screen_init() {
     lv_obj_set_style_text_font(l_heat_type, &lv_font_montserrat_14, 0);
     lv_obj_align(l_heat_type, LV_ALIGN_TOP_LEFT, 0, 892);
 
+    static auto dropdown_to_heater_type = [](int idx) -> uint8_t {
+        switch (idx) {
+            case 0: return HEATER_TYPE_AUTOTERM;
+            case 1: return HEATER_TYPE_TRUMA;
+            case 2: return HEATER_TYPE_TRUMA_ELECTRIC;
+            case 3: return HEATER_TYPE_WEBASTO;
+            case 4: return HEATER_TYPE_NONE;
+            default: return HEATER_TYPE_AUTOTERM;
+        }
+    };
+
+    static auto heater_type_to_dropdown = [](uint8_t type) -> int {
+        switch (type) {
+            case HEATER_TYPE_AUTOTERM: return 0;
+            case HEATER_TYPE_TRUMA: return 1;
+            case HEATER_TYPE_TRUMA_ELECTRIC: return 2;
+            case HEATER_TYPE_WEBASTO: return 3;
+            case HEATER_TYPE_NONE: return 4;
+            default: return 0;
+        }
+    };
+
+    static auto sync_heater_tabs = []() {
+        if (is_truma_heater(state.heater_type)) {
+            state.tab_enabled[TAB_TRUMA] = true;
+            state.tab_enabled[TAB_CLIMATE] = false;
+        } else if (state.heater_type == HEATER_TYPE_AUTOTERM || is_webasto_heater(state.heater_type)) {
+            state.tab_enabled[TAB_CLIMATE] = true;
+            state.tab_enabled[TAB_TRUMA] = false;
+        } else {
+            state.tab_enabled[TAB_CLIMATE] = false;
+            state.tab_enabled[TAB_TRUMA] = false;
+        }
+    };
+
     dd_heater_type = lv_dropdown_create(t_val);
-    lv_dropdown_set_options(dd_heater_type, "Autoterm (Air 2D/4D)\nTruma (Gas/Diesel)\nTruma + Elektro (Combi E)\nKeine / Deaktiviert");
-    lv_dropdown_set_selected(dd_heater_type, constrain(state.heater_type, 0, 3));
+    lv_dropdown_set_options(dd_heater_type, "Autoterm (Air 2D/4D)\nTruma (Gas/Diesel)\nTruma + Elektro (Combi E)\nWebasto (W-Bus)\nKeine / Deaktiviert");
+    lv_dropdown_set_selected(dd_heater_type, heater_type_to_dropdown(state.heater_type));
     lv_obj_set_size(dd_heater_type, 260, 44);
     lv_obj_set_style_text_font(dd_heater_type, &lv_font_montserrat_14, 0);
     lv_obj_align(dd_heater_type, LV_ALIGN_TOP_LEFT, 150, 882);
     lv_obj_add_event_cb(dd_heater_type, [](lv_event_t * e) {
         lv_obj_t *dd = lv_event_get_target(e);
-        state.heater_type = (uint8_t)lv_dropdown_get_selected(dd);
+        int sel = lv_dropdown_get_selected(dd);
+        uint8_t ht = HEATER_TYPE_AUTOTERM;
+        if (sel == 1) ht = HEATER_TYPE_TRUMA;
+        else if (sel == 2) ht = HEATER_TYPE_TRUMA_ELECTRIC;
+        else if (sel == 3) ht = HEATER_TYPE_WEBASTO;
+        else if (sel == 4) ht = HEATER_TYPE_NONE;
+        state.heater_type = ht;
         if (is_truma_heater(state.heater_type)) {
             state.tab_enabled[TAB_TRUMA] = true;
             state.tab_enabled[TAB_CLIMATE] = false;
-        } else if (state.heater_type == HEATER_TYPE_AUTOTERM) {
+        } else if (state.heater_type == HEATER_TYPE_AUTOTERM || is_webasto_heater(state.heater_type)) {
             state.tab_enabled[TAB_CLIMATE] = true;
             state.tab_enabled[TAB_TRUMA] = false;
         } else {
@@ -1636,11 +1708,17 @@ void ui_settings_screen_init() {
             }
         }
         if (dd_heater_type) {
-            state.heater_type = (uint8_t)lv_dropdown_get_selected(dd_heater_type);
+            int sel = lv_dropdown_get_selected(dd_heater_type);
+            uint8_t ht = HEATER_TYPE_AUTOTERM;
+            if (sel == 1) ht = HEATER_TYPE_TRUMA;
+            else if (sel == 2) ht = HEATER_TYPE_TRUMA_ELECTRIC;
+            else if (sel == 3) ht = HEATER_TYPE_WEBASTO;
+            else if (sel == 4) ht = HEATER_TYPE_NONE;
+            state.heater_type = ht;
             if (is_truma_heater(state.heater_type)) {
                 state.tab_enabled[TAB_TRUMA] = true;
                 state.tab_enabled[TAB_CLIMATE] = false;
-            } else if (state.heater_type == HEATER_TYPE_AUTOTERM) {
+            } else if (state.heater_type == HEATER_TYPE_AUTOTERM || is_webasto_heater(state.heater_type)) {
                 state.tab_enabled[TAB_CLIMATE] = true;
                 state.tab_enabled[TAB_TRUMA] = false;
             } else {
@@ -1675,6 +1753,17 @@ void ui_settings_screen_init() {
             if (sel >= 0 && sel < temp_opt_count_optional) {
                 state.temps_custom_sensor[1] = temp_opt_map_optional[sel];
             }
+        }
+        if (dd_fridge_temp) {
+            int sel = lv_dropdown_get_selected(dd_fridge_temp);
+            if (sel >= 0 && sel < temp_opt_count_optional) {
+                state.fridge_temp_sensor = temp_opt_map_optional[sel];
+            }
+        }
+        if (state.fridge_temp_sensor >= 0 && state.fridge_temp_sensor < TEMP_SOURCE_COUNT) {
+            state.fridge_temp = state.temp_sensors[state.fridge_temp_sensor];
+        } else {
+            state.fridge_temp = -999.0f;
         }
         if (state.outdoor_temp_sensor >= 0 && state.outdoor_temp_sensor < TEMP_SOURCE_COUNT) {
             state.outdoor_temp = state.temp_sensors[state.outdoor_temp_sensor];

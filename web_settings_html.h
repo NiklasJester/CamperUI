@@ -233,6 +233,63 @@ static const char SETTINGS_HTML[] PROGMEM = R"rawliteral(
       border-color: #38bdf8;
       color: #fff;
     }
+    .btn-theme-secondary {
+      background: #1e2430;
+      color: #cbd5e1;
+      border: 1px solid #2a3445;
+      border-radius: 10px;
+      padding: 10px 16px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s ease;
+    }
+    .btn-theme-secondary:hover {
+      background: #283344;
+      border-color: #38bdf8;
+      color: #fff;
+    }
+    .btn-theme-primary {
+      background: #0ea5e9;
+      color: #ffffff;
+      border: none;
+      border-radius: 10px;
+      padding: 11px 18px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      box-shadow: 0 4px 14px rgba(14, 165, 233, 0.35);
+      transition: all 0.2s ease;
+    }
+    .btn-theme-primary:hover {
+      background: #0284c7;
+      box-shadow: 0 4px 18px rgba(14, 165, 233, 0.5);
+    }
+    .btn-theme-reset {
+      background: #231b20;
+      color: #f87171;
+      border: 1px solid #3f2228;
+      border-radius: 10px;
+      padding: 10px 16px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s ease;
+    }
+    .btn-theme-reset:hover {
+      background: #36222b;
+      border-color: #ef4444;
+      color: #fca5a5;
+    }
 
     /* Grid & Two-Col */
     .grid-2 {
@@ -579,6 +636,7 @@ static const char SETTINGS_HTML[] PROGMEM = R"rawliteral(
     <div class="cat-pills">
       <div class="cat-pill active" onclick="showTab('net')">🌐 Netzwerk</div>
       <div class="cat-pill" onclick="showTab('display')">📺 Display</div>
+      <div class="cat-pill" onclick="showTab('theme')">&#127912; Theme &amp; Design</div>
       <div class="cat-pill" onclick="showTab('tabs')">📑 Menü & Tabs</div>
       <div class="cat-pill" onclick="showTab('water')">💧 Wassertanks</div>
       <div class="cat-pill" onclick="showTab('switches')">⚡ Schalter & Dimmer</div>
@@ -685,6 +743,226 @@ static const char SETTINGS_HTML[] PROGMEM = R"rawliteral(
       </div>
 
       <!-- ================= TAB: MENÜ & TABS ================= -->
+      <!-- ================= TAB: THEME & DESIGN ================= -->
+      <div id="tab-theme" class="tab-section">
+        <div class="card">
+          <div class="card-title">&#127912; Design &amp; Theme-Editor</div>
+          <div class="subtext" style="margin-bottom:16px;">Passe Farben f&uuml;r Dimmer, Relais, F&uuml;llst&auml;nde, Kacheln und Rahmen direkt an dein Camper-Interieur an:</div>
+
+          <!-- Live Preview -->
+          <div style="background:#0b0d11; border-radius:12px; padding:16px; margin-bottom:20px; border:1px solid #1e2430;">
+            <div style="font-size:11px; font-weight:700; text-transform:uppercase; color:#94a3b8; margin-bottom:12px; letter-spacing:0.8px;">&#128065; Live-Vorschau (CamperUI Display)</div>
+            <div id="themePreviewApp" style="background:#101318; border-radius:12px; padding:14px; transition:background 0.2s ease;">
+              <!-- Simulated Header -->
+              <div id="themePreviewHeader" style="background:#181c24; border-bottom:1px solid #272d3b; padding:8px 12px; border-radius:10px 10px 0 0; display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; transition:all 0.2s ease;">
+                <span id="themePreviewHeaderText" style="color:#f1f5f9; font-weight:700; font-size:13px;">12:45 &nbsp; <small id="themePreviewHeaderSub" style="color:#94a3b8; font-weight:400;">v2.6.5</small></span>
+                <span id="themePreviewHeaderBadge" style="background:#0ea5e9; color:#fff; font-size:10px; padding:2px 8px; border-radius:8px; font-weight:700;">13.4V &bull; 92%</span>
+              </div>
+
+              <!-- Simulated Card (Dimmer Slider) -->
+              <div id="themePreviewCard" style="background:#181c24; border:1px solid #272d3b; border-radius:14px; padding:12px; margin-bottom:10px; transition:all 0.2s ease;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                  <span id="themePreviewDimmerLabel" style="color:#f1f5f9; font-size:12px; font-weight:600;">Dimmer 1 (Wohnraum)</span>
+                  <span id="themePreviewDimmerPct" style="color:#f59e0b; font-size:12px; font-weight:700;">75%</span>
+                </div>
+                <!-- Simulated Slider Track -->
+                <div id="themePreviewTrack" style="background:#12151c; border:1px solid #272d3b; height:22px; border-radius:10px; position:relative; overflow:hidden;">
+                  <div id="themePreviewDimmerBar" style="background:#f59e0b; width:75%; height:100%; border-radius:10px; transition:background 0.2s ease;"></div>
+                </div>
+              </div>
+
+              <!-- Two column preview: Relay & Tank -->
+              <div class="grid-2" style="margin-bottom:12px;">
+                <div id="themePreviewRelayCard" style="background:#10b981; border:1px solid #10b981; border-radius:10px; padding:10px 12px; display:flex; justify-content:space-between; align-items:center; color:#fff; font-size:12px; font-weight:600; transition:all 0.2s ease;">
+                  <span>Relais 1 (Pumpe)</span>
+                  <span style="font-size:10px; background:rgba(0,0,0,0.25); padding:2px 6px; border-radius:6px;">EIN</span>
+                </div>
+                <div id="themePreviewTankCard" style="background:#181c24; border:1px solid #272d3b; border-radius:10px; padding:10px 12px; transition:all 0.2s ease;">
+                  <div style="display:flex; justify-content:space-between; font-size:11px; margin-bottom:4px;">
+                    <span id="themePreviewTankLabel" style="color:#94a3b8;">Frischwasser</span>
+                    <span id="themePreviewTankPct" style="color:#f1f5f9; font-weight:700;">85%</span>
+                  </div>
+                  <div id="themePreviewTankTrack" style="background:#12151c; height:10px; border-radius:5px; overflow:hidden;">
+                    <div id="themePreviewTankBar" style="background:#06b6d4; width:85%; height:100%; border-radius:5px; transition:all 0.2s ease;"></div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Action button preview (Primary Button like Tara / Settings) -->
+              <button type="button" id="themePreviewBtn" style="background:#0ea5e9; color:#fff; border:none; border-radius:10px; padding:8px 16px; font-weight:700; font-size:12px; cursor:default; transition:all 0.2s ease;">&#128260; Nullpunkt Tara (Aktion)</button>
+            </div>
+          </div>
+
+          <!-- Presets Dropdown -->
+          <div class="field" style="margin-bottom:16px;">
+            <label class="label">Theme-Vorlage (Preset)</label>
+            <select id="theme_preset" class="select" onchange="applyThemePreset(this.value)">
+              <option value="custom">-- Benutzerdefiniert (Custom) --</option>
+              <option value="slate">Camper Slate (Standard Blau / Bernstein / Gr&uuml;n)</option>
+              <option value="amber">Nordic Amber (Warmes Bernstein / Nacht-Orange)</option>
+              <option value="forest">Forest Green (Moosgr&uuml;n &amp; Eiche)</option>
+              <option value="ocean">Ocean Breeze (Marineblau &amp; Cyan)</option>
+              <option value="minimal">Modern Minimal (Tiefschwarz &amp; Wei&szlig;, 0px Radius)</option>
+              <option value="sunset">Sunset Terracotta (Warmgrau &amp; Terracotta)</option>
+            </select>
+          </div>
+
+          <!-- 1. Color Pickers: Controls & Components -->
+          <div style="font-size:14px; font-weight:600; color:#e2e8f0; margin-top:16px; margin-bottom:10px;">Komponenten- &amp; Akzentfarben</div>
+          <div class="grid-2">
+            <div class="field">
+              <label class="label">Aktionen &amp; UI-Buttons (z.B. Tara, WLAN Scan)</label>
+              <div style="display:flex; gap:8px; align-items:center;">
+                <input type="color" id="theme_col_primary" style="width:44px; height:38px; border:none; border-radius:6px; cursor:pointer; background:transparent;" oninput="syncColor('theme_col_primary', 'theme_hex_primary')">
+                <input type="text" id="theme_hex_primary" class="input" style="font-family:monospace; text-transform:uppercase;" maxlength="7" oninput="syncHex('theme_hex_primary', 'theme_col_primary')">
+              </div>
+            </div>
+
+            <div class="field">
+              <label class="label">Dimmer-Slider (Licht / Beleuchtung)</label>
+              <div style="display:flex; gap:8px; align-items:center;">
+                <input type="color" id="theme_col_dimmer" style="width:44px; height:38px; border:none; border-radius:6px; cursor:pointer; background:transparent;" oninput="syncColor('theme_col_dimmer', 'theme_hex_dimmer')">
+                <input type="text" id="theme_hex_dimmer" class="input" style="font-family:monospace; text-transform:uppercase;" maxlength="7" oninput="syncHex('theme_hex_dimmer', 'theme_col_dimmer')">
+              </div>
+            </div>
+
+            <div class="field">
+              <label class="label">Schalter &amp; Relais (Aktiv-Zustand)</label>
+              <div style="display:flex; gap:8px; align-items:center;">
+                <input type="color" id="theme_col_relay" style="width:44px; height:38px; border:none; border-radius:6px; cursor:pointer; background:transparent;" oninput="syncColor('theme_col_relay', 'theme_hex_relay')">
+                <input type="text" id="theme_hex_relay" class="input" style="font-family:monospace; text-transform:uppercase;" maxlength="7" oninput="syncHex('theme_hex_relay', 'theme_col_relay')">
+              </div>
+            </div>
+
+            <div class="field">
+              <label class="label">F&uuml;llst&auml;nde (Frischwasser &amp; Tanks)</label>
+              <div style="display:flex; gap:8px; align-items:center;">
+                <input type="color" id="theme_col_tank" style="width:44px; height:38px; border:none; border-radius:6px; cursor:pointer; background:transparent;" oninput="syncColor('theme_col_tank', 'theme_hex_tank')">
+                <input type="text" id="theme_hex_tank" class="input" style="font-family:monospace; text-transform:uppercase;" maxlength="7" oninput="syncHex('theme_hex_tank', 'theme_col_tank')">
+              </div>
+            </div>
+          </div>
+
+          <!-- 2. Color Pickers: Surfaces & Backgrounds -->
+          <div style="font-size:14px; font-weight:600; color:#e2e8f0; margin-top:20px; margin-bottom:10px;">Oberfl&auml;chen &amp; Hintergr&uuml;nde</div>
+          <div class="grid-2">
+            <div class="field">
+              <label class="label">App-Hintergrund (Display BG)</label>
+              <div style="display:flex; gap:8px; align-items:center;">
+                <input type="color" id="theme_col_bg" style="width:44px; height:38px; border:none; border-radius:6px; cursor:pointer; background:transparent;" oninput="syncColor('theme_col_bg', 'theme_hex_bg')">
+                <input type="text" id="theme_hex_bg" class="input" style="font-family:monospace; text-transform:uppercase;" maxlength="7" oninput="syncHex('theme_hex_bg', 'theme_col_bg')">
+              </div>
+            </div>
+
+            <div class="field">
+              <label class="label">Kachel- &amp; Header-Hintergrund (Card &amp; Bar BG)</label>
+              <div style="display:flex; gap:8px; align-items:center;">
+                <input type="color" id="theme_col_card" style="width:44px; height:38px; border:none; border-radius:6px; cursor:pointer; background:transparent;" oninput="syncColor('theme_col_card', 'theme_hex_card')">
+                <input type="text" id="theme_hex_card" class="input" style="font-family:monospace; text-transform:uppercase;" maxlength="7" oninput="syncHex('theme_hex_card', 'theme_col_card')">
+              </div>
+            </div>
+
+            <div class="field">
+              <label class="label">Kanten- &amp; Rahmenfarbe (Border)</label>
+              <div style="display:flex; gap:8px; align-items:center;">
+                <input type="color" id="theme_col_border" style="width:44px; height:38px; border:none; border-radius:6px; cursor:pointer; background:transparent;" oninput="syncColor('theme_col_border', 'theme_hex_border')">
+                <input type="text" id="theme_hex_border" class="input" style="font-family:monospace; text-transform:uppercase;" maxlength="7" oninput="syncHex('theme_hex_border', 'theme_col_border')">
+              </div>
+            </div>
+
+            <div class="field">
+              <label class="label">Regler-Schiene (Track BG f&uuml;r Slider &amp; Tanks)</label>
+              <div style="display:flex; gap:8px; align-items:center;">
+                <input type="color" id="theme_col_track" style="width:44px; height:38px; border:none; border-radius:6px; cursor:pointer; background:transparent;" oninput="syncColor('theme_col_track', 'theme_hex_track')">
+                <input type="text" id="theme_hex_track" class="input" style="font-family:monospace; text-transform:uppercase;" maxlength="7" oninput="syncHex('theme_hex_track', 'theme_col_track')">
+              </div>
+            </div>
+          </div>
+
+          <!-- 3. Typography -->
+          <div style="font-size:14px; font-weight:600; color:#e2e8f0; margin-top:20px; margin-bottom:10px;">Typografie &amp; Kontrast</div>
+          <div class="grid-2">
+            <div class="field">
+              <label class="label">Haupttext (&Uuml;berschriften &amp; Werte)</label>
+              <div style="display:flex; gap:8px; align-items:center;">
+                <input type="color" id="theme_col_text" style="width:44px; height:38px; border:none; border-radius:6px; cursor:pointer; background:transparent;" oninput="syncColor('theme_col_text', 'theme_hex_text')">
+                <input type="text" id="theme_hex_text" class="input" style="font-family:monospace; text-transform:uppercase;" maxlength="7" oninput="syncHex('theme_hex_text', 'theme_col_text')">
+              </div>
+            </div>
+
+            <div class="field">
+              <label class="label">Ged&auml;mpfter Text (Beschreibungen &amp; Icons)</label>
+              <div style="display:flex; gap:8px; align-items:center;">
+                <input type="color" id="theme_col_muted" style="width:44px; height:38px; border:none; border-radius:6px; cursor:pointer; background:transparent;" oninput="syncColor('theme_col_muted', 'theme_hex_muted')">
+                <input type="text" id="theme_hex_muted" class="input" style="font-family:monospace; text-transform:uppercase;" maxlength="7" oninput="syncHex('theme_hex_muted', 'theme_col_muted')">
+              </div>
+            </div>
+
+            <div class="field">
+              <label class="label">Button-Text normal (Allgemeine GUI-Tasten)</label>
+              <div style="display:flex; gap:8px; align-items:center;">
+                <input type="color" id="theme_col_btn_text" style="width:44px; height:38px; border:none; border-radius:6px; cursor:pointer; background:transparent;" oninput="syncColor('theme_col_btn_text', 'theme_hex_btn_text')">
+                <input type="text" id="theme_hex_btn_text" class="input" style="font-family:monospace; text-transform:uppercase;" maxlength="7" oninput="syncHex('theme_hex_btn_text', 'theme_col_btn_text')">
+              </div>
+            </div>
+
+            <div class="field">
+              <label class="label">Button-Text aktiv (Relais EIN, ausgew&auml;hlte Modi)</label>
+              <div style="display:flex; gap:8px; align-items:center;">
+                <input type="color" id="theme_col_btn_text_active" style="width:44px; height:38px; border:none; border-radius:6px; cursor:pointer; background:transparent;" oninput="syncColor('theme_col_btn_text_active', 'theme_hex_btn_text_active')">
+                <input type="text" id="theme_hex_btn_text_active" class="input" style="font-family:monospace; text-transform:uppercase;" maxlength="7" oninput="syncHex('theme_hex_btn_text_active', 'theme_col_btn_text_active')">
+              </div>
+            </div>
+          </div>
+
+          <!-- Geometry / Radius Sliders -->
+          <div style="font-size:14px; font-weight:600; color:#e2e8f0; margin-top:20px; margin-bottom:10px;">Form &amp; Rundungen</div>
+          <div class="grid-2">
+            <div class="field">
+              <label class="label">Eckenrundung Kacheln (Cards)</label>
+              <div class="range-wrap">
+                <input type="range" id="theme_radius_card" min="0" max="24" step="1" oninput="document.getElementById('val_radius_card').innerText = this.value + ' px'; updateThemePreview();">
+                <span class="range-val" id="val_radius_card">14 px</span>
+              </div>
+              <div class="subtext">0 = quadratisch / modern, 14 = Standard, 24 = stark abgerundet</div>
+            </div>
+
+            <div class="field">
+              <label class="label">Eckenrundung Tasten &amp; Slider (Buttons)</label>
+              <div class="range-wrap">
+                <input type="range" id="theme_radius_button" min="0" max="18" step="1" oninput="document.getElementById('val_radius_button').innerText = this.value + ' px'; updateThemePreview();">
+                <span class="range-val" id="val_radius_button">10 px</span>
+              </div>
+            </div>
+
+            <div class="field">
+              <label class="label">Rahmenst&auml;rke (Border Width)</label>
+              <div class="range-wrap">
+                <input type="range" id="theme_border_width" min="0" max="3" step="1" oninput="document.getElementById('val_border_width').innerText = this.value + ' px'; updateThemePreview();">
+                <span class="range-val" id="val_border_width">1 px</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Theme Datei- & Reset-Aktionen -->
+          <div style="margin-top:24px; padding-top:16px; border-top:1px solid #1e2430; display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+            <button type="button" class="btn-theme-secondary" onclick="exportThemeFile()">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              Theme herunterladen (.json)
+            </button>
+            <button type="button" class="btn-theme-secondary" onclick="document.getElementById('theme_file_input').click()">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              Theme hochladen (.json)
+            </button>
+            <button type="button" class="btn-theme-reset" onclick="resetThemeToDefault()">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+              Auf Werkseinstellungen zur&uuml;cksetzen
+            </button>
+            <input type="file" id="theme_file_input" accept=".json" style="display:none;" onchange="importThemeFile(this)">
+          </div>
+        </div>
+      </div>
+
       <div id="tab-tabs" class="tab-section">
         <div class="card">
           <div class="card-title">📑 Menüleiste anpassen</div>
@@ -835,6 +1113,10 @@ static const char SETTINGS_HTML[] PROGMEM = R"rawliteral(
           <div class="field">
             <label class="label">Innentemperatur-Sensor</label>
             <select id="indoor_temp_sensor"></select>
+          </div>
+          <div class="field">
+            <label class="label">Kühlschranktemperatur-Sensor</label>
+            <select id="fridge_temp_sensor"></select>
           </div>
           <div class="grid-2">
             <div class="field">
@@ -1061,7 +1343,8 @@ static const char SETTINGS_HTML[] PROGMEM = R"rawliteral(
       { id: 8, name: "Level", icon: "⚖️" },
       { id: 9, name: "Einstellungen", icon: "⚙️" },
       { id: 10, name: "Truma", icon: "🔥" },
-      { id: 11, name: "Victron", icon: "VE" }
+      { id: 11, name: "Victron", icon: "VE" },
+      { id: 12, name: "Kühlschrank", icon: "❄️" }
     ];
 
     function showTab(id) {
@@ -1069,9 +1352,22 @@ static const char SETTINGS_HTML[] PROGMEM = R"rawliteral(
       document.querySelectorAll('.cat-pill').forEach(el => el.classList.remove('active'));
       const sec = document.getElementById('tab-' + id);
       if (sec) sec.classList.add('active');
-      event.currentTarget.classList.add('active');
+      if (window.event && window.event.currentTarget && window.event.currentTarget.classList) {
+        window.event.currentTarget.classList.add('active');
+      }
       window.scrollTo({ top: 0, behavior: 'smooth' });
-      if(id === 'victron')pollVictronStatus();
+      if (id === 'victron') pollVictronStatus();
+
+      const btnSave = document.getElementById('btnSave');
+      if (btnSave) {
+        if (id === 'theme') {
+          btnSave.innerHTML = '<span>💾</span> Theme speichern &amp; anwenden';
+          btnSave.onclick = saveAndApplyTheme;
+        } else {
+          btnSave.innerHTML = '<span>💾</span> Einstellungen speichern';
+          btnSave.onclick = saveSettings;
+        }
+      }
     }
 
     function togglePass() {
@@ -1090,7 +1386,7 @@ static const char SETTINGS_HTML[] PROGMEM = R"rawliteral(
       fetch('/api/settings')
         .then(r => r.json())
         .then(data => {
-          document.getElementById('badgeVer').innerText = data.version || 'V1.8.0';
+          document.getElementById('badgeVer').innerText = data.version || 'V1.9.0';
           
           // Network
           document.getElementById('wifi_ssid').value = data.wifi_ssid || '';
@@ -1136,6 +1432,7 @@ static const char SETTINGS_HTML[] PROGMEM = R"rawliteral(
           // Sensors
           populateTempSensorsSelect('outdoor_temp_sensor', data.temp_sensors, data.outdoor_temp_sensor, false);
           populateTempSensorsSelect('indoor_temp_sensor', data.temp_sensors, data.indoor_temp_sensor, false);
+          populateTempSensorsSelect('fridge_temp_sensor', data.temp_sensors, data.fridge_temp_sensor !== undefined ? data.fridge_temp_sensor : -1, true);
           populateTempSensorsSelect('temps_custom_sensor_0', data.temp_sensors, (data.temps_custom_sensor ? data.temps_custom_sensor[0] : -1), true);
           populateTempSensorsSelect('temps_custom_sensor_1', data.temp_sensors, (data.temps_custom_sensor ? data.temps_custom_sensor[1] : -1), true);
 
@@ -1258,6 +1555,7 @@ static const char SETTINGS_HTML[] PROGMEM = R"rawliteral(
         { id: 0, name: 'Autoterm (Air 2D/4D)' },
         { id: 1, name: 'Truma (Gas/Diesel)' },
         { id: 2, name: 'Truma + Elektro (Combi E)' },
+        { id: 4, name: 'Webasto (W-Bus)' },
         { id: 3, name: 'Keine / Deaktiviert' }
       ];
       list.forEach(h => {
@@ -1269,7 +1567,7 @@ static const char SETTINGS_HTML[] PROGMEM = R"rawliteral(
       });
       sel.onchange = function() {
         const val = parseInt(this.value);
-        if (val === 0) { // Autoterm
+        if (val === 0 || val === 4) { // Autoterm or Webasto
           tabEnabled[4] = true;
           tabEnabled[10] = false;
         } else if (val === 1 || val === 2) { // Truma (pure or electric)
@@ -1418,6 +1716,11 @@ static const char SETTINGS_HTML[] PROGMEM = R"rawliteral(
     }
 
     function saveSettings() {
+      const themeTab = document.getElementById('tab-theme');
+      if (themeTab && themeTab.classList.contains('active')) {
+        saveAndApplyTheme();
+        return;
+      }
       const btn = document.getElementById('btnSave');
       btn.innerText = "⏳ Speichere...";
       btn.disabled = true;
@@ -1461,6 +1764,7 @@ static const char SETTINGS_HTML[] PROGMEM = R"rawliteral(
 
         outdoor_temp_sensor: parseInt(document.getElementById('outdoor_temp_sensor').value),
         indoor_temp_sensor: parseInt(document.getElementById('indoor_temp_sensor').value),
+        fridge_temp_sensor: parseInt(document.getElementById('fridge_temp_sensor').value),
         temps_custom_sensor: [
           parseInt(document.getElementById('temps_custom_sensor_0').value),
           parseInt(document.getElementById('temps_custom_sensor_1').value)
@@ -1621,7 +1925,416 @@ static const char SETTINGS_HTML[] PROGMEM = R"rawliteral(
       }).catch(() => { document.getElementById('victron_status').textContent = 'Display nicht erreichbar'; });
     }
     setInterval(pollVictronStatus, 3000);
-    window.addEventListener('DOMContentLoaded', loadSettings);
+        // ================= THEME SYSTEM =================
+    const themePresets = {
+      slate: {
+        name: "Camper Slate",
+        color_primary: "#0EA5E9",
+        color_dimmer:  "#F59E0B",
+        color_relay:   "#10B981",
+        color_tank:    "#06B6D4",
+        color_bg:      "#101318",
+        color_card:    "#181C24",
+        color_border:  "#272D3B",
+        color_text:    "#F1F5F9",
+        color_muted:   "#94A3B8",
+        color_track:   "#12151C",
+        color_btn_text: "#F1F5F9",
+        color_btn_text_active: "#FFFFFF",
+        radius_card: 14,
+        radius_button: 10,
+        border_width: 1
+      },
+      amber: {
+        name: "Nordic Amber",
+        color_primary: "#F59E0B",
+        color_dimmer:  "#FBBF24",
+        color_relay:   "#10B981",
+        color_tank:    "#38BDF8",
+        color_bg:      "#12100E",
+        color_card:    "#1C1815",
+        color_border:  "#332A22",
+        color_text:    "#FEF3C7",
+        color_muted:   "#A89F91",
+        color_track:   "#14110F",
+        color_btn_text: "#FEF3C7",
+        color_btn_text_active: "#FFFFFF",
+        radius_card: 14,
+        radius_button: 10,
+        border_width: 1
+      },
+      forest: {
+        name: "Forest Green",
+        color_primary: "#10B981",
+        color_dimmer:  "#EAB308",
+        color_relay:   "#22C55E",
+        color_tank:    "#06B6D4",
+        color_bg:      "#0C1410",
+        color_card:    "#14221B",
+        color_border:  "#1F382B",
+        color_text:    "#ECFDF5",
+        color_muted:   "#86A796",
+        color_track:   "#0F1A14",
+        color_btn_text: "#ECFDF5",
+        color_btn_text_active: "#FFFFFF",
+        radius_card: 16,
+        radius_button: 12,
+        border_width: 1
+      },
+      ocean: {
+        name: "Ocean Breeze",
+        color_primary: "#06B6D4",
+        color_dimmer:  "#F59E0B",
+        color_relay:   "#10B981",
+        color_tank:    "#38BDF8",
+        color_bg:      "#08131D",
+        color_card:    "#0F2231",
+        color_border:  "#1B3B55",
+        color_text:    "#F0FDFA",
+        color_muted:   "#7EA4BE",
+        color_track:   "#0B1924",
+        color_btn_text: "#F0FDFA",
+        color_btn_text_active: "#FFFFFF",
+        radius_card: 14,
+        radius_button: 10,
+        border_width: 1
+      },
+      minimal: {
+        name: "Modern Minimal",
+        color_primary: "#FFFFFF",
+        color_dimmer:  "#E2E8F0",
+        color_relay:   "#10B981",
+        color_tank:    "#94A3B8",
+        color_bg:      "#000000",
+        color_card:    "#111111",
+        color_border:  "#2B2B2B",
+        color_text:    "#FFFFFF",
+        color_muted:   "#888888",
+        color_track:   "#181818",
+        color_btn_text: "#FFFFFF",
+        color_btn_text_active: "#000000",
+        radius_card: 0,
+        radius_button: 0,
+        border_width: 1
+      },
+      sunset: {
+        name: "Sunset Terracotta",
+        color_primary: "#F97316",
+        color_dimmer:  "#FB923C",
+        color_relay:   "#10B981",
+        color_tank:    "#38BDF8",
+        color_bg:      "#141110",
+        color_card:    "#221C1A",
+        color_border:  "#3A2F2B",
+        color_text:    "#FFF7ED",
+        color_muted:   "#A89B94",
+        color_track:   "#171311",
+        color_btn_text: "#FFF7ED",
+        color_btn_text_active: "#FFFFFF",
+        radius_card: 14,
+        radius_button: 10,
+        border_width: 1
+      }
+    };
+
+    function setThemeFormValues(d) {
+      if (!d) return;
+      const setVal = (colId, hexId, val) => {
+        if (!val) return;
+        const h = val.startsWith('#') ? val.toUpperCase() : ('#' + val).toUpperCase();
+        const cEl = document.getElementById(colId);
+        const hEl = document.getElementById(hexId);
+        if (cEl) cEl.value = h.substring(0, 7);
+        if (hEl) hEl.value = h.substring(0, 7);
+      };
+      setVal('theme_col_primary', 'theme_hex_primary', d.color_primary);
+      setVal('theme_col_dimmer',  'theme_hex_dimmer',  d.color_dimmer);
+      setVal('theme_col_relay',   'theme_hex_relay',   d.color_relay);
+      setVal('theme_col_tank',    'theme_hex_tank',    d.color_tank);
+      setVal('theme_col_bg',      'theme_hex_bg',      d.color_bg);
+      setVal('theme_col_card',    'theme_hex_card',    d.color_card);
+      setVal('theme_col_border',  'theme_hex_border',  d.color_border);
+      setVal('theme_col_text',    'theme_hex_text',    d.color_text);
+      setVal('theme_col_muted',   'theme_hex_muted',   d.color_muted);
+      setVal('theme_col_track',   'theme_hex_track',   d.color_track);
+      setVal('theme_col_btn_text', 'theme_hex_btn_text', d.color_btn_text);
+      setVal('theme_col_btn_text_active', 'theme_hex_btn_text_active', d.color_btn_text_active);
+
+      if (d.radius_card !== undefined) {
+        document.getElementById('theme_radius_card').value = d.radius_card;
+        document.getElementById('val_radius_card').innerText = d.radius_card + ' px';
+      }
+      if (d.radius_button !== undefined) {
+        document.getElementById('theme_radius_button').value = d.radius_button;
+        document.getElementById('val_radius_button').innerText = d.radius_button + ' px';
+      }
+      if (d.border_width !== undefined) {
+        document.getElementById('theme_border_width').value = d.border_width;
+        document.getElementById('val_border_width').innerText = d.border_width + ' px';
+      }
+    }
+
+    function syncColor(colId, hexId) {
+      const col = document.getElementById(colId).value.toUpperCase();
+      document.getElementById(hexId).value = col;
+      document.getElementById('theme_preset').value = 'custom';
+      updateThemePreview();
+    }
+
+    function syncHex(hexId, colId) {
+      let hex = document.getElementById(hexId).value.trim();
+      if (!hex.startsWith('#')) hex = '#' + hex;
+      if (/^#[0-9A-F]{6}$/i.test(hex)) {
+        document.getElementById(colId).value = hex;
+        document.getElementById('theme_preset').value = 'custom';
+        updateThemePreview();
+      }
+    }
+
+    function applyThemePreset(key) {
+      if (key === 'custom') return;
+      const p = themePresets[key];
+      if (!p) return;
+      setThemeFormValues(p);
+      updateThemePreview();
+    }
+
+    function resetThemeToDefault() {
+      if (!confirm("Theme wirklich auf Werkseinstellungen (Camper Slate) zurücksetzen?")) return;
+      applyThemePreset('slate');
+      document.getElementById('theme_preset').value = 'slate';
+      showToast("Auf Werkseinstellungen zurückgesetzt! Klicke unten auf 'Theme speichern & anwenden'.");
+    }
+
+    function updateThemePreview() {
+      const colPrimary = document.getElementById('theme_hex_primary').value || '#0EA5E9';
+      const colDimmer  = document.getElementById('theme_hex_dimmer').value  || '#F59E0B';
+      const colRelay   = document.getElementById('theme_hex_relay').value   || '#10B981';
+      const colTank    = document.getElementById('theme_hex_tank').value    || '#06B6D4';
+      const colBg      = document.getElementById('theme_hex_bg').value      || '#101318';
+      const colCard    = document.getElementById('theme_hex_card').value    || '#181C24';
+      const colBorder  = document.getElementById('theme_hex_border').value  || '#272D3B';
+      const colText    = document.getElementById('theme_hex_text').value    || '#F1F5F9';
+      const colMuted   = document.getElementById('theme_hex_muted').value   || '#94A3B8';
+      const colTrack   = document.getElementById('theme_hex_track').value   || '#12151C';
+      const colBtnText = document.getElementById('theme_hex_btn_text').value || '#F1F5F9';
+      const colBtnTextActive = document.getElementById('theme_hex_btn_text_active').value || '#FFFFFF';
+      const rCard      = parseInt(document.getElementById('theme_radius_card').value) || 0;
+      const rBtn       = parseInt(document.getElementById('theme_radius_button').value) || 0;
+      const bWidth     = parseInt(document.getElementById('theme_border_width').value) || 0;
+
+      const app         = document.getElementById('themePreviewApp');
+      const header      = document.getElementById('themePreviewHeader');
+      const headerText  = document.getElementById('themePreviewHeaderText');
+      const headerSub   = document.getElementById('themePreviewHeaderSub');
+      const headerBadge = document.getElementById('themePreviewHeaderBadge');
+      const card        = document.getElementById('themePreviewCard');
+      const dimLabel    = document.getElementById('themePreviewDimmerLabel');
+      const dimPct      = document.getElementById('themePreviewDimmerPct');
+      const track       = document.getElementById('themePreviewTrack');
+      const dimBar      = document.getElementById('themePreviewDimmerBar');
+      const relayCard   = document.getElementById('themePreviewRelayCard');
+      const tankCard    = document.getElementById('themePreviewTankCard');
+      const tankLabel   = document.getElementById('themePreviewTankLabel');
+      const tankPct     = document.getElementById('themePreviewTankPct');
+      const tankTrack   = document.getElementById('themePreviewTankTrack');
+      const tankBar     = document.getElementById('themePreviewTankBar');
+      const btn         = document.getElementById('themePreviewBtn');
+
+      if (app) app.style.backgroundColor = colBg;
+      if (header) {
+        header.style.backgroundColor = colCard;
+        header.style.borderBottomColor = colBorder;
+        header.style.borderBottomWidth = bWidth + 'px';
+      }
+      if (headerText) headerText.style.color = colText;
+      if (headerSub) headerSub.style.color = colMuted;
+      if (headerBadge) headerBadge.style.backgroundColor = colPrimary;
+
+      if (card) {
+        card.style.backgroundColor = colCard;
+        card.style.borderColor = colBorder;
+        card.style.borderWidth = bWidth + 'px';
+        card.style.borderRadius = rCard + 'px';
+      }
+      if (dimLabel) dimLabel.style.color = colText;
+      if (dimPct) dimPct.style.color = colDimmer;
+      if (track) {
+        track.style.backgroundColor = colTrack;
+        track.style.borderColor = colBorder;
+        track.style.borderWidth = bWidth + 'px';
+        track.style.borderRadius = rBtn + 'px';
+      }
+      if (dimBar) {
+        dimBar.style.backgroundColor = colDimmer;
+        dimBar.style.borderRadius = rBtn + 'px';
+      }
+
+      if (relayCard) {
+        relayCard.style.backgroundColor = colRelay;
+        relayCard.style.borderColor = colRelay;
+        relayCard.style.borderRadius = rBtn + 'px';
+        relayCard.style.color = colBtnTextActive;
+      }
+
+      if (tankCard) {
+        tankCard.style.backgroundColor = colCard;
+        tankCard.style.borderColor = colBorder;
+        tankCard.style.borderWidth = bWidth + 'px';
+        tankCard.style.borderRadius = rCard + 'px';
+      }
+      if (tankLabel) tankLabel.style.color = colMuted;
+      if (tankPct) tankPct.style.color = colText;
+      if (tankTrack) tankTrack.style.backgroundColor = colTrack;
+      if (tankBar) tankBar.style.backgroundColor = colTank;
+
+      if (btn) {
+        btn.style.backgroundColor = colPrimary;
+        btn.style.color = colBtnTextActive;
+        btn.style.borderRadius = rBtn + 'px';
+      }
+    }
+
+    function loadTheme() {
+      fetch('/api/theme')
+        .then(r => r.json())
+        .then(d => {
+          setThemeFormValues(d);
+          let matched = 'custom';
+          for (const k in themePresets) {
+            const p = themePresets[k];
+            if (p.color_primary.toUpperCase() === (d.color_primary || '').toUpperCase() &&
+                p.color_dimmer.toUpperCase()  === (d.color_dimmer  || '').toUpperCase() &&
+                p.color_relay.toUpperCase()   === (d.color_relay   || '').toUpperCase() &&
+                p.color_tank.toUpperCase()    === (d.color_tank    || '').toUpperCase() &&
+                p.color_bg.toUpperCase()      === (d.color_bg      || '').toUpperCase() &&
+                p.radius_card === d.radius_card) {
+              matched = k;
+              break;
+            }
+          }
+          document.getElementById('theme_preset').value = matched;
+          updateThemePreview();
+        })
+        .catch(() => updateThemePreview());
+    }
+
+    function exportThemeFile() {
+      const themeObj = getThemePayload(false);
+      delete themeObj.restart;
+      const themeName = themeObj.name;
+      const slug = themeName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+      const blob = new Blob([JSON.stringify(themeObj, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "camperui-theme-" + slug + ".json";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showToast("Theme-Datei heruntergeladen!");
+    }
+
+    function importThemeFile(input) {
+      if (!input.files || !input.files[0]) return;
+      const file = input.files[0];
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const d = JSON.parse(e.target.result);
+          if (d.color_primary) {
+            setThemeFormValues(d);
+            document.getElementById('theme_preset').value = 'custom';
+            updateThemePreview();
+            showToast("Theme erfolgreich geladen!");
+          } else {
+            showToast("Ung&uuml;ltiges Theme-Format", true);
+          }
+        } catch (err) {
+          showToast("Fehler beim Parsen der JSON-Datei", true);
+        }
+        input.value = '';
+      };
+      reader.readAsText(file);
+    }
+
+    function getThemePayload(restart = true) {
+      const pEl = document.getElementById('theme_preset');
+      const themeName = (pEl && pEl.selectedIndex >= 0 && pEl.value !== 'custom' && pEl.options[pEl.selectedIndex]) ? pEl.options[pEl.selectedIndex].text : "Custom Theme";
+      const val = (id, def) => {
+        const el = document.getElementById(id);
+        return (el && el.value) ? el.value : def;
+      };
+      const intVal = (id, def) => {
+        const el = document.getElementById(id);
+        return el ? (parseInt(el.value) || def) : def;
+      };
+      return {
+        name: themeName,
+        color_primary: val('theme_hex_primary', '#0EA5E9'),
+        color_dimmer:  val('theme_hex_dimmer',  '#F59E0B'),
+        color_relay:   val('theme_hex_relay',   '#10B981'),
+        color_tank:    val('theme_hex_tank',    '#06B6D4'),
+        color_bg:      val('theme_hex_bg',      '#101318'),
+        color_card:    val('theme_hex_card',    '#181C24'),
+        color_border:  val('theme_hex_border',  '#272D3B'),
+        color_text:    val('theme_hex_text',    '#F1F5F9'),
+        color_muted:   val('theme_hex_muted',   '#94A3B8'),
+        color_track:   val('theme_hex_track',   '#12151C'),
+        color_btn_text: val('theme_hex_btn_text', '#F1F5F9'),
+        color_btn_text_active: val('theme_hex_btn_text_active', '#FFFFFF'),
+        radius_card:   intVal('theme_radius_card', 14),
+        radius_button: intVal('theme_radius_button', 10),
+        border_width:  intVal('theme_border_width', 1),
+        restart: restart
+      };
+    }
+
+    function saveAndApplyTheme() {
+      const btn = document.getElementById('btnSave');
+      if (btn) {
+        btn.innerHTML = '<span>⏳</span> Speichere Theme...';
+        btn.disabled = true;
+      }
+
+      const payload = getThemePayload(false);
+
+      fetch('/api/theme', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+      .then(async r => {
+        const res = await r.json();
+        if (!r.ok || res.error) throw new Error(res.error || 'Fehler beim Speichern');
+        return res;
+      })
+      .then(d => {
+        if (btn) {
+          btn.innerHTML = '<span>💾</span> Theme gespeichert!';
+        }
+        showToast("✅ Theme erfolgreich gespeichert und auf Display angewendet!");
+        setTimeout(() => {
+          if (btn) {
+            btn.innerHTML = '<span>💾</span> Theme speichern &amp; anwenden';
+            btn.disabled = false;
+          }
+        }, 1500);
+      })
+      .catch(err => {
+        showToast("Fehler beim Speichern: " + err.message, true);
+        if (btn) {
+          btn.innerHTML = '<span>❌</span> Fehler';
+          setTimeout(() => {
+            btn.innerHTML = '<span>💾</span> Theme speichern &amp; anwenden';
+            btn.disabled = false;
+          }, 2000);
+        }
+      });
+    }
+
+    window.addEventListener('DOMContentLoaded', () => { loadSettings(); loadTheme(); });
   </script>
 </body>
 </html>
