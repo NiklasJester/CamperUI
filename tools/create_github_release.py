@@ -47,7 +47,7 @@ Release **{version}** erweitert die Hardware-Kompatibilität von CamperUI um das
 ### 💡 2. Dimmy Pro Hardware-Unterstützung
 * **Umschaltbare Dimmer-Hardware:**
   * In den Einstellungen (Display-Menü & Web-UI) kann zwischen **Dimmy** (Kanäle 1–8) und **Dimmy Pro** (Kanäle 8–15) umgeschaltet werden.
-  * Beim Dimmy Pro werden automatisch die Keys `dimmer8` bis `dimmer15` ausgelesen und Steuerbefehle an `/dimmer/{8..15}/{val}` gesendet.
+  * Beim Dimmy Pro werden automatisch die Keys `dimmer8` bis `dimmer15` ausgelesen und Steuerbefehle an `/dimmer/<Kanal>/<Wert>` gesendet.
   * Namen und Dimmwerte werden nahtlos übernommen.
 
 ---
