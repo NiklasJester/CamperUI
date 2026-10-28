@@ -106,10 +106,14 @@ void http_fetch_names() {
 }
 
 // Static lookup tables to prevent String heap allocations in parsing loops
-static const char* const RELAY_KEYS[8]       = {"Relay1", "Relay2", "Relay3", "Relay4", "Relay5", "Relay6", "Relay7", "Relay8"};
+static const char* const RELAY_KEYS[16]      = {
+    "Relay1", "Relay2", "Relay3", "Relay4", "Relay5", "Relay6", "Relay7", "Relay8",
+    "Relay9", "Relay10", "Relay11", "Relay12", "Relay13", "Relay14", "Relay15", "Relay16"
+};
 static const char* const WIFIRELAIS_KEYS[8]   = {"WifiRelay1", "WifiRelay2", "WifiRelay3", "WifiRelay4", "WifiRelay5", "WifiRelay6", "WifiRelay7", "WifiRelay8"};
 static const char* const WRELAY_KEYS_ALT[8]   = {"wrelay1", "wrelay2", "wrelay3", "wrelay4", "wrelay5", "wrelay6", "wrelay7", "wrelay8"};
 static const char* const DIMMER_KEYS[8]      = {"dimmer1", "dimmer2", "dimmer3", "dimmer4", "dimmer5", "dimmer6", "dimmer7", "dimmer8"};
+static const char* const DIMMER_PRO_KEYS[8]  = {"dimmer8", "dimmer9", "dimmer10", "dimmer11", "dimmer12", "dimmer13", "dimmer14", "dimmer15"};
 static const char* const LEVEL_KEYS[4]       = {"level1", "level2", "level3", "level4"};
 static const char* const TEMP_KEYS[4]        = {"temp1", "temp2", "temp3", "temp4"};
 
@@ -248,11 +252,12 @@ static void parse_mppt_json(const char *payload) {
 
 // GET /relay -> { "Relay1": { "state": bool, "name": str, ... }, "Relay2": ... }
 static void parse_relay_json(const char *payload) {
-    StaticJsonDocument<1024> doc;
+    StaticJsonDocument<2048> doc;
     if (deserializeJson(doc, payload)) return;
 
     StateLockGuard lock;
-    for (int i = 0; i < 8; i++) {
+    int max_r = state.show_relay_ext ? 16 : 8;
+    for (int i = 0; i < max_r; i++) {
         const char *key = RELAY_KEYS[i];
         if (!doc.containsKey(key)) continue;
         JsonObject r = doc[key];
@@ -323,12 +328,13 @@ static void parse_wrelay_json(const char *payload) {
 
 // GET /dimmer -> { "dimmer1": { "state": int(0-100), "name": str, ... }, "dimmer2": ... }
 static void parse_dimmer_json(const char *payload) {
-    StaticJsonDocument<1024> doc;
+    StaticJsonDocument<2048> doc;
     if (deserializeJson(doc, payload)) return;
 
     StateLockGuard lock;
+    const char* const* keys = state.dimmy_pro ? DIMMER_PRO_KEYS : DIMMER_KEYS;
     for (int i = 0; i < 8; i++) {
-        const char *key = DIMMER_KEYS[i];
+        const char *key = keys[i];
         if (!doc.containsKey(key)) continue;
         JsonObject d = doc[key];
         if (d.containsKey("state") && (int32_t)(millis() - state.dimmer_hold_until[i]) >= 0) {
@@ -777,8 +783,13 @@ static void parse_info_json(const char *payload) {
         if (cd && strlen(cd) >= 19) {
             state.vanpi_current_date = cd;
             int d = 0, mo = 0, y = 0, h = 0, mi = 0, s = 0;
-            // Format: "14/10/2026, 18:30:35" (DD/MM/YYYY, HH:MM:SS)
-            if (sscanf(cd, "%d/%d/%d, %d:%d:%d", &d, &mo, &y, &h, &mi, &s) == 6) {
+            // Support Old Core (DD/MM/YYYY, HH:MM:SS) and CorePro (DD.MM.YYYY, HH:MM:SS)
+            int matched = sscanf(cd, "%d/%d/%d, %d:%d:%d", &d, &mo, &y, &h, &mi, &s);
+            if (matched < 6) matched = sscanf(cd, "%d.%d.%d, %d:%d:%d", &d, &mo, &y, &h, &mi, &s);
+            if (matched < 6) matched = sscanf(cd, "%d.%d.%d %d:%d:%d", &d, &mo, &y, &h, &mi, &s);
+            if (matched < 6) matched = sscanf(cd, "%d/%d/%d %d:%d:%d", &d, &mo, &y, &h, &mi, &s);
+            if (matched < 6 && sscanf(cd, "%d-%d-%d %d:%d:%d", &y, &mo, &d, &h, &mi, &s) == 6) matched = 6;
+            if (matched == 6) {
                 struct tm t = {};
                 t.tm_year = y - 1900;
                 t.tm_mon  = mo - 1;
@@ -994,9 +1005,13 @@ void http_loop() {
         state.heating_on = state.fan_on = false;
         for (int i = 0; i < TEMP_SOURCE_COUNT; ++i) { state.temp_sensors[i] = 0; state.temp_humidity[i] = 0.0f; state.temp_is_humidity[i] = false; }
         for (int i = 0; i < 4; ++i) state.tank_level[i] = 0;
+        for (int i = 0; i < 16; ++i) {
+            state.relay_hold_until[i] = 0;
+            state.switch_state[i] = false;
+        }
         for (int i = 0; i < 8; ++i) {
-            state.dimmer_hold_until[i] = state.relay_hold_until[i] = 0;
-            state.switch_state[i] = false; state.dimmer_val[i] = 0;
+            state.dimmer_hold_until[i] = 0;
+            state.dimmer_val[i] = 0;
         }
         demo_relays_seeded = demo_dimmers_seeded = false;
         shore_404_count = booster_404_count = 0;
@@ -1035,12 +1050,16 @@ void http_loop() {
                     break;
                 }
                 case 1: {
-                    const char *dummy = "{\"Relay1\":{\"state\":true,\"name\":\"Licht Bank\"},\"Relay2\":{\"state\":false,\"name\":\"Kuehlschrank\"},\"Relay3\":{\"state\":true,\"name\":\"Wasserpumpe\"},\"Relay4\":{\"state\":false,\"name\":\"Abwasserventil\"},\"Relay5\":{\"state\":false,\"name\":\"Relais 5\"},\"Relay6\":{\"state\":false,\"name\":\"Relais 6\"},\"Relay7\":{\"state\":false,\"name\":\"Relais 7\"},\"Relay8\":{\"state\":false,\"name\":\"Relais 8\"}}";
+                    const char *dummy = state.show_relay_ext ?
+                        "{\"Relay1\":{\"state\":true,\"name\":\"Licht Bank\"},\"Relay2\":{\"state\":false,\"name\":\"Kuehlschrank\"},\"Relay3\":{\"state\":true,\"name\":\"Wasserpumpe\"},\"Relay4\":{\"state\":false,\"name\":\"Abwasserventil\"},\"Relay5\":{\"state\":false,\"name\":\"Relais 5\"},\"Relay6\":{\"state\":false,\"name\":\"Relais 6\"},\"Relay7\":{\"state\":false,\"name\":\"Relais 7\"},\"Relay8\":{\"state\":false,\"name\":\"Relais 8\"},\"Relay9\":{\"state\":false,\"name\":\"Aussenlicht\"},\"Relay10\":{\"state\":false,\"name\":\"Heckgarage\"},\"Relay11\":{\"state\":false,\"name\":\"Relais 11\"},\"Relay12\":{\"state\":false,\"name\":\"Relais 12\"},\"Relay13\":{\"state\":false,\"name\":\"Relais 13\"},\"Relay14\":{\"state\":false,\"name\":\"Relais 14\"},\"Relay15\":{\"state\":false,\"name\":\"Relais 15\"},\"Relay16\":{\"state\":false,\"name\":\"Relais 16\"}}" :
+                        "{\"Relay1\":{\"state\":true,\"name\":\"Licht Bank\"},\"Relay2\":{\"state\":false,\"name\":\"Kuehlschrank\"},\"Relay3\":{\"state\":true,\"name\":\"Wasserpumpe\"},\"Relay4\":{\"state\":false,\"name\":\"Abwasserventil\"},\"Relay5\":{\"state\":false,\"name\":\"Relais 5\"},\"Relay6\":{\"state\":false,\"name\":\"Relais 6\"},\"Relay7\":{\"state\":false,\"name\":\"Relais 7\"},\"Relay8\":{\"state\":false,\"name\":\"Relais 8\"}}";
                     if (!demo_relays_seeded) { parse_relay_json(dummy); demo_relays_seeded = true; }
                     break;
                 }
                 case 2: {
-                    const char *dummy = "{\"dimmer1\":{\"state\":\"75\",\"name\":\"Deckenlampe\"},\"dimmer2\":{\"state\":\"40\",\"name\":\"Kueche\"},\"dimmer3\":{\"state\":\"0\",\"name\":\"Leselicht\"},\"dimmer4\":{\"state\":\"0\",\"name\":\"Dimmer 4\"},\"dimmer5\":{\"state\":\"0\",\"name\":\"Dimmer 5\"},\"dimmer6\":{\"state\":\"0\",\"name\":\"Dimmer 6\"},\"dimmer7\":{\"state\":\"0\",\"name\":\"Dimmer 7\"},\"dimmer8\":{\"state\":\"0\",\"name\":\"Dimmer 8\"}}";
+                    const char *dummy = state.dimmy_pro ?
+                        "{\"dimmer8\":{\"state\":\"75\",\"name\":\"WC / Bad\"},\"dimmer9\":{\"state\":\"40\",\"name\":\"Kueche\"},\"dimmer10\":{\"state\":\"0\",\"name\":\"Tisch\"},\"dimmer11\":{\"state\":\"0\",\"name\":\"Bett\"},\"dimmer12\":{\"state\":\"0\",\"name\":\"Werkstatt\"},\"dimmer13\":{\"state\":\"0\",\"name\":\"Regenrinne\"},\"dimmer14\":{\"state\":\"0\",\"name\":\"Deckenlicht\"},\"dimmer15\":{\"state\":\"0\",\"name\":\"Bodenlicht\"}}" :
+                        "{\"dimmer1\":{\"state\":\"75\",\"name\":\"Deckenlampe\"},\"dimmer2\":{\"state\":\"40\",\"name\":\"Kueche\"},\"dimmer3\":{\"state\":\"0\",\"name\":\"Leselicht\"},\"dimmer4\":{\"state\":\"0\",\"name\":\"Dimmer 4\"},\"dimmer5\":{\"state\":\"0\",\"name\":\"Dimmer 5\"},\"dimmer6\":{\"state\":\"0\",\"name\":\"Dimmer 6\"},\"dimmer7\":{\"state\":\"0\",\"name\":\"Dimmer 7\"},\"dimmer8\":{\"state\":\"0\",\"name\":\"Dimmer 8\"}}";
                     if (!demo_dimmers_seeded) { parse_dimmer_json(dummy); demo_dimmers_seeded = true; }
                     break;
                 }
@@ -1273,7 +1292,8 @@ static void http_put(String endpoint) {
 static RelayClickFilter relay_click_filter;
 
 bool http_publish_switch(int index, bool on) {
-    if (index < 0 || index >= 8 || !relay_click_filter.accept(index, millis())) return false;
+    int max_r = state.show_relay_ext ? 16 : 8;
+    if (index < 0 || index >= max_r || !relay_click_filter.accept(index, millis())) return false;
     state.switch_state[index] = on;
     state.relay_hold_until[index] = millis() + 2000;
     char path[64];
@@ -1283,7 +1303,7 @@ bool http_publish_switch(int index, bool on) {
 }
 
 bool http_publish_wrelay(int index, bool on) {
-    if (index < 0 || index >= 8 || !relay_click_filter.accept(index + 8, millis())) return false;
+    if (index < 0 || index >= 8 || !relay_click_filter.accept(index + 16, millis())) return false;
     state.wrelay_state[index] = on;
     state.wrelay_hold_until[index] = millis() + 2000;
     char path[64];
@@ -1296,8 +1316,9 @@ void http_publish_dimmer(int index, int val) {
     if (index < 0 || index >= 8) return;
     val = constrain(val, 0, 100);
     state.dimmer_val[index] = val;
+    int ch = state.dimmy_pro ? (index + 8) : (index + 1);
     char path[64];
-    snprintf(path, sizeof(path), "/dimmer/%d/%d", index + 1, val);
+    snprintf(path, sizeof(path), "/dimmer/%d/%d", ch, val);
     queue_cmd(path);
 }
 

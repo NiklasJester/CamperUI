@@ -50,9 +50,11 @@ void web_settings_register_routes(WebServer &server) {
             doc["heater_temp_buttons"] = state.heater_temp_buttons;
 
             doc["show_wrelay"] = state.show_wrelay;
+            doc["show_relay_ext"] = state.show_relay_ext;
+            doc["dimmy_pro"] = state.dimmy_pro;
             JsonArray sw_nm = doc["switch_names"].to<JsonArray>();
             JsonArray sw_vis = doc["switch_visible"].to<JsonArray>();
-            for (int i = 0; i < 8; i++) {
+            for (int i = 0; i < 16; i++) {
                 sw_nm.add(state.switch_names[i]);
                 sw_vis.add(state.switch_visible[i]);
             }
@@ -110,7 +112,8 @@ void web_settings_register_routes(WebServer &server) {
 
             // Metadata: Relais Options
             JsonArray rel_arr = doc["relays"].to<JsonArray>();
-            for (int i = 0; i < 8; i++) {
+            int max_relays = state.show_relay_ext ? 16 : 8;
+            for (int i = 0; i < max_relays; i++) {
                 JsonObject r = rel_arr.add<JsonObject>();
                 r["id"] = i;
                 r["name"] = state.switch_names[i].length() ? state.switch_names[i] : "Relais " + String(i + 1);
@@ -119,7 +122,7 @@ void web_settings_register_routes(WebServer &server) {
             if (state.show_wrelay) {
                 for (int i = 0; i < 8; i++) {
                     JsonObject r = rel_arr.add<JsonObject>();
-                    r["id"] = 8 + i;
+                    r["id"] = 16 + i;
                     r["name"] = state.wrelay_names[i].length() ? state.wrelay_names[i] : "WLAN " + String(i + 1);
                     r["is_wrelay"] = true;
                 }
@@ -297,9 +300,11 @@ void web_settings_register_routes(WebServer &server) {
             if (doc["heater_temp_buttons"].is<bool>()) state.heater_temp_buttons = doc["heater_temp_buttons"].as<bool>();
 
             if (doc["show_wrelay"].is<bool>()) state.show_wrelay = doc["show_wrelay"].as<bool>();
+            if (doc["show_relay_ext"].is<bool>()) state.show_relay_ext = doc["show_relay_ext"].as<bool>();
+            if (doc["dimmy_pro"].is<bool>()) state.dimmy_pro = doc["dimmy_pro"].as<bool>();
             if (doc["switch_visible"].is<JsonArray>()) {
                 JsonArray arr = doc["switch_visible"].as<JsonArray>();
-                for (int i = 0; i < 8 && i < (int)arr.size(); i++) state.switch_visible[i] = arr[i].as<bool>();
+                for (int i = 0; i < 16 && i < (int)arr.size(); i++) state.switch_visible[i] = arr[i].as<bool>();
             }
             if (doc["dimmer_visible"].is<JsonArray>()) {
                 JsonArray arr = doc["dimmer_visible"].as<JsonArray>();

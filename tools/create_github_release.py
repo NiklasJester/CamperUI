@@ -30,83 +30,42 @@ def create_release():
     version = get_version()
     tag = version
     title = f"CamperUI_{version}"
-    body = f"""# 🚐 CamperUI Release {version}
+    body = f"""# 🚐 CamperUI Release {version} (Bugfix & Hardware Extension)
 
-Release **{version}** bringt drei große Meilensteine für CamperUI: die neue **dynamische Theme-Engine mit Live-Vorschau und Sofort-Übernahme**, native **CI-Bus-Steuerung für Dometic RC10 Kühlschränke** sowie die Integration von **Webasto Standheizungen**.
-
----
-
-### 🎨 1. Vollständige Theme-Engine & Web-Designer
-
-CamperUI lässt sich ab sofort nahtlos an das Interieur und die Lichtstimmung deines Campers anpassen:
-* **Webbasierter Theme-Editor mit Live-Vorschau:**
-  * Unter `http://<IP-des-Displays>/settings` -> *Theme & Design* steht ein interaktiver Editor zur Verfügung, der Farb- und Geometrieänderungen in einer simulierten Display-Vorschau in Echtzeit anzeigt.
-* **Umfassende Farb- & Stiloptionen:**
-  * **Komponentenfarben:** Eigene Farben für Dimmer-Slider (Licht), Schalter/Relais (Aktiv), Füllstände (Frischwasser/Tanks) und UI-Buttons (z. B. Nullpunkt Tara, WLAN Scan).
-  * **Oberflächen & Kontraste:** App-Hintergrund, Kachel- & Header-Hintergrund, Rahmenfarben und Regler-Schienen.
-  * **Typografie:** Haupttext, gedämpfter Text, normale Button-Schrift und aktive Button-Schrift (z. B. bei eingeschalteten Relais).
-  * **Form & Rundungen:** Kachelrundungen (0..24 px), Buttonrundungen (0..18 px) und Rahmenstärken (0..3 px).
-* **Live-Übernahme in unter 100 ms ohne Neustart:**
-  * Beim Klick auf **„Theme speichern & anwenden“** wird das Theme im NVS-Flash gespeichert und die LVGL-Displayoberfläche sofort live neu gerendert – ganz ohne Display-Freeze, ohne TCP-Verbindungsabbruch und ohne Neustart.
-* **Designvorlagen (Presets):**
-  * *Camper Slate (Standard Blau / Bernstein / Grün)*
-  * *Nordic Amber (Warmes Bernstein / Nacht-Orange)*
-  * *Forest Green (Moosgrün & Eiche)*
-  * *Ocean Breeze (Marineblau & Cyan)*
-  * *Modern Minimal (Tiefschwarz & Weiß, 0px Eckenrundung)*
-  * *Sunset Terracotta (Warmgrau & Terracotta)*
-* **Theme-Datei Import & Export:**
-  * Eigene Designs können als `.json`-Datei exportiert, gesichert und auf anderen Displays hochgeladen werden.
-  * Eigener Button zum einfachen Zurücksetzen auf die Werkseinstellungen.
-* **Entwickler-Dokumentation:**
-  * Ein ausführlicher Developer Guide in [`docs/THEMES.md`](docs/THEMES.md) beschreibt alle Theme-Variablen und Best Practices für Entwickler neuer Tabs.
+Release **{version}** erweitert die Hardware-Kompatibilität von CamperUI um das **Dimmy Pro**-Gerät sowie das **out-x-in Pro**-Relais-Erweiterungsmodul, behebt ein wichtiges Datumsformat-Problem bei neueren VanPi CorePro Systemen und ergänzt Zeitstempel in der Debug-Konsole.
 
 ---
 
-### ❄️ 2. Dometic RC10 CI-Bus Kühlschrank-Integration
-
-Für Dometic Kühlschränke der 10er-Serie (z. B. RC 10.4T, RCL 10.4ET) mit VanPi CI-Bus-Anbindung (`/dometic_rc10_ci/`):
-* **Eigener Kühlschrank-Tab:**
-  * Vollständig in die Menüleiste integriert, kann in den Einstellungen wie alle anderen Tabs beliebig verschoben, aktiviert oder deaktiviert werden.
-* **Kühlstufen 1 bis 5:**
-  * Große Minus-/Plus-Buttons sowie 5 direkt antippbare Segment-Balken zur gradgenauen Einstellung der Kältestufe.
-* **Drei Betriebsmodi:**
-  * **Performance:** Standardbetrieb mit automatischer Regelung (Stufen 1–5).
-  * **Silent:** Flüsterleiser Nachtbetrieb mit gedrosseltem Kompressor und Lüfter (Kühlstufe auf max. 3 begrenzt).
-  * **Turbo:** Maximale Kälteleistung (feste Stufe 5 für schnelles Herunterkühlen nach dem Einkauf).
-* **Umfassende CI-Bus Live-Telemetrie:**
-  * Anzeige der aktuellen Stromquelle (**12V DC**, **24V DC**, **230V AC**).
-  * Live-Statusanzeige für Kompressor- und Zusatzlüfter-Aktivität.
-  * Automatische Klartext-Fehlerdiagnose bei CI-Bus-Meldungen.
-* **Kühlschranktemperatur-Sensor:**
-  * In den Einstellungen kann ein VanPi-Temperatursensor (z. B. RuuviTag oder kabelgebundener Fühler) als Kühlschrank-Temperatur festgelegt werden. Der Messwert wird dezent oben rechts im Header des Kühlschrank-Tabs mit Schneeflocken-Symbol angezeigt.
+### ⏱️ 1. VanPi Core & CorePro Zeitformat-Kompatibilität
+* **Unterstützung beider Datumsformate im `/info`-Endpoint:**
+  * VanPi Core (alt): `DD/MM/YYYY, HH:MM:SS` (z. B. `28/10/2026, 08:35:51`)
+  * VanPi CorePro (neu): `DD.MM.YYYY, HH:MM:SS` (z. B. `28.10.2026, 08:35:51`)
+  * CamperUI erkennt und parst nun beide Formate sowie ISO- und Leerzeichen-Varianten zuverlässig, sodass Uhrzeit und RTC-Synchronisation auf allen Systemen stabil laufen.
 
 ---
 
-### 🔥 3. Webasto Standheizungs-Integration
-
-* **Native Webasto-Unterstützung:**
-  * Auswahl von Webasto in den Heizungseinstellungen (`HEATER_TYPE_WEBASTO`).
-  * Steuerung über VanPi REST-Endpunkte (`/heater/generic` bzw. `/heater`).
-  * Umschaltung zwischen Heiz- und Lüftungsmodus, Sollwertvorgabe und Betriebsstatus.
-  * Telemetrie- und Spannungsüberwachung (`heatvolt`).
+### 💡 2. Dimmy Pro Hardware-Unterstützung
+* **Umschaltbare Dimmer-Hardware:**
+  * In den Einstellungen (Display-Menü & Web-UI) kann zwischen **Dimmy** (Kanäle 1–8) und **Dimmy Pro** (Kanäle 8–15) umgeschaltet werden.
+  * Beim Dimmy Pro werden automatisch die Keys `dimmer8` bis `dimmer15` ausgelesen und Steuerbefehle an `/dimmer/{8..15}/{val}` gesendet.
+  * Namen und Dimmwerte werden nahtlos übernommen.
 
 ---
 
-### 📱 4. Weitere Detailverbesserungen & Stabilität
-
-* **WLAN-Scan Fehlerbehebung:**
-  * Das Scannen nach Netzwerken funktioniert nun auch dann zuverlässig, wenn zuvor ein noch nicht verbundenes Netzwerk eingetragen war (`wifi_prepare_for_scan` / `wifi_finish_scan`).
-* **Aufgeräumter Header:**
-  * Die Versionsangabe wurde aus der oberen Statusleiste entfernt, wodurch die Smart Header Badges (Frost, Batterie, WLAN etc.) nun optimal vertikal zentriert neben der Uhrzeit dargestellt werden.
-* **Dynamischer System-Status:**
-  * Versionsnummer und Demo-/Live-Modus werden sauber im Statusfeld am Ende des Einstellungen-Tabs angezeigt und aktualisieren sich sofort bei Umschaltung.
-* **MaxxFan & Relais Theming:**
-  * Der MaxxFan-Tab und alle Buttons wurden vollständig an das aktive Theme angepasst; die vorherige Verzögerung bei der Umschaltanimation von Schaltern wurde behoben.
+### 🔘 3. out-x-in Pro Modul (Relais 9–16)
+* **Erweiterung auf 16 Hauptrelais:**
+  * Optionaler Schalter in den Einstellungen schaltet Relais 9–16 frei.
+  * Volle Integration in die Schalter-Kacheln, Sperrfunktion (Lock gegen Fehlbedienung) und Web-Oberfläche.
+  * Wasserpumpen- und Abwasserventil-Zuordnung unterstützt nun alle 16 Hauptrelais sowie die 8 WLAN-Relais.
 
 ---
 
-### 💾 Installation & Update
+### 🖥️ 4. Zeitstempel in der Debug-Konsole
+* Jeder Log-Eintrag in der Debug-Konsole (`/status` und Download `/api/log`) sowie über USB-Serial wird ab sofort mit einem präzisen Zeitstempel im Format `[HH:MM:SS]` versehen.
+
+---
+
+### 📦 Installation & Update
 
 * **Web-OTA (Empfohlen):** Im Browser `http://<IP-des-Displays>/update` aufrufen und die Datei `CamperUI-{version}.bin` hochladen.
 * **USB-Erstinstallation:** `CamperUI-{version}-merged.bin` mit dem ESP Flash Tool, Web-Flasher oder Arduino IDE ab Offset `0x0` flashen.

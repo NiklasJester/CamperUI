@@ -127,7 +127,7 @@ static lv_obj_t *dd_pump = NULL;
 static lv_obj_t *dd_drain = NULL;
 static lv_obj_t *dd_heater_type = NULL;
 
-static int relay_opt_map[18];
+static int relay_opt_map[32];
 static int relay_opt_count = 0;
 
 static void update_water_relay_dropdowns() {
@@ -135,7 +135,8 @@ static void update_water_relay_dropdowns() {
     String opts = "Nicht verfügbar\n";
     relay_opt_map[relay_opt_count++] = -1;
 
-    for (int i = 0; i < 8; i++) {
+    int max_relays = state.show_relay_ext ? 16 : 8;
+    for (int i = 0; i < max_relays; i++) {
         String nm = state.switch_names[i];
         if (nm.length() == 0 || nm == "CH " + String(i + 1)) {
             opts += "Relais " + String(i + 1);
@@ -155,7 +156,7 @@ static void update_water_relay_dropdowns() {
                 opts += nm + " (WLAN)";
             }
             if (i != 7) opts += "\n";
-            relay_opt_map[relay_opt_count++] = 8 + i;
+            relay_opt_map[relay_opt_count++] = 16 + i;
         }
     } else {
         if (opts.endsWith("\n")) opts.remove(opts.length() - 1);
@@ -964,7 +965,7 @@ void ui_settings_screen_init() {
     // ==========================================
     lv_obj_add_flag(t_vis, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_scroll_dir(t_vis, LV_DIR_VER);
-    lv_obj_set_style_pad_bottom(t_vis, 90, 0);
+    lv_obj_set_style_pad_bottom(t_vis, 160, 0);
     
     // Helper for creating generous, finger-friendly toggle rows with clickable cards
     auto make_toggle_row = [](lv_obj_t *parent, lv_coord_t x, lv_coord_t y, lv_coord_t w, lv_coord_t h,
@@ -1095,16 +1096,84 @@ void ui_settings_screen_init() {
             }, (void *)(intptr_t)i);
     }
 
-    // 3. WiFi Relais Section at y = 570
+    // 3. out-x-in Pro (Relais 9-16) Section at y = 570
+    lv_obj_t *l_rext_head = lv_label_create(t_vis);
+    lv_label_set_text(l_rext_head, "out-x-in Pro (Relais 9–16)");
+    lv_obj_set_style_text_font(l_rext_head, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_color(l_rext_head, lv_color_hex(UI_COLOR_PRIMARY), 0);
+    lv_obj_align(l_rext_head, LV_ALIGN_TOP_LEFT, 0, 570);
+
+    lv_obj_t *cont_rext = lv_obj_create(t_vis);
+    lv_obj_set_size(cont_rext, 440, 210);
+    lv_obj_align(cont_rext, LV_ALIGN_TOP_LEFT, 0, 648);
+    lv_obj_set_style_bg_opa(cont_rext, 0, 0);
+    lv_obj_set_style_border_width(cont_rext, 0, 0);
+    lv_obj_set_style_pad_all(cont_rext, 0, 0);
+    lv_obj_clear_flag(cont_rext, LV_OBJ_FLAG_SCROLLABLE);
+    if (!state.show_relay_ext) lv_obj_add_flag(cont_rext, LV_OBJ_FLAG_HIDDEN);
+
+    lv_obj_t *card_master_rext = lv_obj_create(t_vis);
+    lv_obj_set_pos(card_master_rext, 0, 596);
+    lv_obj_set_size(card_master_rext, 440, 44);
+    lv_obj_set_style_radius(card_master_rext, 8, 0);
+    lv_obj_set_style_bg_color(card_master_rext, ui_theme_card(), 0);
+    lv_obj_set_style_border_width(card_master_rext, 1, 0);
+    lv_obj_set_style_border_color(card_master_rext, ui_theme_border(), 0);
+    lv_obj_set_style_pad_hor(card_master_rext, 8, 0);
+    lv_obj_clear_flag(card_master_rext, LV_OBJ_FLAG_SCROLLABLE);
+
+    lv_obj_t *sw_rext = lv_switch_create(card_master_rext);
+    lv_obj_set_size(sw_rext, 46, 26);
+    lv_obj_align(sw_rext, LV_ALIGN_LEFT_MID, 0, 0);
+    if (state.show_relay_ext) lv_obj_add_state(sw_rext, LV_STATE_CHECKED);
+    lv_obj_add_event_cb(sw_rext, [](lv_event_t * e) {
+        lv_obj_t *sw = lv_event_get_target(e);
+        lv_obj_t *cont = (lv_obj_t *)lv_event_get_user_data(e);
+        state.show_relay_ext = lv_obj_has_state(sw, LV_STATE_CHECKED);
+        if (state.show_relay_ext) {
+            lv_obj_clear_flag(cont, LV_OBJ_FLAG_HIDDEN);
+        } else {
+            lv_obj_add_flag(cont, LV_OBJ_FLAG_HIDDEN);
+        }
+        update_water_relay_dropdowns();
+    }, LV_EVENT_VALUE_CHANGED, cont_rext);
+
+    lv_obj_t *l_sw_rext = lv_label_create(card_master_rext);
+    lv_label_set_text(l_sw_rext, "out-x-in Pro aktivieren");
+    lv_obj_set_style_text_font(l_sw_rext, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_color(l_sw_rext, ui_theme_text(), 0);
+    lv_obj_align(l_sw_rext, LV_ALIGN_LEFT_MID, 58, 0);
+
+    lv_obj_add_event_cb(card_master_rext, [](lv_event_t *e) {
+        lv_obj_t *s = (lv_obj_t *)lv_event_get_user_data(e);
+        if (lv_obj_has_state(s, LV_STATE_CHECKED)) lv_obj_clear_state(s, LV_STATE_CHECKED);
+        else lv_obj_add_state(s, LV_STATE_CHECKED);
+        lv_event_send(s, LV_EVENT_VALUE_CHANGED, NULL);
+    }, LV_EVENT_CLICKED, sw_rext);
+
+    // Relais 9-16 individual toggle rows (0..3 left, 4..7 right)
+    for (int i = 0; i < 8; i++) {
+        lv_coord_t wx = (i < 4 ? 0 : 225);
+        lv_coord_t wy = (i % 4) * 48;
+        int sw_idx = 8 + i;
+        make_toggle_row(cont_rext, wx, wy, 215, 42, state.switch_names[sw_idx].c_str(), state.switch_visible[sw_idx],
+            [](lv_event_t *e) {
+                lv_obj_t *obj = lv_event_get_target(e);
+                int idx = (int)(intptr_t)lv_event_get_user_data(e);
+                state.switch_visible[idx] = lv_obj_has_state(obj, LV_STATE_CHECKED);
+            }, (void *)(intptr_t)sw_idx);
+    }
+
+    // 4. WiFi Relais Section at y = 870
     lv_obj_t *l_wr_head = lv_label_create(t_vis);
     lv_label_set_text(l_wr_head, "WiFi-Relais");
     lv_obj_set_style_text_font(l_wr_head, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(l_wr_head, lv_color_hex(UI_COLOR_PRIMARY), 0);
-    lv_obj_align(l_wr_head, LV_ALIGN_TOP_LEFT, 0, 570);
+    lv_obj_align(l_wr_head, LV_ALIGN_TOP_LEFT, 0, 870);
 
     lv_obj_t *cont_wr = lv_obj_create(t_vis);
     lv_obj_set_size(cont_wr, 440, 210);
-    lv_obj_align(cont_wr, LV_ALIGN_TOP_LEFT, 0, 648);
+    lv_obj_align(cont_wr, LV_ALIGN_TOP_LEFT, 0, 948);
     lv_obj_set_style_bg_opa(cont_wr, 0, 0);
     lv_obj_set_style_border_width(cont_wr, 0, 0);
     lv_obj_set_style_pad_all(cont_wr, 0, 0);
@@ -1113,7 +1182,7 @@ void ui_settings_screen_init() {
 
     // Master Switch Row for WiFi Relais
     lv_obj_t *card_master_wr = lv_obj_create(t_vis);
-    lv_obj_set_pos(card_master_wr, 0, 596);
+    lv_obj_set_pos(card_master_wr, 0, 896);
     lv_obj_set_size(card_master_wr, 440, 44);
     lv_obj_set_style_radius(card_master_wr, 8, 0);
     lv_obj_set_style_bg_color(card_master_wr, ui_theme_card(), 0);
@@ -1162,6 +1231,19 @@ void ui_settings_screen_init() {
                 state.wrelay_visible[idx] = lv_obj_has_state(obj, LV_STATE_CHECKED);
             }, (void *)(intptr_t)i);
     }
+
+    // 5. Dimmer Hardware Section at y = 1170
+    lv_obj_t *l_dim_head = lv_label_create(t_vis);
+    lv_label_set_text(l_dim_head, "Dimmer-Hardware");
+    lv_obj_set_style_text_font(l_dim_head, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_color(l_dim_head, lv_color_hex(UI_COLOR_PRIMARY), 0);
+    lv_obj_align(l_dim_head, LV_ALIGN_TOP_LEFT, 0, 1170);
+
+    make_toggle_row(t_vis, 0, 1196, 440, 44, "Dimmy Pro Modus (Kanäle 8–15)", state.dimmy_pro,
+        [](lv_event_t *e) {
+            lv_obj_t *obj = lv_event_get_target(e);
+            state.dimmy_pro = lv_obj_has_state(obj, LV_STATE_CHECKED);
+        }, NULL, true);
     
     // ==========================================
     // TAB 4: WERTE (GROSSE DROPDOWNS & EINGABEN)

@@ -54,24 +54,53 @@ static inline void put_char_internal(char c) {
     }
 }
 
-size_t DebugSerialLogger::write(uint8_t c) {
-    _hw_cdc.write(c);
-    ensure_buffer();
+#include <time.h>
+
+static bool at_line_start = true;
+
+static void put_char_with_ts(HWCDC &cdc, char c) {
+    if (at_line_start && c != '\r' && c != '\n') {
+        char ts[16];
+        time_t now = time(nullptr);
+        if (now > 100000) {
+            struct tm ti;
+            localtime_r(&now, &ti);
+            snprintf(ts, sizeof(ts), "[%02d:%02d:%02d] ", ti.tm_hour, ti.tm_min, ti.tm_sec);
+        } else {
+            uint32_t s = millis() / 1000;
+            snprintf(ts, sizeof(ts), "[%02u:%02u:%02u] ", (s / 3600), (s / 60) % 60, s % 60);
+        }
+        at_line_start = false;
+        for (int j = 0; ts[j] != '\0'; j++) {
+            cdc.write((uint8_t)ts[j]);
+            portENTER_CRITICAL(&log_mux);
+            put_char_internal(ts[j]);
+            portEXIT_CRITICAL(&log_mux);
+        }
+    }
+
+    cdc.write((uint8_t)c);
     portENTER_CRITICAL(&log_mux);
-    put_char_internal((char)c);
+    put_char_internal(c);
     portEXIT_CRITICAL(&log_mux);
+
+    if (c == '\n') {
+        at_line_start = true;
+    }
+}
+
+size_t DebugSerialLogger::write(uint8_t c) {
+    ensure_buffer();
+    put_char_with_ts(_hw_cdc, (char)c);
     return 1;
 }
 
 size_t DebugSerialLogger::write(const uint8_t *buffer, size_t size) {
     if (size == 0) return 0;
-    _hw_cdc.write(buffer, size);
     ensure_buffer();
-    portENTER_CRITICAL(&log_mux);
     for (size_t i = 0; i < size; i++) {
-        put_char_internal((char)buffer[i]);
+        put_char_with_ts(_hw_cdc, (char)buffer[i]);
     }
-    portEXIT_CRITICAL(&log_mux);
     return size;
 }
 

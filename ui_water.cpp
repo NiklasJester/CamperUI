@@ -21,36 +21,36 @@ static bool water_hold_triggered[2] = {false, false};
 static const uint32_t WATER_LOCK_HOLD_MS = 2000;
 
 static bool get_water_relay_state(int relay) {
-    if (relay >= 0 && relay < 8) return state.switch_state[relay];
-    if (relay >= 8 && relay < 16) return state.wrelay_state[relay - 8];
+    if (relay >= 0 && relay < 16) return state.switch_state[relay];
+    if (relay >= 16 && relay < 24) return state.wrelay_state[relay - 16];
     return false;
 }
 
 static bool is_water_relay_locked(int relay) {
-    if (relay >= 0 && relay < 8) return state.switch_locked[relay];
-    if (relay >= 8 && relay < 16) return state.wrelay_locked[relay - 8];
+    if (relay >= 0 && relay < 16) return state.switch_locked[relay];
+    if (relay >= 16 && relay < 24) return state.wrelay_locked[relay - 16];
     return false;
 }
 
 static void toggle_water_relay_lock(int relay) {
-    if (relay >= 0 && relay < 8) {
+    if (relay >= 0 && relay < 16) {
         state_set_switch_locked(relay, !state.switch_locked[relay]);
         buzzer_beep(40);
-    } else if (relay >= 8 && relay < 16) {
-        int idx = relay - 8;
+    } else if (relay >= 16 && relay < 24) {
+        int idx = relay - 16;
         state_set_wrelay_locked(idx, !state.wrelay_locked[idx]);
         buzzer_beep(40);
     }
 }
 
 static void toggle_water_relay(int relay) {
-    if (relay >= 0 && relay < 8) {
+    if (relay >= 0 && relay < 16) {
         if (state.switch_locked[relay]) {
             return;
         }
         http_publish_switch(relay, !state.switch_state[relay]);
-    } else if (relay >= 8 && relay < 16) {
-        int idx = relay - 8;
+    } else if (relay >= 16 && relay < 24) {
+        int idx = relay - 16;
         if (state.wrelay_locked[idx]) {
             return;
         }
@@ -60,7 +60,7 @@ static void toggle_water_relay(int relay) {
 
 static void update_water_button_visuals(bool force = false) {
     // Pump Button
-    if (btn_pump && state.pump_relay >= 0 && state.pump_relay < 16) {
+    if (btn_pump && state.pump_relay >= 0 && state.pump_relay < 24) {
         bool on = get_water_relay_state(state.pump_relay);
         bool locked = is_water_relay_locked(state.pump_relay);
         if (force || (int)on != last_pump_state) {
@@ -82,7 +82,7 @@ static void update_water_button_visuals(bool force = false) {
     }
 
     // Drain Button
-    if (btn_drain && state.drain_relay >= 0 && state.drain_relay < 16) {
+    if (btn_drain && state.drain_relay >= 0 && state.drain_relay < 24) {
         bool on = get_water_relay_state(state.drain_relay);
         bool locked = is_water_relay_locked(state.drain_relay);
         if (force || (int)on != last_drain_state) {
@@ -200,8 +200,8 @@ void ui_build_water(lv_obj_t *parent) {
     ui_setup_tab_page(parent);
     lv_obj_clear_flag(parent, LV_OBJ_FLAG_SCROLLABLE);
 
-    bool has_pump = (state.pump_relay >= 0 && state.pump_relay < 16);
-    bool has_drain = (state.drain_relay >= 0 && state.drain_relay < 16);
+    bool has_pump = (state.pump_relay >= 0 && state.pump_relay < 24);
+    bool has_drain = (state.drain_relay >= 0 && state.drain_relay < 24);
     bool has_any_btn = has_pump || has_drain;
 
     // Card height: 286px when action buttons exist; 356px when no buttons (full card)
