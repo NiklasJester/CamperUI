@@ -230,14 +230,17 @@ void state_init() {
         state.switch_visible[i] = prefs.getBool(key_sw_vis, true);
         state.switch_locked[i] = prefs.getBool(key_sw_lock, false);
     }
-    for (int i = 0; i < 8; i++) {
+    for (int i = 0; i < 10; i++) {
         char key_dim[16], key_dim_vis[16], key_wr_lock[16];
         sprintf(key_dim, "dim%d_nm", i);
         sprintf(key_dim_vis, "dim%d_vis", i);
-        sprintf(key_wr_lock, "wr%d_lock", i);
-        state.dimmer_names[i] = prefs.getString(key_dim, "PWM " + String(i + 1));
+        String def_dim = (i < 8) ? ("PWM " + String(i + 1)) : ("RGBW " + String(i - 7));
+        state.dimmer_names[i] = prefs.getString(key_dim, def_dim);
         state.dimmer_visible[i] = prefs.getBool(key_dim_vis, true);
-        state.wrelay_locked[i] = prefs.getBool(key_wr_lock, false);
+        if (i < 8) {
+            sprintf(key_wr_lock, "wr%d_lock", i);
+            state.wrelay_locked[i] = prefs.getBool(key_wr_lock, false);
+        }
     }
     state.pump_relay = prefs.getInt("pump_relay", -1);
     state.drain_relay = prefs.getInt("drain_relay", -1);
@@ -346,7 +349,7 @@ void state_init() {
         state.switch_state[i] = false;
         state.relay_hold_until[i] = 0;
     }
-    for (int i = 0; i < 8; i++) {
+    for (int i = 0; i < 10; i++) {
         state.dimmer_val[i] = 0;
         state.dimmer_hold_until[i] = 0;
     }
@@ -475,7 +478,7 @@ void state_save() {
         put_string_if_changed(key_sw, state.switch_names[i]);
         prefs.putBool(key_sw_vis, state.switch_visible[i]);
     }
-    for (int i = 0; i < 8; i++) {
+    for (int i = 0; i < 10; i++) {
         char key_dim[16], key_dim_vis[16];
         sprintf(key_dim, "dim%d_nm", i);
         sprintf(key_dim_vis, "dim%d_vis", i);

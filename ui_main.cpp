@@ -601,6 +601,26 @@ void ui_rebuild_power(void) {
     }
 }
 
+void ui_rebuild_dimmers(void) {
+    if (pages[TAB_DIMMERS]) {
+        lv_obj_clean(pages[TAB_DIMMERS]);
+        ui_build_dimmers(pages[TAB_DIMMERS]);
+        if (active_page == TAB_DIMMERS) {
+            ui_update_dimmers_tab();
+        }
+    }
+}
+
+void ui_rebuild_switches(void) {
+    if (pages[TAB_SWITCHES]) {
+        lv_obj_clean(pages[TAB_SWITCHES]);
+        ui_build_switches(pages[TAB_SWITCHES]);
+        if (active_page == TAB_SWITCHES) {
+            ui_update_switches_tab();
+        }
+    }
+}
+
 void ui_update_visible_page() {
     if (ui_energy_history_active()) { ui_energy_history_update(); return; }
     if (lv_scr_act() != scr_main) return;

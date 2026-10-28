@@ -113,7 +113,10 @@ static const char* const RELAY_KEYS[16]      = {
 static const char* const WIFIRELAIS_KEYS[8]   = {"WifiRelay1", "WifiRelay2", "WifiRelay3", "WifiRelay4", "WifiRelay5", "WifiRelay6", "WifiRelay7", "WifiRelay8"};
 static const char* const WRELAY_KEYS_ALT[8]   = {"wrelay1", "wrelay2", "wrelay3", "wrelay4", "wrelay5", "wrelay6", "wrelay7", "wrelay8"};
 static const char* const DIMMER_KEYS[8]      = {"dimmer1", "dimmer2", "dimmer3", "dimmer4", "dimmer5", "dimmer6", "dimmer7", "dimmer8"};
-static const char* const DIMMER_PRO_KEYS[8]  = {"dimmer8", "dimmer9", "dimmer10", "dimmer11", "dimmer12", "dimmer13", "dimmer14", "dimmer15"};
+static const char* const DIMMER_PRO_KEYS[10] = {
+    "dimmer8", "dimmer9", "dimmer10", "dimmer11", "dimmer12", "dimmer13", "dimmer14", "dimmer15",
+    "rgbw1", "rgbw2"
+};
 static const char* const LEVEL_KEYS[4]       = {"level1", "level2", "level3", "level4"};
 static const char* const TEMP_KEYS[4]        = {"temp1", "temp2", "temp3", "temp4"};
 
@@ -332,13 +335,25 @@ static void parse_dimmer_json(const char *payload) {
     if (deserializeJson(doc, payload)) return;
 
     StateLockGuard lock;
+    int max_dim = state.dimmy_pro ? 10 : 8;
     const char* const* keys = state.dimmy_pro ? DIMMER_PRO_KEYS : DIMMER_KEYS;
-    for (int i = 0; i < 8; i++) {
+    for (int i = 0; i < max_dim; i++) {
         const char *key = keys[i];
         if (!doc.containsKey(key)) continue;
         JsonObject d = doc[key];
         if (d.containsKey("state") && (int32_t)(millis() - state.dimmer_hold_until[i]) >= 0) {
-            state.dimmer_val[i] = constrain(jsonInt(d["state"]), 0, 100);
+            int bri = 0;
+            if (d["state"].is<JsonObject>()) {
+                JsonObject st = d["state"].as<JsonObject>();
+                if (st.containsKey("bri")) {
+                    bri = jsonInt(st["bri"]);
+                } else if (st.containsKey("white")) {
+                    bri = jsonInt(st["white"]);
+                }
+            } else {
+                bri = jsonInt(d["state"]);
+            }
+            state.dimmer_val[i] = constrain(bri, 0, 100);
             state.dimmer_fields |= (1 << i);
         }
         if (d.containsKey("name")) {
@@ -1009,7 +1024,7 @@ void http_loop() {
             state.relay_hold_until[i] = 0;
             state.switch_state[i] = false;
         }
-        for (int i = 0; i < 8; ++i) {
+        for (int i = 0; i < 10; ++i) {
             state.dimmer_hold_until[i] = 0;
             state.dimmer_val[i] = 0;
         }
@@ -1058,7 +1073,7 @@ void http_loop() {
                 }
                 case 2: {
                     const char *dummy = state.dimmy_pro ?
-                        "{\"dimmer8\":{\"state\":\"75\",\"name\":\"WC / Bad\"},\"dimmer9\":{\"state\":\"40\",\"name\":\"Kueche\"},\"dimmer10\":{\"state\":\"0\",\"name\":\"Tisch\"},\"dimmer11\":{\"state\":\"0\",\"name\":\"Bett\"},\"dimmer12\":{\"state\":\"0\",\"name\":\"Werkstatt\"},\"dimmer13\":{\"state\":\"0\",\"name\":\"Regenrinne\"},\"dimmer14\":{\"state\":\"0\",\"name\":\"Deckenlicht\"},\"dimmer15\":{\"state\":\"0\",\"name\":\"Bodenlicht\"}}" :
+                        "{\"dimmer8\":{\"state\":75,\"name\":\"WC / Bad\"},\"dimmer9\":{\"state\":40,\"name\":\"Kueche\"},\"dimmer10\":{\"state\":0,\"name\":\"Tisch\"},\"dimmer11\":{\"state\":0,\"name\":\"Bett\"},\"dimmer12\":{\"state\":0,\"name\":\"Werkstatt\"},\"dimmer13\":{\"state\":0,\"name\":\"Regenrinne\"},\"dimmer14\":{\"state\":0,\"name\":\"Deckenlicht\"},\"dimmer15\":{\"state\":0,\"name\":\"Bodenlicht\"},\"rgbw1\":{\"state\":{\"rgb\":{\"r\":255,\"g\":255,\"b\":255},\"white\":0,\"bri\":80},\"name\":\"Markisenbeleuchtung\"},\"rgbw2\":{\"state\":{\"rgb\":{\"r\":255,\"g\":255,\"b\":255},\"white\":0,\"bri\":30},\"name\":\"Fahrerbereich\"}}" :
                         "{\"dimmer1\":{\"state\":\"75\",\"name\":\"Deckenlampe\"},\"dimmer2\":{\"state\":\"40\",\"name\":\"Kueche\"},\"dimmer3\":{\"state\":\"0\",\"name\":\"Leselicht\"},\"dimmer4\":{\"state\":\"0\",\"name\":\"Dimmer 4\"},\"dimmer5\":{\"state\":\"0\",\"name\":\"Dimmer 5\"},\"dimmer6\":{\"state\":\"0\",\"name\":\"Dimmer 6\"},\"dimmer7\":{\"state\":\"0\",\"name\":\"Dimmer 7\"},\"dimmer8\":{\"state\":\"0\",\"name\":\"Dimmer 8\"}}";
                     if (!demo_dimmers_seeded) { parse_dimmer_json(dummy); demo_dimmers_seeded = true; }
                     break;
@@ -1313,7 +1328,8 @@ bool http_publish_wrelay(int index, bool on) {
 }
 
 void http_publish_dimmer(int index, int val) {
-    if (index < 0 || index >= 8) return;
+    int max_dim = state.dimmy_pro ? 10 : 8;
+    if (index < 0 || index >= max_dim) return;
     val = constrain(val, 0, 100);
     state.dimmer_val[index] = val;
     int ch = state.dimmy_pro ? (index + 8) : (index + 1);

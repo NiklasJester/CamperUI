@@ -60,7 +60,7 @@ void web_settings_register_routes(WebServer &server) {
             }
             JsonArray dim_nm = doc["dimmer_names"].to<JsonArray>();
             JsonArray dim_vis = doc["dimmer_visible"].to<JsonArray>();
-            for (int i = 0; i < 8; i++) {
+            for (int i = 0; i < 10; i++) {
                 dim_nm.add(state.dimmer_names[i]);
                 dim_vis.add(state.dimmer_visible[i]);
             }
@@ -130,10 +130,12 @@ void web_settings_register_routes(WebServer &server) {
 
             // Metadata: Dimmer Options (fill assist)
             JsonArray dim_arr = doc["dimmers"].to<JsonArray>();
-            for (int i = 0; i < 8; i++) {
+            int max_dim = state.dimmy_pro ? 10 : 8;
+            for (int i = 0; i < max_dim; i++) {
                 JsonObject d = dim_arr.add<JsonObject>();
                 d["id"] = i;
-                d["name"] = state.dimmer_names[i].length() ? state.dimmer_names[i] : "Dimmer " + String(i + 1);
+                String def_nm = (i < 8) ? ("Dimmer " + String(i + 1)) : ("RGBW " + String(i - 7));
+                d["name"] = state.dimmer_names[i].length() ? state.dimmer_names[i] : def_nm;
             }
 
             // Metadata: Temp Sensors
@@ -299,16 +301,16 @@ void web_settings_register_routes(WebServer &server) {
             }
             if (doc["heater_temp_buttons"].is<bool>()) state.heater_temp_buttons = doc["heater_temp_buttons"].as<bool>();
 
-            if (doc["show_wrelay"].is<bool>()) state.show_wrelay = doc["show_wrelay"].as<bool>();
-            if (doc["show_relay_ext"].is<bool>()) state.show_relay_ext = doc["show_relay_ext"].as<bool>();
-            if (doc["dimmy_pro"].is<bool>()) state.dimmy_pro = doc["dimmy_pro"].as<bool>();
+            if (doc["show_wrelay"].is<bool>()) { state.show_wrelay = doc["show_wrelay"].as<bool>(); ui_rebuild_switches(); }
+            if (doc["show_relay_ext"].is<bool>()) { state.show_relay_ext = doc["show_relay_ext"].as<bool>(); ui_rebuild_switches(); }
+            if (doc["dimmy_pro"].is<bool>()) { state.dimmy_pro = doc["dimmy_pro"].as<bool>(); ui_rebuild_dimmers(); }
             if (doc["switch_visible"].is<JsonArray>()) {
                 JsonArray arr = doc["switch_visible"].as<JsonArray>();
                 for (int i = 0; i < 16 && i < (int)arr.size(); i++) state.switch_visible[i] = arr[i].as<bool>();
             }
             if (doc["dimmer_visible"].is<JsonArray>()) {
                 JsonArray arr = doc["dimmer_visible"].as<JsonArray>();
-                for (int i = 0; i < 8 && i < (int)arr.size(); i++) state.dimmer_visible[i] = arr[i].as<bool>();
+                for (int i = 0; i < 10 && i < (int)arr.size(); i++) state.dimmer_visible[i] = arr[i].as<bool>();
             }
             if (doc["wrelay_visible"].is<JsonArray>()) {
                 JsonArray arr = doc["wrelay_visible"].as<JsonArray>();

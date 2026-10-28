@@ -164,6 +164,8 @@ void ui_build_power(lv_obj_t *parent);
 void ui_build_water(lv_obj_t *parent);
 void ui_rebuild_water(void);
 void ui_rebuild_power(void);
+void ui_rebuild_dimmers(void);
+void ui_rebuild_switches(void);
 void ui_build_climate(lv_obj_t *parent);
 void ui_build_truma(lv_obj_t *parent);
 void ui_truma_reset();

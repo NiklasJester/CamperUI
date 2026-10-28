@@ -177,7 +177,7 @@ struct SystemState {
     
     // Custom Names
     String switch_names[16];
-    String dimmer_names[8];
+    String dimmer_names[10];
 
     // WiFi Relays (Persisted)
     bool show_wrelay;
@@ -225,7 +225,7 @@ struct SystemState {
     uint16_t temp_fields;
     uint8_t tank_fields;
     uint16_t relay_fields;
-    uint8_t dimmer_fields;
+    uint16_t dimmer_fields;
     bool data_is_demo; // source of the received fields, not the requested mode
 
     // Water
@@ -287,18 +287,18 @@ struct SystemState {
     // Switches & Dimmers
     bool switch_state[16];
     bool switch_locked[16];
-    int dimmer_val[8]; // 0-100%
+    int dimmer_val[10]; // 0-100%
 
     // Local-interaction hold-off (millis timestamps, not persisted):
     // while millis() < *_hold_until, polled values are ignored so the
     // remote state does not fight with a value the user is just changing.
-    uint32_t dimmer_hold_until[8];
+    uint32_t dimmer_hold_until[10];
     uint32_t relay_hold_until[16];
     uint32_t heater_hold_until;
 
     // Visibility and roles
     bool switch_visible[16];
-    bool dimmer_visible[8];
+    bool dimmer_visible[10];
     int pump_relay; // -1 for none, 0-15 for relays, 16-23 for wrelays
     int drain_relay; // -1 for none, 0-15 for relays, 16-23 for wrelays
 

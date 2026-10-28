@@ -6,9 +6,9 @@ static lv_obj_t *switches[16];
 static lv_obj_t *lbl_switch_name[16];
 static lv_obj_t *w_switches[8];
 static lv_obj_t *lbl_wswitch_name[8];
-static lv_obj_t *dimmers[8];
-static lv_obj_t *lbl_dim_name[8];
-static lv_obj_t *lbl_dim_pct[8];
+static lv_obj_t *dimmers[10];
+static lv_obj_t *lbl_dim_name[10];
+static lv_obj_t *lbl_dim_pct[10];
 
 // Dynamic dimmer bar color:
 // At 0%: very low saturation (~12%), muted soft warm tone
@@ -176,11 +176,11 @@ static void wrelay_btn_event_cb(lv_event_t * e) {
 // ==========================================
 // Dimmer Animation (Tab-Load Smooth Fill)
 // ==========================================
-static bool dimmer_animating[8] = {false};
+static bool dimmer_animating[10] = {false};
 
 static void dimmer_anim_cb(void *var, int32_t val) {
     int idx = (int)(intptr_t)var;
-    if (idx < 0 || idx >= 8 || !dimmers[idx]) return;
+    if (idx < 0 || idx >= 10 || !dimmers[idx]) return;
     lv_slider_set_value(dimmers[idx], val, LV_ANIM_OFF);
     lv_color_t color = dimmer_color_for_val(val);
     lv_obj_set_style_bg_color(dimmers[idx], color, LV_PART_INDICATOR);
@@ -197,14 +197,15 @@ static void dimmer_anim_cb(void *var, int32_t val) {
 
 static void dimmer_anim_ready_cb(lv_anim_t *a) {
     int idx = (int)(intptr_t)a->var;
-    if (idx >= 0 && idx < 8) {
+    if (idx >= 0 && idx < 10) {
         dimmer_animating[idx] = false;
         update_dimmer_visuals(idx);
     }
 }
 
 void ui_trigger_dimmers_anim() {
-    for (int i = 0; i < 8; i++) {
+    int max_dim = state.dimmy_pro ? 10 : 8;
+    for (int i = 0; i < max_dim; i++) {
         if (!dimmers[i]) continue;
         lv_anim_del((void*)(intptr_t)i, dimmer_anim_cb);
         if (state.dimmer_val[i] > 0) {
@@ -324,11 +325,12 @@ void ui_trigger_switches_anim() {
     lv_anim_start(&a);
 }
 
-static uint32_t dimmer_last_live_pub[8] = {0};
-static int dimmer_last_pub_val[8] = {-1, -1, -1, -1, -1, -1, -1, -1};
+static uint32_t dimmer_last_live_pub[10] = {0};
+static int dimmer_last_pub_val[10] = {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
 
 static void dimmer_slider_event_cb(lv_event_t * e) {
     int idx = (int)(intptr_t)lv_event_get_user_data(e);
+    if (idx < 0 || idx >= 10) return;
     lv_obj_t *slider = lv_event_get_target(e);
     lv_event_code_t code = lv_event_get_code(e);
     
@@ -397,7 +399,8 @@ void ui_update_switches_tab() {
 }
 
 void ui_update_dimmers_tab() {
-    for (int i = 0; i < 8; i++) {
+    int max_dim = state.dimmy_pro ? 10 : 8;
+    for (int i = 0; i < max_dim; i++) {
         if (dimmers[i]) {
             // Never move a slider under the user's finger or during entry animation
             if (lv_obj_has_state(dimmers[i], LV_STATE_PRESSED)) continue;
@@ -414,20 +417,24 @@ void ui_update_dimmers_tab() {
 }
 
 void ui_switches_reset() {
-    for (int i = 0; i < 8; i++) {
+    for (int i = 0; i < 16; i++) {
         switches[i] = nullptr;
         lbl_switch_name[i] = nullptr;
+        last_switch_state[i] = -1;
+        sw_press_start[i] = 0;
+        sw_hold_triggered[i] = false;
+    }
+    for (int i = 0; i < 8; i++) {
         w_switches[i] = nullptr;
         lbl_wswitch_name[i] = nullptr;
+        last_wswitch_state[i] = -1;
+        wr_press_start[i] = 0;
+        wr_hold_triggered[i] = false;
+    }
+    for (int i = 0; i < 10; i++) {
         dimmers[i] = nullptr;
         lbl_dim_name[i] = nullptr;
         lbl_dim_pct[i] = nullptr;
-        last_switch_state[i] = -1;
-        last_wswitch_state[i] = -1;
-        sw_press_start[i] = 0;
-        sw_hold_triggered[i] = false;
-        wr_press_start[i] = 0;
-        wr_hold_triggered[i] = false;
         dimmer_last_live_pub[i] = 0;
         dimmer_last_pub_val[i] = -1;
     }
@@ -533,11 +540,12 @@ void ui_build_dimmers(lv_obj_t *parent) {
     lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(parent, 10, 0);
 
-    for (int i = 0; i < 8; i++) {
+    int max_dim = state.dimmy_pro ? 10 : 8;
+    for (int i = 0; i < 10; i++) {
         dimmers[i] = NULL;
         lbl_dim_name[i] = NULL;
         lbl_dim_pct[i] = NULL;
-        if (!state.dimmer_visible[i]) continue;
+        if (i >= max_dim || !state.dimmer_visible[i]) continue;
 
         // Modern Home Assistant Style Card: Width 440px, Height 80px
         // 4 cards * 80px + 3 gaps * 10px = 350px <= 360px (Exactly 4 dimmers fit without scrollbar!)

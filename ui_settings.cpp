@@ -965,7 +965,7 @@ void ui_settings_screen_init() {
     // ==========================================
     lv_obj_add_flag(t_vis, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_scroll_dir(t_vis, LV_DIR_VER);
-    lv_obj_set_style_pad_bottom(t_vis, 160, 0);
+    lv_obj_set_style_pad_bottom(t_vis, 200, 0);
     
     // Helper for creating generous, finger-friendly toggle rows with clickable cards
     auto make_toggle_row = [](lv_obj_t *parent, lv_coord_t x, lv_coord_t y, lv_coord_t w, lv_coord_t h,
@@ -1136,6 +1136,8 @@ void ui_settings_screen_init() {
             lv_obj_add_flag(cont, LV_OBJ_FLAG_HIDDEN);
         }
         update_water_relay_dropdowns();
+        state_save();
+        ui_rebuild_switches();
     }, LV_EVENT_VALUE_CHANGED, cont_rext);
 
     lv_obj_t *l_sw_rext = lv_label_create(card_master_rext);
@@ -1239,11 +1241,66 @@ void ui_settings_screen_init() {
     lv_obj_set_style_text_color(l_dim_head, lv_color_hex(UI_COLOR_PRIMARY), 0);
     lv_obj_align(l_dim_head, LV_ALIGN_TOP_LEFT, 0, 1170);
 
-    make_toggle_row(t_vis, 0, 1196, 440, 44, "Dimmy Pro Modus (Kanäle 8–15)", state.dimmy_pro,
+    lv_obj_t *cont_dimpro = lv_obj_create(t_vis);
+    lv_obj_set_size(cont_dimpro, 440, 60);
+    lv_obj_align(cont_dimpro, LV_ALIGN_TOP_LEFT, 0, 1248);
+    lv_obj_set_style_bg_opa(cont_dimpro, 0, 0);
+    lv_obj_set_style_border_width(cont_dimpro, 0, 0);
+    lv_obj_set_style_pad_all(cont_dimpro, 0, 0);
+    lv_obj_clear_flag(cont_dimpro, LV_OBJ_FLAG_SCROLLABLE);
+    if (!state.dimmy_pro) lv_obj_add_flag(cont_dimpro, LV_OBJ_FLAG_HIDDEN);
+
+    lv_obj_t *card_master_dim = lv_obj_create(t_vis);
+    lv_obj_set_pos(card_master_dim, 0, 1196);
+    lv_obj_set_size(card_master_dim, 440, 44);
+    lv_obj_set_style_radius(card_master_dim, 8, 0);
+    lv_obj_set_style_bg_color(card_master_dim, ui_theme_card(), 0);
+    lv_obj_set_style_border_width(card_master_dim, 1, 0);
+    lv_obj_set_style_border_color(card_master_dim, ui_theme_border(), 0);
+    lv_obj_set_style_pad_hor(card_master_dim, 8, 0);
+    lv_obj_clear_flag(card_master_dim, LV_OBJ_FLAG_SCROLLABLE);
+
+    lv_obj_t *sw_dimpro = lv_switch_create(card_master_dim);
+    lv_obj_set_size(sw_dimpro, 46, 26);
+    lv_obj_align(sw_dimpro, LV_ALIGN_LEFT_MID, 0, 0);
+    if (state.dimmy_pro) lv_obj_add_state(sw_dimpro, LV_STATE_CHECKED);
+    lv_obj_add_event_cb(sw_dimpro, [](lv_event_t * e) {
+        lv_obj_t *sw = lv_event_get_target(e);
+        lv_obj_t *cont = (lv_obj_t *)lv_event_get_user_data(e);
+        state.dimmy_pro = lv_obj_has_state(sw, LV_STATE_CHECKED);
+        if (state.dimmy_pro) {
+            lv_obj_clear_flag(cont, LV_OBJ_FLAG_HIDDEN);
+        } else {
+            lv_obj_add_flag(cont, LV_OBJ_FLAG_HIDDEN);
+        }
+        state_save();
+        ui_rebuild_dimmers();
+    }, LV_EVENT_VALUE_CHANGED, cont_dimpro);
+
+    lv_obj_t *l_sw_dimpro = lv_label_create(card_master_dim);
+    lv_label_set_text(l_sw_dimpro, "Dimmy Pro Modus (8–15 + RGBW)");
+    lv_obj_set_style_text_font(l_sw_dimpro, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_color(l_sw_dimpro, ui_theme_text(), 0);
+    lv_obj_align(l_sw_dimpro, LV_ALIGN_LEFT_MID, 58, 0);
+
+    lv_obj_add_event_cb(card_master_dim, [](lv_event_t *e) {
+        lv_obj_t *s = (lv_obj_t *)lv_event_get_user_data(e);
+        if (lv_obj_has_state(s, LV_STATE_CHECKED)) lv_obj_clear_state(s, LV_STATE_CHECKED);
+        else lv_obj_add_state(s, LV_STATE_CHECKED);
+        lv_event_send(s, LV_EVENT_VALUE_CHANGED, NULL);
+    }, LV_EVENT_CLICKED, sw_dimpro);
+
+    // RGBW 1 and RGBW 2 individual toggle rows inside cont_dimpro
+    make_toggle_row(cont_dimpro, 0, 0, 215, 42, state.dimmer_names[8].c_str(), state.dimmer_visible[8],
         [](lv_event_t *e) {
             lv_obj_t *obj = lv_event_get_target(e);
-            state.dimmy_pro = lv_obj_has_state(obj, LV_STATE_CHECKED);
-        }, NULL, true);
+            state.dimmer_visible[8] = lv_obj_has_state(obj, LV_STATE_CHECKED);
+        }, (void *)(intptr_t)8);
+    make_toggle_row(cont_dimpro, 225, 0, 215, 42, state.dimmer_names[9].c_str(), state.dimmer_visible[9],
+        [](lv_event_t *e) {
+            lv_obj_t *obj = lv_event_get_target(e);
+            state.dimmer_visible[9] = lv_obj_has_state(obj, LV_STATE_CHECKED);
+        }, (void *)(intptr_t)9);
     
     // ==========================================
     // TAB 4: WERTE (GROSSE DROPDOWNS & EINGABEN)

@@ -1077,10 +1077,10 @@ static const char SETTINGS_HTML[] PROGMEM = R"rawliteral(
           <div class="toggle-row" style="margin-bottom:12px;">
             <div class="toggle-info">
               <div class="toggle-title">Dimmy Pro Modus</div>
-              <div class="toggle-desc">Kanäle 8–15 statt 1–8 ansteuern</div>
+              <div class="toggle-desc">Kanäle 8–15 + 2x RGBW freischalten</div>
             </div>
             <label class="switch">
-              <input type="checkbox" id="dimmy_pro">
+              <input type="checkbox" id="dimmy_pro" onchange="toggleDimmyPro(this.checked)">
               <span class="slider"></span>
             </label>
           </div>
@@ -1446,7 +1446,7 @@ static const char SETTINGS_HTML[] PROGMEM = R"rawliteral(
           document.getElementById('show_relay_ext').checked = !!data.show_relay_ext;
           document.getElementById('dimmy_pro').checked = !!data.dimmy_pro;
           buildRelaysList(data.switch_names, data.switch_visible, !!data.show_relay_ext);
-          buildDimmersList(data.dimmer_names, data.dimmer_visible);
+          buildDimmersList(data.dimmer_names, data.dimmer_visible, !!data.dimmy_pro);
           document.getElementById('show_wrelay').checked = !!data.show_wrelay;
           document.getElementById('wrelaysList').style.display = data.show_wrelay ? 'block' : 'none';
           buildWRelaysList(data.wrelay_names, data.wrelay_visible);
@@ -1666,16 +1666,20 @@ static const char SETTINGS_HTML[] PROGMEM = R"rawliteral(
       buildRelaysList(currentSettings.switch_names, currentSettings.switch_visible, checked);
     }
 
-    function buildDimmersList(names, visible) {
+    function buildDimmersList(names, visible, isDimmyPro) {
       const wrap = document.getElementById('dimmersList');
       wrap.innerHTML = '';
-      for (let i = 0; i < 8; i++) {
-        const name = (names && names[i]) ? names[i] : `Dimmer ${i + 1}`;
+      const count = isDimmyPro ? 10 : 8;
+      for (let i = 0; i < count; i++) {
+        let def = (i < 8) ? `Dimmer ${i + 1}` : `RGBW ${i - 7}`;
+        if (isDimmyPro && i < 8) def = `Dimmer ${i + 8}`;
+        const name = (names && names[i]) ? names[i] : def;
         const vis = visible ? !!visible[i] : true;
+        const icon = (i >= 8) ? '🎨' : '💡';
         const row = document.createElement('div');
         row.className = 'toggle-row';
         row.innerHTML = `
-          <div class="toggle-info"><div class="toggle-title">💡 ${name}</div></div>
+          <div class="toggle-info"><div class="toggle-title">${icon} ${name}</div></div>
           <label class="switch">
             <input type="checkbox" id="dimmer_vis_${i}" ${vis ? 'checked' : ''}>
             <span class="slider"></span>
@@ -1683,6 +1687,10 @@ static const char SETTINGS_HTML[] PROGMEM = R"rawliteral(
         `;
         wrap.appendChild(row);
       }
+    }
+
+    function toggleDimmyPro(checked) {
+      buildDimmersList(currentSettings.dimmer_names, currentSettings.dimmer_visible, checked);
     }
 
     function buildWRelaysList(names, visible) {
@@ -1846,9 +1854,13 @@ static const char SETTINGS_HTML[] PROGMEM = R"rawliteral(
         else if (currentSettings.switch_visible && i < currentSettings.switch_visible.length) payload.switch_visible.push(currentSettings.switch_visible[i]);
         else payload.switch_visible.push(true);
       }
-      for (let i = 0; i < 8; i++) {
+      for (let i = 0; i < 10; i++) {
         const dm = document.getElementById('dimmer_vis_' + i);
-        payload.dimmer_visible.push(dm ? dm.checked : true);
+        if (dm) payload.dimmer_visible.push(dm.checked);
+        else if (currentSettings.dimmer_visible && i < currentSettings.dimmer_visible.length) payload.dimmer_visible.push(currentSettings.dimmer_visible[i]);
+        else payload.dimmer_visible.push(true);
+      }
+      for (let i = 0; i < 8; i++) {
         const wr = document.getElementById('wrelay_vis_' + i);
         payload.wrelay_visible.push(wr ? wr.checked : true);
       }
