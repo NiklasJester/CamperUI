@@ -439,6 +439,7 @@ static void parse_temp_json(const char *payload) {
     }
 
     state.temp_fields = fields;
+    state.temp_updated_ms = millis();
     int out_idx = constrain(state.outdoor_temp_sensor, 0, TEMP_SOURCE_COUNT - 1);
     state.outdoor_temp = state.temp_sensors[out_idx];
     int in_idx = constrain(state.indoor_temp_sensor, 0, TEMP_SOURCE_COUNT - 1);

@@ -225,6 +225,7 @@ struct SystemState {
     uint8_t battery_fields; // VoltB=1, Ampere=2, battsoc=4, optional starter_voltage=8
     uint8_t solar_fields; // watts=1, amps=2, volts=4
     uint16_t temp_fields;
+    uint32_t temp_updated_ms;
     uint8_t tank_fields;
     uint16_t relay_fields;
     uint16_t dimmer_fields;

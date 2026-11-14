@@ -345,6 +345,7 @@ void ui_build_temps(lv_obj_t *parent) {
     }, LV_EVENT_DRAW_PART_BEGIN, nullptr);
 
     ui_chart_grid_style(chart);
+    lv_obj_set_style_size(chart, 3, LV_PART_INDICATOR); // Show valid points separated by gaps.
     lv_chart_set_div_line_count(chart, 4, 0);
 
     // Add 4 Series with track colors
