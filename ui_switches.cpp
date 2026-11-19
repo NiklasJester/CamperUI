@@ -441,11 +441,13 @@ void ui_switches_reset() {
 }
 
 void ui_build_switches(lv_obj_t *parent) {
-    for (int i = 0; i < 8; i++) {
+    for (int i = 0; i < 16; i++) {
         last_switch_state[i] = -1;
-        last_wswitch_state[i] = -1;
         sw_press_start[i] = 0;
         sw_hold_triggered[i] = false;
+    }
+    for (int i = 0; i < 8; i++) {
+        last_wswitch_state[i] = -1;
         wr_press_start[i] = 0;
         wr_hold_triggered[i] = false;
     }
@@ -460,7 +462,7 @@ void ui_build_switches(lv_obj_t *parent) {
     lv_obj_set_style_border_width(cont_sw, 0, 0);
     lv_obj_set_flex_flow(cont_sw, LV_FLEX_FLOW_ROW_WRAP);
     lv_obj_set_style_pad_all(cont_sw, 0, 0);
-    lv_obj_set_style_pad_row(cont_sw, 12, 0);
+    lv_obj_set_style_pad_row(cont_sw, 10, 0);
     lv_obj_set_style_pad_column(cont_sw, 16, 0);
     lv_obj_set_style_flex_main_place(cont_sw, LV_FLEX_ALIGN_CENTER, 0);
     lv_obj_clear_flag(cont_sw, LV_OBJ_FLAG_SCROLLABLE);
@@ -472,10 +474,10 @@ void ui_build_switches(lv_obj_t *parent) {
         lbl_switch_name[i] = NULL;
         if (i >= max_relays || !state.switch_visible[i]) continue;
 
-        // 2 buttons per row: (440 - 16) / 2 = 212px wide, 94px high.
-        // 3 rows = 3 * 94 + 2 * 12 = 306px <= 360px (no scrollbar for <= 6 buttons)
+        // 2 buttons per row: (440 - 16) / 2 = 212px wide, 82px high.
+        // 4 rows = 4 * 82 + 3 * 10 = 358px <= 360px (8 buttons fit without scrollbar!)
         switches[i] = lv_btn_create(cont_sw);
-        lv_obj_set_size(switches[i], 212, 94);
+        lv_obj_set_size(switches[i], 212, 82);
         lv_obj_set_style_radius(switches[i], ui_radius_card(), 0);
         lv_obj_set_style_border_width(switches[i], ui_border_width(), 0);
         lv_obj_set_style_shadow_width(switches[i], 0, 0);
@@ -493,8 +495,8 @@ void ui_build_switches(lv_obj_t *parent) {
         }
         lv_label_set_text(lbl_switch_name[i], sname);
         lv_label_set_long_mode(lbl_switch_name[i], LV_LABEL_LONG_WRAP);
-        lv_obj_set_width(lbl_switch_name[i], 190);
-        lv_obj_set_style_text_font(lbl_switch_name[i], &lv_font_montserrat_18, 0);
+        lv_obj_set_width(lbl_switch_name[i], 194);
+        lv_obj_set_style_text_font(lbl_switch_name[i], &lv_font_montserrat_16, 0);
         lv_obj_set_style_text_align(lbl_switch_name[i], LV_TEXT_ALIGN_CENTER, 0);
         lv_obj_center(lbl_switch_name[i]);
 
@@ -508,7 +510,7 @@ void ui_build_switches(lv_obj_t *parent) {
         if (!state.show_wrelay || !state.wrelay_visible[i]) continue;
 
         w_switches[i] = lv_btn_create(cont_sw);
-        lv_obj_set_size(w_switches[i], 212, 94);
+        lv_obj_set_size(w_switches[i], 212, 82);
         lv_obj_set_style_radius(w_switches[i], ui_radius_card(), 0);
         lv_obj_set_style_border_width(w_switches[i], ui_border_width(), 0);
         lv_obj_set_style_shadow_width(w_switches[i], 0, 0);
@@ -526,8 +528,8 @@ void ui_build_switches(lv_obj_t *parent) {
         }
         lv_label_set_text(lbl_wswitch_name[i], wlabel);
         lv_label_set_long_mode(lbl_wswitch_name[i], LV_LABEL_LONG_WRAP);
-        lv_obj_set_width(lbl_wswitch_name[i], 190);
-        lv_obj_set_style_text_font(lbl_wswitch_name[i], &lv_font_montserrat_18, 0);
+        lv_obj_set_width(lbl_wswitch_name[i], 194);
+        lv_obj_set_style_text_font(lbl_wswitch_name[i], &lv_font_montserrat_16, 0);
         lv_obj_set_style_text_align(lbl_wswitch_name[i], LV_TEXT_ALIGN_CENTER, 0);
         lv_obj_center(lbl_wswitch_name[i]);
 
