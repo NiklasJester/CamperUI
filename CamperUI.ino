@@ -1,4 +1,5 @@
 #include <lvgl.h>
+#include <esp_arduino_version.h>
 #include "Arduino_GFX_Library.h"
 #include "CamperRGBDisplay.h"
 #include "display_sync.h"
@@ -17,6 +18,7 @@
 #include "buzzer.h"
 #include "debug_log.h"
 #include "temp_history.h"
+#include "display_battery.h"
 #include "energy_history.h"
 #include "victron_client.h"
 #include "touch_release_filter.h"
@@ -415,8 +417,11 @@ void setup() {
     delay(200);
     USBSerial.println("\n--- Waveshare ESP32-S3 CamperUI Starting ---");
     USBSerial.printf("CPU frequency: %u MHz\n", (unsigned)getCpuFrequencyMhz());
+    USBSerial.printf("[BUILD] Firmware: %s | Arduino-ESP32: %s | ESP-IDF: %s\n",
+                     CAMPERUI_VERSION, ESP_ARDUINO_VERSION_STR, ESP.getSdkVersion());
 
     state_init();
+    display_battery_init();
     temp_history_init();
     energy_history_init();
     http_init();
@@ -653,6 +658,7 @@ void loop() {
 
     buzzer_loop();
     temp_history_tick();
+    display_battery_tick();
     energy_history_tick();
     victron_tick();
 

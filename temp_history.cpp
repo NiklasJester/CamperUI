@@ -4,15 +4,18 @@
 
 static int16_t (*history_samples)[TEMP_HISTORY_TRACKS] = nullptr;
 static int head_idx = 0;
-static int sample_count = 0;
+static bool history_is_demo = false;
 static uint32_t last_sample_millis = 0;
+static bool has_sample = false;
+// The full VanPi poll cycle takes over 30 seconds in the screensaver.
+static constexpr uint32_t temperature_freshness_ms = 45000;
 static uint32_t history_version = 1;
 
 uint32_t temp_history_get_version(void) {
     return history_version;
 }
 
-void temp_history_seed_demo(void) {
+static void temp_history_seed_demo(void) {
     if (!history_samples) return;
     for (int m = 0; m < TEMP_HISTORY_MAX_SAMPLES; ++m) {
         // Aussen: 24-hour curve with realistic diurnal variation
@@ -30,9 +33,24 @@ void temp_history_seed_demo(void) {
         history_samples[m][3] = (int16_t)roundf(t_c2 * 10.0f);
     }
     head_idx = 0;
-    sample_count = TEMP_HISTORY_MAX_SAMPLES;
     last_sample_millis = millis();
+    has_sample = true;
+}
+
+static void reset_history(bool demo) {
+    if (!history_samples) return;
+
+    for (int i = 0; i < TEMP_HISTORY_MAX_SAMPLES; ++i) {
+        for (int t = 0; t < TEMP_HISTORY_TRACKS; ++t) {
+            history_samples[i][t] = INT16_MIN;
+        }
+    }
+    head_idx = 0;
+    has_sample = false;
     history_version++;
+
+    history_is_demo = demo;
+    if (demo) temp_history_seed_demo();
 }
 
 void temp_history_init(void) {
@@ -44,75 +62,53 @@ void temp_history_init(void) {
                 sizeof(int16_t) * TEMP_HISTORY_MAX_SAMPLES * TEMP_HISTORY_TRACKS);
         }
     }
-    if (!history_samples) return;
-
-    for (int i = 0; i < TEMP_HISTORY_MAX_SAMPLES; ++i) {
-        for (int t = 0; t < TEMP_HISTORY_TRACKS; ++t) {
-            history_samples[i][t] = INT16_MIN;
-        }
-    }
-    head_idx = 0;
-    sample_count = 0;
-    last_sample_millis = 0;
-    history_version++;
-
-    // Seed plausible curves immediately so the charts look alive right from the start
-    temp_history_seed_demo();
+    reset_history(state.debug_mode);
 }
 
-static inline int16_t get_track_current_raw(int track_idx) {
+static int16_t get_track_current_raw(int track_idx) {
+    int sensor_idx;
     if (track_idx == 0) {
-        if (isfinite(state.outdoor_temp) && state.outdoor_temp > -40.0f && state.outdoor_temp < 80.0f) {
-            return (int16_t)roundf(state.outdoor_temp * 10.0f);
-        }
+        sensor_idx = state.outdoor_temp_sensor;
+    } else if (track_idx == 1) {
+        sensor_idx = state.indoor_temp_sensor;
+    } else {
+        sensor_idx = state.temps_custom_sensor[track_idx - 2];
+    }
+    if (sensor_idx < 0 || sensor_idx >= TEMP_SOURCE_COUNT ||
+        !(state.temp_fields & (1U << sensor_idx))) {
         return INT16_MIN;
     }
-    if (track_idx == 1) {
-        if (isfinite(state.indoor_temp) && state.indoor_temp > -40.0f && state.indoor_temp < 80.0f) {
-            return (int16_t)roundf(state.indoor_temp * 10.0f);
-        }
-        return INT16_MIN;
-    }
-    int custom_slot = track_idx - 2;
-    if (custom_slot >= 0 && custom_slot < 2) {
-        int sensor_idx = state.temps_custom_sensor[custom_slot];
-        if (sensor_idx >= 0 && sensor_idx < TEMP_SOURCE_COUNT) {
-            float val = state.temp_sensors[sensor_idx];
-            if (isfinite(val) && val > -40.0f && val < 80.0f) {
-                return (int16_t)roundf(val * 10.0f);
-            }
-        }
-    }
-    return INT16_MIN;
+    const float value = state.temp_sensors[sensor_idx];
+    if (!isfinite(value) || value <= -40.0f || value >= 80.0f) return INT16_MIN;
+    return (int16_t)roundf(value * 10.0f);
 }
 
 void temp_history_tick(void) {
     if (!history_samples) return;
+    StateLockGuard lock;
+    if (history_is_demo != state.debug_mode) reset_history(state.debug_mode);
+    if (state.data_is_demo != history_is_demo) return;
     uint32_t now = millis();
     // Sample once every 60 seconds (60000 ms)
-    if (last_sample_millis != 0 && (now - last_sample_millis < 60000)) {
-        return;
-    }
-    last_sample_millis = now;
+    if (has_sample && now - last_sample_millis < 60000) return;
 
-    // Record sample at head_idx
+    const bool can_sample = history_is_demo ||
+        (state.vanpi_connected && now - state.temp_updated_ms <= temperature_freshness_ms);
+    int16_t samples[TEMP_HISTORY_TRACKS];
+    bool any_valid = false;
     for (int t = 0; t < TEMP_HISTORY_TRACKS; ++t) {
-        int16_t v = get_track_current_raw(t);
-        if (v != INT16_MIN) {
-            history_samples[head_idx][t] = v;
-        } else if (sample_count > 0) {
-            // Keep previous value if temporarily missing to avoid dropouts
-            int prev = (head_idx - 1 + TEMP_HISTORY_MAX_SAMPLES) % TEMP_HISTORY_MAX_SAMPLES;
-            history_samples[head_idx][t] = history_samples[prev][t];
-        } else {
-            history_samples[head_idx][t] = INT16_MIN;
-        }
+        samples[t] = can_sample ? get_track_current_raw(t) : INT16_MIN;
+        any_valid |= samples[t] != INT16_MIN;
+    }
+    if (!has_sample && !any_valid) return;
+
+    last_sample_millis = now;
+    has_sample = true;
+    for (int t = 0; t < TEMP_HISTORY_TRACKS; ++t) {
+        history_samples[head_idx][t] = samples[t];
     }
 
     head_idx = (head_idx + 1) % TEMP_HISTORY_MAX_SAMPLES;
-    if (sample_count < TEMP_HISTORY_MAX_SAMPLES) {
-        sample_count++;
-    }
     history_version++;
 }
 

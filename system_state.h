@@ -145,6 +145,8 @@ struct SystemState {
     bool home_show_temp[3]; // shared Indoor, Outdoor, Custom 1 assignment
     int home_favorite[2]; // 0 hidden, 1..8 relays, 9..16 dimmers, 17..18 GX relays
     bool home_show_battery;
+    bool home_show_display_battery; // optional local Waveshare battery test card
+    bool home_show_display_battery_status; // estimated display battery SOC in the status bar
     bool home_show_starter;
     bool home_show_solar;
     bool home_show_water;
@@ -172,7 +174,7 @@ struct SystemState {
     uint8_t tank_unit[4];  // 0 = "L", 1 = "kg"
     bool tank_enabled[4];
     String tank_names[4];
-    uint8_t heater_type;   // 0 = Autoterm, 1 = Truma, 2 = Truma + Elektro, 3 = None
+    uint8_t heater_type;   // HeaterType: Autoterm, Truma, Truma + Elektro, None, Webasto
     bool heater_temp_buttons; // true: show round +/- buttons next to temperature arc
     
     // Custom Names
@@ -223,6 +225,7 @@ struct SystemState {
     uint8_t battery_fields; // VoltB=1, Ampere=2, battsoc=4, optional starter_voltage=8
     uint8_t solar_fields; // watts=1, amps=2, volts=4
     uint16_t temp_fields;
+    uint32_t temp_updated_ms;
     uint8_t tank_fields;
     uint16_t relay_fields;
     uint16_t dimmer_fields;
@@ -249,10 +252,6 @@ struct SystemState {
     HeaterDiagnostics heater_diagnostics;
     String heater_error;    // raw "heaterror" from VanPi ("no" = no error)
     bool fan_on;
-
-    // Webasto Live Telemetry
-    float webasto_temp;
-    float webasto_voltage;
 
     // Truma Climate & Boiler
     bool truma_online;

@@ -86,6 +86,17 @@ static int jsonInt(JsonVariant v) {
     return atoi(s);
 }
 
+// SOC is transported as an integer, decimal number or numeric string.
+// Keep the established whole-percent UI, but never route a JSON float through
+// jsonInt(): its integer/string-only fallback would turn e.g. 91.9 into 0.
+static bool jsonBatterySoc(JsonVariant v, int &soc) {
+    if (!validEnergyNumber(v)) return false;
+    const float value = jsonFloat(v);
+    if (value < 0.0f || value > 100.0f) return false;
+    soc = static_cast<int>(value); // Same truncation as the existing string SOC.
+    return true;
+}
+
 static bool jsonBool(JsonVariant v) {
     if (v.isNull()) return false;
     if (v.is<bool>()) return v.as<bool>();
@@ -121,7 +132,7 @@ static const char* const LEVEL_KEYS[4]       = {"level1", "level2", "level3", "l
 static const char* const TEMP_KEYS[4]        = {"temp1", "temp2", "temp3", "temp4"};
 
 // --- Parsers ---
-// GET /batt -> { "VoltB": float|str, "Ampere": float|str, "battsoc": int|str }
+// GET /batt -> { "VoltB": float|str, "Ampere": float|str, "battsoc": int|float|str }
 static void parse_batt_json(const char *payload) {
     StaticJsonDocument<512> doc;
     if (deserializeJson(doc, payload)) return;
@@ -129,7 +140,12 @@ static void parse_batt_json(const char *payload) {
     StateLockGuard lock;
     if (validEnergyNumber(doc["VoltB"])) { state.bat_voltage = jsonFloat(doc["VoltB"]); state.battery_fields |= 1; state.bat_voltage_updated_ms = millis(); }
     if (validEnergyNumber(doc["Ampere"])) { state.bat_current = jsonFloat(doc["Ampere"]); state.battery_fields |= 2; state.bat_current_updated_ms = millis(); }
-    if (validEnergyNumber(doc["battsoc"])) { state.bat_soc = jsonInt(doc["battsoc"]); state.battery_fields |= 4; state.bat_soc_updated_ms = millis(); }
+    int soc;
+    if (jsonBatterySoc(doc["battsoc"], soc)) {
+        state.bat_soc = soc;
+        state.battery_fields |= 4;
+        state.bat_soc_updated_ms = millis();
+    }
     // Starter voltage / Lima
     if (doc.containsKey("starter_voltage")) {
         state.starter_voltage = jsonFloat(doc["starter_voltage"]);
@@ -423,6 +439,7 @@ static void parse_temp_json(const char *payload) {
     }
 
     state.temp_fields = fields;
+    state.temp_updated_ms = millis();
     int out_idx = constrain(state.outdoor_temp_sensor, 0, TEMP_SOURCE_COUNT - 1);
     state.outdoor_temp = state.temp_sensors[out_idx];
     int in_idx = constrain(state.indoor_temp_sensor, 0, TEMP_SOURCE_COUNT - 1);
@@ -442,6 +459,31 @@ static void parse_temp_json(const char *payload) {
 // GET /heater -> { "autoterm1": { "heatertoggle": bool, "heatstatus": str, "heaterror": str,
 //   "targettemp_vanpi": num, "mode": str, "powerlevel": int, "fanspeed": int }, ... }
 static void parse_dometic_object(JsonObject rc10);
+
+// /heater uses root fields for Webasto/generic; autoterm1 is a separate device.
+// Caller holds StateLockGuard. Never borrow Autoterm telemetry for Webasto.
+static void parse_heater_telemetry(JsonObject root) {
+    const bool use_at = state.heater_type == HEATER_TYPE_AUTOTERM && root["autoterm1"].is<JsonObject>();
+    JsonObject source = use_at ? root["autoterm1"].as<JsonObject>() : root;
+    auto &diag = state.heater_diagnostics;
+    const bool present = use_at || source.containsKey("heatstatus") || source.containsKey("heatvolt") ||
+                         source.containsKey("heatfan") || source.containsKey("heattemp") ||
+                         source.containsKey("heatpump") || source.containsKey("heatglow");
+    diag.begin(millis(), state.data_is_demo, present);
+    diag.source_type = state.heater_type;
+    // The bundled VanPi flow exposes fuel-pump frequency as historical key heatglow.
+    const char *keys[4] = {"heatvolt", "heatfan", source.containsKey("heatpump") ? "heatpump" : "heatglow", "heattemp"};
+    for (unsigned i = 0; i < 4; ++i) {
+        JsonVariant v = source[keys[i]];
+        if (validEnergyNumber(v)) {
+            const float number = jsonFloat(v);
+            bool valid = i == 3 || number >= 0.0f;
+            // VanPi initializes missing Webasto voltage to 0. It is not a measurement.
+            if (is_webasto_heater(state.heater_type) && i == 0) valid = number > 5.0f;
+            diag.set(i, number, valid);
+        }
+    }
+}
 
 static void parse_heater_json(const char *payload) {
     DynamicJsonDocument doc(2048);
@@ -470,29 +512,7 @@ static void parse_heater_json(const char *payload) {
 
     StateLockGuard lock;
     // Read diagnostics before the control hold-off: telemetry keeps updating during interaction.
-    JsonObject source = use_at ? at : doc.as<JsonObject>();
-    auto &diag = state.heater_diagnostics;
-    const bool present = has_at || source.containsKey("heatstatus") || source.containsKey("heatvolt") ||
-                         source.containsKey("heatfan") || source.containsKey("heattemp") ||
-                         source.containsKey("heatpump") || source.containsKey("heatglow");
-    diag.begin(millis(), state.data_is_demo, present);
-    // The bundled VanPi flow exposes fuel-pump frequency as historical key heatglow.
-    const char *keys[4] = {"heatvolt", "heatfan", source.containsKey("heatpump") ? "heatpump" : "heatglow", "heattemp"};
-    for (unsigned i = 0; i < 4; ++i) {
-        JsonVariant v = source[keys[i]];
-        if (validEnergyNumber(v)) {
-            float number = jsonFloat(v);
-            diag.set(i, number, i == 3 || number >= 0.0f);
-        }
-    }
-    if (is_webasto_heater(state.heater_type)) {
-        if (doc.containsKey("heatvolt") && validEnergyNumber(doc["heatvolt"])) {
-            state.webasto_voltage = jsonFloat(doc["heatvolt"]);
-        }
-        if (doc.containsKey("heattemp") && validEnergyNumber(doc["heattemp"])) {
-            state.webasto_temp = jsonFloat(doc["heattemp"]);
-        }
-    }
+    parse_heater_telemetry(doc.as<JsonObject>());
     if (state.heater_status != raw_hs) {
         state.heater_status = raw_hs;
         state.heater_status.trim();
@@ -1296,7 +1316,10 @@ static void http_put(String endpoint) {
     http.begin(get_url() + endpoint);
     http.setConnectTimeout(400);
     http.setTimeout(1500);
-    http.addHeader("Content-Type", "application/json");
+    // Some VanPi /wrelay flows call payload.includes(): JSON {} becomes an object
+    // in Node-RED. Keep this body as text for WLAN relay commands only.
+    const bool wlan_relay = endpoint.startsWith("/wrelay/");
+    http.addHeader("Content-Type", wlan_relay ? "text/plain; charset=utf-8" : "application/json");
     int code = http.PUT("{}");
     if (code != 200) {
         Serial.printf("[HTTP] PUT %s -> %d\n", endpoint.c_str(), code);
@@ -1460,6 +1483,8 @@ bool http_start_task() {
         Serial.println("[HTTP] ERROR: worker allocation failed; Demo/Live data unavailable");
         return false;
     }
+    Serial.printf("[HTTP] VanPi target: %s | source=%s\n", get_url().c_str(),
+                  state.debug_mode ? "DEMO" : "LIVE");
     Serial.println("[HTTP] Background worker pinned to Core 0");
     return true;
 }

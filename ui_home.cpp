@@ -4,6 +4,8 @@
 #include "victron_client.h"
 #include "ui_victron.h"
 #include "ui_control_style.h"
+#include "display_battery.h"
+#include "ui_display_battery.h"
 #include "home_mp_activity.h"
 #include <math.h>
 namespace {
@@ -12,7 +14,9 @@ lv_obj_t *favorites[2], *favorite_text[2], *temperatures[3], *temp_name[3], *tem
 lv_obj_t *battery, *bat_title, *bat_power, *bat_detail, *starter;
 lv_obj_t *solar, *solar_power, *solar_detail, *water, *water_title, *water_value, *water_bar;
 lv_obj_t *multiplus,*mp_power;
+lv_obj_t *display_battery_card, *db_voltage, *db_range, *db_status;
 HomeMpActivity mp_activity;
+uint32_t favorite_accent[2] = {UINT32_MAX, UINT32_MAX};
 uint8_t remembered_dimmer[8] = {};
 lv_obj_t *label(lv_obj_t *parent, const char *text, int x, int y, const lv_font_t *font) {
     lv_obj_t *obj = lv_label_create(parent); lv_label_set_text(obj, text);
@@ -30,7 +34,7 @@ bool update_mp_activity() {
 }
 void layout() {
     if (!root) return;
-    bool compact=state.home_show_victron;
+    constexpr int row_gap = 8; // Match the spacing between VE cards.
     int y = 0, count = (state.home_favorite[0] != 0) + (state.home_favorite[1] != 0), column = 0;
     for (int i = 0; i < 2; ++i) {
         bool show = state.home_favorite[i] != 0; visible(favorites[i], show); if (!show) continue;
@@ -38,7 +42,7 @@ void layout() {
         lv_obj_set_pos(favorites[i], column++ * 236, y); lv_obj_set_width(favorites[i], width);
         lv_obj_set_width(favorite_text[i], width - 24); lv_obj_center(favorite_text[i]);
     }
-    if (count) y += compact ? 60 : 64;
+    if (count) y += UI_FAVORITE_HEIGHT + row_gap;
     count = column = 0;
     for (int i = 0; i < 3; ++i) if (state.home_show_temp[i] && ui_home_temperature_source(i) >= 0) ++count;
     for (int i = 0; i < 3; ++i) {
@@ -47,7 +51,7 @@ void layout() {
         lv_obj_set_pos(temperatures[i], column++ * (width + 8), y);
         lv_obj_set_width(temperatures[i], width); lv_obj_set_width(temp_name[i], width - 24);
     }
-    if (count) y += compact ? 74 : 78;
+    if (count) y += 70 + row_gap;
     visible(battery, state.home_show_battery); visible(solar, state.home_show_solar);
     bool show_mp=mp_activity.visible && state.home_show_victron && state.victron_enabled;
     if(show_mp && !mp_power)mp_power=ui_build_victron_home_power(root);
@@ -62,10 +66,14 @@ void layout() {
     }
     if(mp_power){visible(mp_power,show_mp);lv_obj_set_pos(mp_power,x,y);lv_obj_set_width(mp_power,three?104:power_count>1?228:464);}
     visible(starter, state.home_show_starter);
-    if (power_count) y += compact ? 126 : 130;
+    if (power_count) y += 122 + row_gap;
     visible(water, state.home_show_water && !state.home_show_victron); lv_obj_set_pos(water, 0, y);
     if (state.home_show_victron && !multiplus) multiplus=ui_build_victron_home(root);
     if (multiplus) { visible(multiplus,state.home_show_victron);lv_obj_set_pos(multiplus,0,y); }
+    if (state.home_show_victron && multiplus) y += lv_obj_get_height(multiplus) + row_gap;
+    else if (state.home_show_water) y += lv_obj_get_height(water) + row_gap;
+    visible(display_battery_card, state.home_show_display_battery);
+    lv_obj_set_pos(display_battery_card, 0, y);
     lv_obj_update_layout(root);
     lv_obj_scroll_to_y(root, lv_obj_get_scroll_y(root), LV_ANIM_OFF);
 }
@@ -106,10 +114,36 @@ void value(lv_obj_t *obj, const char *format, float number, bool ready) {
     else ui_label_set_text_if_changed(obj, "--");
 }
 }
-void ui_home_reset() { root = multiplus = mp_power = nullptr; mp_activity=HomeMpActivity(); ui_victron_home_reset(); }
+void ui_home_reset() { ui_display_battery_reset(); root = multiplus = mp_power = display_battery_card = nullptr; mp_activity=HomeMpActivity(); ui_victron_home_reset(); }
 void ui_home_layout_changed() { layout(); }
+static void update_display_battery() {
+    if (!display_battery_card || !state.home_show_display_battery) return;
+    const auto reading = display_battery_snapshot();
+    const auto snapshot = display_battery_test_snapshot();
+    const auto &runtime = snapshot.runtime;
+    const bool fresh = reading.fresh(millis());
+    char text[128],duration[48];
+    if (fresh) ui_label_set_float(db_voltage, "%.3f V", DisplayBatteryReading::batteryVoltage(reading.raw));
+    else ui_label_set_text_if_changed(db_voltage, "-- V");
+    ui_format_battery_runtime(duration,sizeof(duration),runtime.current.elapsed_ms,runtime.current.lower_bound);
+    switch(runtime.state) {
+        case BatteryTestState::Running: snprintf(text,sizeof(text),"Test läuft / %s",duration); break;
+        case BatteryTestState::Stopped: snprintf(text,sizeof(text),"Teiltest beendet / %s",duration); break;
+        case BatteryTestState::Interrupted: snprintf(text,sizeof(text),"Unterbrochen / %s",duration); break;
+        default: snprintf(text,sizeof(text),"Test starten: Kachel antippen"); break;
+    }
+    ui_label_set_text_if_changed(db_status,text);
+    if(runtime.current.minimum_valid) snprintf(text,sizeof(text),"Test-Min: %.3f V%s",runtime.current.minimum_mv/1000.0,
+            snapshot.storage_ok ? "" : " / Sicherung fehlgeschlagen");
+    else snprintf(text,sizeof(text),"Test-Min: --%s",snapshot.storage_ok ? " / echte lokale Boardwerte" : " / Sicherung fehlgeschlagen");
+    ui_label_set_text_if_changed(db_range,text);
+    ui_text_color_if_changed(db_status,runtime.state==BatteryTestState::Interrupted || !snapshot.storage_ok ?
+                              lv_color_hex(UI_COLOR_WARNING) : ui_theme_text());
+}
 void ui_update_home() {
     if (!root) return;
+    ui_display_battery_update();
+    update_display_battery();
     if(update_mp_activity())layout();
     char text[96];
     bool ready = source_ready();
@@ -135,6 +169,15 @@ void ui_update_home() {
             snprintf(text, sizeof(text), "%s %s", name.c_str(), pending ? "Warte" : !valid ? "--" : on ? "EIN" : "AUS");
         }
         ui_label_set_text_if_changed(favorite_text[i], text);
+        lv_color_t accent = selection >= 9 && selection <= 16 ? ui_theme_dimmer() : ui_theme_relay();
+        if(favorite_accent[i] != accent.full) {
+            for(lv_style_selector_t selector : {lv_style_selector_t(LV_STATE_CHECKED),
+                                              lv_style_selector_t(LV_STATE_CHECKED | LV_STATE_PRESSED)}) {
+                lv_obj_set_style_bg_color(favorites[i],accent,selector);
+                lv_obj_set_style_border_color(favorites[i],accent,selector);
+            }
+            favorite_accent[i] = accent.full;
+        }
         ui_text_color_if_changed(favorite_text[i],valid&&on?ui_theme_btn_active_text():ui_theme_btn_text());
         if (available) lv_obj_clear_state(favorites[i], LV_STATE_DISABLED); else lv_obj_add_state(favorites[i], LV_STATE_DISABLED);
         if (valid && on) lv_obj_add_state(favorites[i], LV_STATE_CHECKED); else lv_obj_clear_state(favorites[i], LV_STATE_CHECKED);
@@ -195,6 +238,7 @@ void ui_build_home(lv_obj_t *parent) {
     lv_obj_set_scrollbar_mode(parent, LV_SCROLLBAR_MODE_AUTO); lv_obj_add_flag(parent, LV_OBJ_FLAG_SCROLLABLE);
 
     for (int i = 0; i < 2; ++i) {
+        favorite_accent[i] = UINT32_MAX;
         favorites[i] = lv_btn_create(parent); ui_favorite_button_style(favorites[i]);
         lv_obj_set_style_text_color(favorites[i], ui_theme_btn_active_text(), LV_STATE_CHECKED);
         lv_obj_add_event_cb(favorites[i], favorite_click, LV_EVENT_CLICKED, (void *)(uintptr_t)i);
@@ -211,12 +255,12 @@ void ui_build_home(lv_obj_t *parent) {
     battery = ui_create_card(parent, 240, 122);
     bat_title = label(battery, "Batterie --%", 0, 0, &lv_font_montserrat_16);
     bat_power = label(battery, "--", 0, 25, &lv_font_montserrat_28);
-    lv_obj_set_style_text_color(bat_power, lv_color_hex(UI_COLOR_WARNING), 0);
+    lv_obj_set_style_text_color(bat_power, ui_theme_text(), 0);
     bat_detail = label(battery, "-- V   -- A", 0, 58, &lv_font_montserrat_16);
     starter = label(battery, "Starter -- V", 0, 80, &lv_font_montserrat_12);
     solar = ui_create_card(parent, 216, 122); label(solar, "Solar", 0, 0, &lv_font_montserrat_16);
     solar_power = label(solar, "--", 0, 25, &lv_font_montserrat_28);
-    lv_obj_set_style_text_color(solar_power, lv_color_hex(UI_COLOR_WARNING), 0);
+    lv_obj_set_style_text_color(solar_power, ui_theme_text(), 0);
     solar_detail = label(solar, "-- V   -- A", 0, 58, &lv_font_montserrat_16);
     label(solar, "PV-Leistung", 0, 80, &lv_font_montserrat_12);
     water = ui_create_card(parent, 464, 60);
@@ -227,5 +271,12 @@ void ui_build_home(lv_obj_t *parent) {
     lv_obj_set_style_bg_color(water_bar, ui_theme_tank(), LV_PART_INDICATOR);
     for (auto card : temperatures) link(card, state.tab_enabled[TAB_TEMPS] ? TAB_TEMPS : (state.tab_enabled[TAB_TRUMA] ? TAB_TRUMA : TAB_CLIMATE));
     link(battery, TAB_POWER); link(solar, TAB_POWER); link(water, TAB_WATER);
+    display_battery_card = ui_create_card(parent, 464, 124);
+    label(display_battery_card, "Display-Akku / Diagnose >", 0, 0, &lv_font_montserrat_16);
+    db_voltage = label(display_battery_card, "-- V", 0, 24, &lv_font_montserrat_28);
+    db_status = label(display_battery_card, "Test starten: Kachel antippen", 0, 62, &lv_font_montserrat_14);
+    db_range = label(display_battery_card, "Test-Min: --", 0, 84, &lv_font_montserrat_12);
+    lv_obj_add_flag(display_battery_card,LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_event_cb(display_battery_card,[](lv_event_t*){ui_display_battery_open();},LV_EVENT_CLICKED,nullptr);
     update_mp_activity();layout();
 }

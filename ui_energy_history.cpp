@@ -22,7 +22,7 @@ void style_button(lv_obj_t *b,bool active) {
 }
 lv_obj_t *button(lv_obj_t *parent,const char *caption,int x,int y,int width,lv_event_cb_t callback,int data) {
     lv_obj_t *b=lv_btn_create(parent); lv_obj_set_pos(b,x,y); lv_obj_set_size(b,width,44);
-    lv_obj_set_style_radius(b,8,0);
+    lv_obj_set_style_radius(b,ui_radius_button(),0);
     lv_obj_add_event_cb(b,callback,LV_EVENT_CLICKED,(void*)(intptr_t)data);
     lv_obj_t *label=lv_label_create(b); lv_label_set_text(label,caption);
     lv_obj_set_style_text_font(label,&lv_font_montserrat_14,0); lv_obj_center(label);
@@ -55,7 +55,7 @@ void open_screen(void *arg) {
     lv_obj_set_style_bg_color(screen,ui_theme_bg(),0);
     button(screen,LV_SYMBOL_LEFT " Zurück",12,10,108,close_clicked,0);
     lv_obj_t *title=text(screen,track==2?"Solar-Verlauf":"Batterie-Verlauf",136,22,&lv_font_montserrat_16);
-    lv_obj_set_style_text_color(title,lv_color_hex(UI_COLOR_PRIMARY),0);
+    lv_obj_set_style_text_color(title,ui_theme_primary(),0);
     metric_buttons[0]=metric_buttons[1]=nullptr;
     if(track!=2) {
         metric_buttons[0]=button(screen,"Ladezustand (%)",12,64,222,selection_clicked,-1);
@@ -79,10 +79,11 @@ void open_screen(void *arg) {
     lv_chart_set_type(chart,LV_CHART_TYPE_LINE);
     lv_chart_set_axis_tick(chart,LV_CHART_AXIS_PRIMARY_Y,5,0,5,1,true,52);
     ui_chart_grid_style(chart);
+    lv_obj_set_style_size(chart, 3, LV_PART_INDICATOR); // Show isolated readings across gaps.
     lv_obj_set_style_pad_all(chart,0,0);
     lv_chart_set_div_line_count(chart,4,0);
     lv_obj_clear_flag(chart,LV_OBJ_FLAG_SCROLLABLE);
-    series=lv_chart_add_series(chart,lv_color_hex(UI_COLOR_PRIMARY),LV_CHART_AXIS_PRIMARY_Y);
+    series=lv_chart_add_series(chart,ui_theme_primary(),LV_CHART_AXIS_PRIMARY_Y);
     axis_start=text(card,"-1 Std.",0,0,&lv_font_montserrat_12);
     axis_mid=text(card,"-30 Min.",0,0,&lv_font_montserrat_12);
     lv_obj_t *axis_now=text(card,"Jetzt",0,0,&lv_font_montserrat_12);
@@ -117,7 +118,7 @@ void ui_energy_history_button(lv_obj_t *card,bool solar) {
     for(int i=0;i<2;++i) {
         lv_obj_t *line=lv_line_create(b); lv_line_set_points(line,i?curve:axes,i?4:3);
         lv_obj_set_pos(line,0,0); lv_obj_set_style_line_width(line,2,0);
-        lv_obj_set_style_line_color(line,lv_color_hex(UI_COLOR_PRIMARY),0);
+        lv_obj_set_style_line_color(line,ui_theme_primary(),0);
         lv_obj_clear_flag(line,LV_OBJ_FLAG_CLICKABLE);
     }
 }
@@ -153,7 +154,7 @@ void ui_energy_history_update() {
         if(lower<-32767)lower=-32767; if(upper>32766)upper=32766;
     }
     lv_chart_set_range(chart,LV_CHART_AXIS_PRIMARY_Y,lower,upper);
-    lv_chart_set_series_color(chart,series,lv_color_hex(track==2?UI_COLOR_WARNING:UI_COLOR_PRIMARY));
+    lv_chart_set_series_color(chart,series,ui_theme_primary());
     for(int i=0;i<count;++i)series->y_points[i]=values[i];
     lv_chart_refresh(chart);
     char caption[96];
@@ -163,7 +164,7 @@ void ui_energy_history_update() {
         snprintf(caption,sizeof(caption),"%s",track==0?"Ladezustand":track==1?"Lade- / Entladeleistung":"Solarleistung");
     } else {
         lv_label_set_text(scale_max,"Max: --"); lv_label_set_text(scale_min,"Min: --");
-        snprintf(caption,sizeof(caption),"%s",energy_history_available()?"Noch keine vollständige Messminute":"Verlauf-Speicher nicht verfügbar");
+        snprintf(caption,sizeof(caption),"%s",energy_history_available()?"Keine Messwerte für diesen Zeitraum":"Verlauf-Speicher nicht verfügbar");
     }
     lv_obj_align(scale_min,LV_ALIGN_TOP_RIGHT,-6,2);
     lv_label_set_text(summary,caption);

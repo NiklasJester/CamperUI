@@ -1,6 +1,8 @@
 #include "ui_main.h"
 #include "ui_victron.h"
 #include "ui_energy_history.h"
+#include "ui_layout_metrics.h"
+#include "display_battery.h"
 #include "wifi_diagnostics.h"
 #include "buzzer.h"
 #include <WiFi.h>
@@ -19,6 +21,7 @@ static lv_obj_t *lbl_time;
 static lv_obj_t *lbl_wifi;
 static lv_obj_t *lbl_soc_icon;
 static lv_obj_t *lbl_soc;
+static lv_obj_t *lbl_display_soc;
 static lv_obj_t *lbl_temp;
 static lv_obj_t *lbl_pump_status;
 static lv_obj_t *lbl_heater_status;
@@ -47,20 +50,21 @@ const TabMeta TAB_METAS[TAB_COUNT] = {
 };
 
 static constexpr uint8_t PAGE_COUNT = TAB_COUNT;
-static constexpr lv_coord_t SCREEN_WIDTH = 480;
-static constexpr lv_coord_t SCREEN_HEIGHT = 480;
-static constexpr lv_coord_t STATUS_HEIGHT = 40;
-static constexpr lv_coord_t NAV_HEIGHT = 60;
+static constexpr lv_coord_t SCREEN_WIDTH = UiLayout::screen_width;
+static constexpr lv_coord_t SCREEN_HEIGHT = UiLayout::screen_height;
+static constexpr lv_coord_t STATUS_HEIGHT = UiLayout::status_height;
+static constexpr lv_coord_t NAV_HEIGHT = UiLayout::nav_height;
 static constexpr lv_coord_t CONTENT_HEIGHT = SCREEN_HEIGHT - STATUS_HEIGHT - NAV_HEIGHT;
-static constexpr lv_coord_t NAV_BUTTON_WIDTH = 68;
+static constexpr lv_coord_t NAV_BUTTON_WIDTH = UiLayout::nav_button_width;
 static constexpr lv_coord_t NAV_BUTTON_HEIGHT = 48;
 static constexpr lv_coord_t NAV_PADDING = 3;
-static constexpr lv_coord_t NAV_GAP = 4;
+static constexpr lv_coord_t NAV_GAP = UiLayout::nav_gap;
 static lv_obj_t *content;
 static lv_obj_t *pages[TAB_COUNT] = {};
 static uint8_t active_page = TAB_HOME;
 static bool rebuild_pending = false;
 static lv_obj_t *home_nav;
+static lv_obj_t *nav_strip,*nav_left,*nav_right;
 static lv_obj_t *home_nav_buttons[TAB_COUNT] = {};
 static lv_coord_t nav_scroll_x = 0;
 
@@ -102,7 +106,7 @@ void ui_debug_navigation(const char *stage, bool force) {
                          stage, (unsigned)active_page, (unsigned)faults,
                          (int)nav_area.x1, (int)nav_area.y1,
                          (int)lv_area_get_width(&nav_area), (int)lv_area_get_height(&nav_area),
-                         (int)lv_obj_get_scroll_x(home_nav), (int)lv_obj_get_scroll_y(home_nav),
+                         (int)lv_obj_get_scroll_x(nav_strip), (int)lv_obj_get_scroll_y(home_nav),
                          (int)content_area.x1, (int)content_area.y1,
                          (int)lv_area_get_width(&content_area), (int)lv_area_get_height(&content_area),
                          (unsigned)memory.free_size, (unsigned)memory.frag_pct);
@@ -120,6 +124,33 @@ static void setup_fixed_region(lv_obj_t *obj, lv_coord_t y, lv_coord_t height) {
     lv_obj_add_flag(obj, LV_OBJ_FLAG_FLOATING);
     lv_obj_clear_flag(obj, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_SCROLL_CHAIN |
                           LV_OBJ_FLAG_GESTURE_BUBBLE | LV_OBJ_FLAG_OVERFLOW_VISIBLE);
+}
+
+static void update_nav_arrows() {
+    if(!nav_strip||!nav_left||!nav_right)return;
+    bool left=lv_obj_get_scroll_x(nav_strip)>1;
+    bool right=lv_obj_get_scroll_right(nav_strip)>1;
+    if(left)lv_obj_clear_state(nav_left,LV_STATE_DISABLED);else lv_obj_add_state(nav_left,LV_STATE_DISABLED);
+    if(right)lv_obj_clear_state(nav_right,LV_STATE_DISABLED);else lv_obj_add_state(nav_right,LV_STATE_DISABLED);
+}
+static lv_obj_t *make_nav_arrow(lv_obj_t *parent,bool right) {
+    lv_obj_t *button=lv_btn_create(parent);lv_obj_remove_style_all(button);
+    lv_obj_set_size(button,UiLayout::nav_arrow_width,NAV_HEIGHT);
+    lv_obj_set_pos(button,right?SCREEN_WIDTH-UiLayout::nav_arrow_width:0,0);
+    lv_obj_set_style_text_color(button,ui_theme_primary(),0);
+    lv_obj_set_style_text_opa(button,LV_OPA_30,LV_STATE_DISABLED);
+    lv_obj_clear_flag(button,LV_OBJ_FLAG_SCROLL_ON_FOCUS);
+    lv_obj_add_flag(button,LV_OBJ_FLAG_FLOATING);
+    lv_obj_add_event_cb(button,[](lv_event_t *event) {
+        if(!nav_strip||ignore_touch_until_release)return;
+        int direction=(int)(intptr_t)lv_event_get_user_data(event);
+        int target=UiLayout::nav_target(lv_obj_get_scroll_x(nav_strip),lv_obj_get_scroll_right(nav_strip),direction);
+        lv_obj_scroll_to_x(nav_strip,target,LV_ANIM_ON);
+    },LV_EVENT_CLICKED,(void *)(intptr_t)(right?1:-1));
+    lv_obj_t *icon=lv_label_create(button);
+    lv_obj_set_style_text_font(icon,&lv_font_montserrat_16,0);
+    lv_label_set_text(icon,right?LV_SYMBOL_RIGHT:LV_SYMBOL_LEFT);lv_obj_center(icon);
+    return button;
 }
 
 static void update_home_nav() {
@@ -207,7 +238,7 @@ static void home_nav_button_cb(lv_event_t *event) {
         }
 
         // Guard against click if user was actively dragging/scrolling a scrollable navigation bar
-        if (home_nav && lv_obj_has_flag(home_nav, LV_OBJ_FLAG_SCROLLABLE)) {
+        if (nav_strip && lv_obj_has_flag(nav_strip, LV_OBJ_FLAG_SCROLLABLE)) {
             lv_indev_t *indev = lv_indev_get_act();
             if (indev && lv_indev_get_scroll_obj(indev) != nullptr) {
                 return;
@@ -272,13 +303,14 @@ void ui_apply_theme() {
     if (content) lv_obj_set_style_bg_color(content, bg_color, 0);
     if (home_nav) {
         lv_obj_set_style_bg_color(home_nav, ui_theme_card(), 0);
+        if(nav_strip)lv_obj_set_style_bg_color(nav_strip,ui_theme_card(),0);
         for (int i = 0; i < PAGE_COUNT; ++i) {
             if (!home_nav_buttons[i]) continue;
             lv_obj_set_style_bg_color(home_nav_buttons[i], ui_theme_card(), 0);
-            lv_obj_set_style_text_color(home_nav_buttons[i], ui_theme_muted(), 0);
+            lv_obj_set_style_text_color(home_nav_buttons[i], ui_theme_btn_text(), 0);
             lv_obj_set_style_bg_color(home_nav_buttons[i], ui_theme_track(), LV_STATE_PRESSED);
             lv_obj_set_style_bg_color(home_nav_buttons[i], ui_theme_primary(), LV_STATE_CHECKED);
-            lv_obj_set_style_text_color(home_nav_buttons[i], lv_color_hex(0xffffff), LV_STATE_CHECKED);
+            lv_obj_set_style_text_color(home_nav_buttons[i], ui_theme_btn_active_text(), LV_STATE_CHECKED);
         }
     }
 }
@@ -288,7 +320,7 @@ static void rebuild_ui(void *) {
     rebuild_pending = false;
     lv_obj_t *old_main = scr_main;
     lv_obj_t *old_settings = scr_settings;
-    if (home_nav) nav_scroll_x = lv_obj_get_scroll_x(home_nav);
+    if (home_nav) nav_scroll_x = lv_obj_get_scroll_x(nav_strip);
     lv_obj_t *temporary = lv_obj_create(nullptr);
     lv_scr_load(temporary);
     ui_energy_history_destroy();
@@ -324,7 +356,7 @@ void ui_init() {
         }
         return;
     }
-    content = home_nav = nullptr;
+    content = home_nav = nav_strip = nav_left = nav_right = nullptr;
     for (uint8_t i = 0; i < PAGE_COUNT; ++i) {
         pages[i] = home_nav_buttons[i] = nullptr;
     }
@@ -374,7 +406,7 @@ void ui_init() {
 
     // Smart Header Badges Container (Middle)
     badge_cont = lv_obj_create(status_bar);
-    lv_obj_set_size(badge_cont, 140, 24);
+    lv_obj_set_size(badge_cont, 144, 24); // Ends before the right-side pump indicator.
     lv_obj_align(badge_cont, LV_ALIGN_LEFT_MID, 76, 0);
     lv_obj_set_style_bg_opa(badge_cont, LV_OPA_0, 0);
     lv_obj_set_style_border_width(badge_cont, 0, 0);
@@ -401,6 +433,12 @@ void ui_init() {
     badge_frost = make_badge(badge_cont, MDI_SNOWFLAKE, lv_color_hex(0x1a2e45), lv_color_hex(UI_COLOR_PRIMARY));
     badge_fresh = make_badge(badge_cont, MDI_WATER,     lv_color_hex(0x122e4d), lv_color_hex(UI_COLOR_PRIMARY));
     badge_waste = make_badge(badge_cont, MDI_ALERT,     lv_color_hex(0x451a1a), lv_color_hex(UI_COLOR_DANGER));
+
+    lbl_display_soc = lv_label_create(badge_cont);
+    lv_label_set_text(lbl_display_soc, "DA --%");
+    lv_obj_set_style_text_font(lbl_display_soc, &lv_font_montserrat_12, 0);
+    lv_obj_set_style_text_letter_space(lbl_display_soc, 0, 0);
+    lv_obj_add_flag(lbl_display_soc, LV_OBJ_FLAG_HIDDEN);
 
     // Right side indicators (cleanly spaced, modern MDI icons)
     lbl_wifi = lv_label_create(status_bar);
@@ -490,36 +528,40 @@ void ui_init() {
     // The only navigation strip: a fixed sibling of status bar and content.
     home_nav = lv_obj_create(scr_main);
     setup_fixed_region(home_nav, SCREEN_HEIGHT - NAV_HEIGHT, NAV_HEIGHT);
-    lv_obj_set_style_pad_hor(home_nav, NAV_PADDING, 0);
-    lv_obj_set_style_bg_color(home_nav, ui_theme_card(), 0);
-    // Explicit positions keep button geometry identical in every state/theme.
-    int enabled_count = 0;
-    for (int i = 0; i < TAB_COUNT; ++i) {
-        uint8_t tab_id = state.tab_order[i];
-        if (tab_id < TAB_COUNT && state.tab_enabled[tab_id]) enabled_count++;
+    lv_obj_set_style_bg_color(home_nav,ui_theme_card(),0);
+    int enabled_count=0;
+    for(int i=0;i<TAB_COUNT;++i) {
+        uint8_t tab_id=state.tab_order[i];
+        if(tab_id<TAB_COUNT&&state.tab_enabled[tab_id])++enabled_count;
     }
-
-    int total_fixed_w = enabled_count * NAV_BUTTON_WIDTH + (enabled_count > 0 ? (enabled_count - 1) * NAV_GAP : 0);
-    int available_w = SCREEN_WIDTH - 2 * NAV_PADDING;
-    bool fits = (total_fixed_w <= available_w && enabled_count > 0);
-
-    if (fits) {
-        lv_obj_clear_flag(home_nav, LV_OBJ_FLAG_SCROLLABLE);
-    } else {
-        lv_obj_add_flag(home_nav, LV_OBJ_FLAG_SCROLLABLE);
-        lv_obj_set_scroll_dir(home_nav, LV_DIR_HOR);
-        lv_obj_set_scrollbar_mode(home_nav, LV_SCROLLBAR_MODE_OFF);
-        lv_obj_add_flag(home_nav, LV_OBJ_FLAG_SCROLL_MOMENTUM);
-        lv_obj_clear_flag(home_nav, LV_OBJ_FLAG_SCROLL_ELASTIC);
+    bool fits=!UiLayout::nav_overflows(enabled_count);
+    const int gutter=fits?0:UiLayout::nav_arrow_width;
+    nav_strip=lv_obj_create(home_nav);lv_obj_remove_style_all(nav_strip);
+    lv_obj_set_pos(nav_strip,gutter,0);
+    lv_obj_set_size(nav_strip,UiLayout::nav_view_width(enabled_count),NAV_HEIGHT);
+    lv_obj_set_style_pad_hor(nav_strip,NAV_PADDING,0);
+    lv_obj_clear_flag(nav_strip,LV_OBJ_FLAG_SCROLL_ELASTIC|LV_OBJ_FLAG_SCROLL_CHAIN_HOR|LV_OBJ_FLAG_SCROLL_CHAIN_VER);
+    int available_w=UiLayout::nav_view_width(enabled_count)-2*NAV_PADDING;
+    if(fits)lv_obj_clear_flag(nav_strip,LV_OBJ_FLAG_SCROLLABLE);
+    else {
+        lv_obj_add_flag(nav_strip,LV_OBJ_FLAG_SCROLLABLE|LV_OBJ_FLAG_SCROLL_MOMENTUM);
+        lv_obj_set_scroll_dir(nav_strip,LV_DIR_HOR);
+        lv_obj_set_scrollbar_mode(nav_strip,LV_SCROLLBAR_MODE_ON);
+        lv_obj_set_style_bg_color(nav_strip,ui_theme_primary(),LV_PART_SCROLLBAR);
+        lv_obj_set_style_bg_opa(nav_strip,LV_OPA_COVER,LV_PART_SCROLLBAR);
+        lv_obj_set_style_height(nav_strip,3,LV_PART_SCROLLBAR);
+        lv_obj_add_event_cb(nav_strip,[](lv_event_t *){update_nav_arrows();},LV_EVENT_SCROLL,nullptr);
+        lv_obj_add_event_cb(nav_strip,[](lv_event_t *){update_nav_arrows();},LV_EVENT_SCROLL_END,nullptr);
+        nav_left=make_nav_arrow(home_nav,false);
+        nav_right=make_nav_arrow(home_nav,true);
     }
-
     int btn_slot = 0;
     for (int i = 0; i < TAB_COUNT; ++i) {
         uint8_t tab_id = state.tab_order[i];
         if (tab_id >= TAB_COUNT) continue;
         if (!state.tab_enabled[tab_id]) continue;
 
-        lv_obj_t *button = lv_btn_create(home_nav);
+        lv_obj_t *button = lv_btn_create(nav_strip);
         home_nav_buttons[tab_id] = button;
         // Remove the default button grow/transition and focus-autoscroll effects.
         lv_obj_remove_style_all(button);
@@ -554,7 +596,8 @@ void ui_init() {
     }
     ui_apply_theme();
     lv_obj_update_layout(scr_main);
-    lv_obj_scroll_to_x(home_nav, nav_scroll_x, LV_ANIM_OFF);
+    lv_obj_scroll_to_x(nav_strip, fits?0:nav_scroll_x, LV_ANIM_OFF);
+    update_nav_arrows();
 
     // Pick active tab: if active_page is valid and enabled, use it; otherwise use first enabled tab from tab_order
     uint8_t target_tab = TAB_HOME;
@@ -731,6 +774,22 @@ void ui_update_data() {
         }
     }
     
+    if (state.home_show_display_battery_status) {
+        const int percent = display_battery_estimated_soc(millis());
+        char text[12] = "DA --%";
+        lv_color_t color = ui_theme_text();
+        if (percent >= 0) {
+            snprintf(text, sizeof(text), "DA %d%%", percent);
+            if (percent <= 10) color = lv_color_hex(UI_COLOR_DANGER);
+            else if (percent <= 20) color = lv_color_hex(UI_COLOR_WARNING);
+        }
+        ui_label_set_text_if_changed(lbl_display_soc, text);
+        ui_text_color_if_changed(lbl_display_soc, color);
+        lv_obj_clear_flag(lbl_display_soc, LV_OBJ_FLAG_HIDDEN);
+    } else {
+        lv_obj_add_flag(lbl_display_soc, LV_OBJ_FLAG_HIDDEN);
+    }
+
     // Update Debug Info
     if (active_page == TAB_SETTINGS && lbl_debug_info != NULL) {
         String debug_txt = state.debug_mode ? "Demo " CAMPERUI_VERSION : CAMPERUI_VERSION;

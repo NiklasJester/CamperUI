@@ -393,3 +393,20 @@ Optionale direkte lokale MQTT-Anbindung für Cerbo GX und MultiPlus-II mit eigen
 ### Autoterm-Diagnose
 
 Im Autoterm-Heizungstab öffnet die **Stethoskop-Taste rechts neben Start/Stopp** ein Popup mit Spannung, Lüfterdrehzahl, Kraftstoffpumpenfrequenz, Heizgerätetemperatur und Fehlerstatus. **Zurück** schließt die Anzeige. Datenquelle, Verfügbarkeit und Tests: [Autoterm-Diagnose](docs/AUTOTERM-DIAGNOSE.md).
+
+
+### Lokaler Stand V1.9.1-RV3D.93-dev
+
+WLAN-Relais: begrenzter HTTP-Workaround für VanPi-Flows mit `.includes()` auf dem Request-Payload. Nur `/wrelay/`-PUTs senden `{}` als Text; andere Endpunkte und Timeouts bleiben unverändert. [Ursache, echter Node-RED-HTTP-Test und Flow-Korrektur](docs/WLAN-RELAIS-HTTP.md).
+
+Optionale **Display-Akku-Testkachel** auf Home: lokale Waveshare-Spannung, manuell gestartete Laufzeit und Test-Minimum. Antippen öffnet Diagnose und Test-Start/Stopp; ADC, Min/Max und Lesestatus bleiben dort verfügbar. Kleine NVS-Sicherung alle fünf Minuten, Erkennung unterbrochener Tests nach Neustart und reine V4-STAT-Rohdiagnose. Keine automatische Versorgungserkennung oder geschätzten SOC-Werte. [Einrichtung und Grenzen](docs/DISPLAY-AKKU-TEST.md).
+
+Webasto-Korrektur: Die Autoterm-Diagnose ist nur bei ausgewählter Autoterm-Heizung verfügbar. Webasto-Temperatur und -Spannung werden auf gültige und aktuelle VanPi-Daten geprüft; fehlende Werte erscheinen als `--`. Bedienung und Einstellungen bleiben erhalten. Datenweg, Tests und noch benötigte Live-Antworten: [Webasto HTTP](docs/WEBASTO-HTTP.md).
+
+### Vorheriger Stand V1.9.1-RV3D.92-dev
+
+Basis ist das offizielle Release V1.9.1 einschließlich dessen Theme-Verwaltung. Das frühere RV3D-Orange-Experiment entfällt. Unabhängige Layoutkorrekturen bleiben erhalten: das bisherige Home-Layout mit Batterie, Solar und einer zusätzlichen schmalen MultiPlus-Messwertkachel nebeneinander sowie separaten MultiPlus-Bedientasten darunter, vollständig scrollbar erreichbare VE-Inhalte sowie eine Menüleiste mit 68 Pixel breiten Tasten und Scrollpfeilen bei mehr als sechs Einträgen.
+
+Dimmer lassen sich unter **System-Einstellungen → Sichtbarkeit** sowie **Websettings → Schalter & Dimmer** gemeinsam mit „Dimmer anzeigen“ ausblenden. Der Schalter nutzt dieselbe gespeicherte Einstellung wie „Tabs anpassen“; die Auswahl der acht einzelnen Dimmer bleibt erhalten. Das Ausblenden sendet keine Schaltbefehle und verändert keine Home-Favoriten. Die Menüleiste verwendet wieder die ursprüngliche Tastenbreite; weitere Einträge sind per Wischen oder Scrollpfeilen erreichbar.
+
+Die RV3D-Ansichten Home, VE, Home-/VE-Einstellungen, Energie-Verläufe, Autoterm-Diagnose und Menü-Einstellungen verwenden die Farben, Button-Schriftfarben, Rundungen und Rahmenstärke aus dem Design-&-Theme-Editor. Home-Favoriten nutzen je nach Zuordnung die Relais- oder Dimmerfarbe. Normale Messwerte verwenden die Textfarbe; Warnschwellen und Fehleranzeigen behalten ihre Bedeutung. Das Home-Layout bleibt unverändert. Nach Theme-Änderungen werden die Ansichten über die bestehende UI-Neuerstellung aktualisiert. Die Menütasten sind wieder 68 Pixel breit (Abstand 4 Pixel). Aktive MultiPlus-Modustasten auf Home und VE verwenden die Schalter-/Relaisfarbe und die aktive Button-Schriftfarbe des Theme-Editors.
