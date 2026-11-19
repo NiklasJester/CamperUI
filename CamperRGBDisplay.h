@@ -23,11 +23,17 @@ public:
     void draw16bitRGBBitmap(int16_t x, int16_t y, uint16_t *bitmap, int16_t w, int16_t h) override;
     void draw16bitBeRGBBitmap(int16_t x, int16_t y, uint16_t *bitmap, int16_t w, int16_t h) override;
     void flush(bool force_flush = false) override;
+    void presentFrame();
+    bool isDoubleBuffered() const { return _front_fb != nullptr && _back_fb != nullptr && _front_fb != _back_fb; }
 
     uint16_t *getFramebuffer();
 
 protected:
     uint16_t *_framebuffer;
+    uint16_t *_front_fb = nullptr;
+    uint16_t *_back_fb = nullptr;
+    size_t _dirty_min = 0;
+    size_t _dirty_max = 0;
     size_t _framebuffer_size;
     CamperRGBPanel *_rgbpanel;
     bool _auto_flush;

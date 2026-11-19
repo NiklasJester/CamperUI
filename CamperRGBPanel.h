@@ -23,6 +23,8 @@
 
 #include "esp_lcd_panel_rgb.h"
 #include "esp_lcd_panel_ops.h"
+#include <freertos/FreeRTOS.h>
+#include <freertos/semphr.h>
 
 #include "esp32s3/rom/cache.h"
 // This function is located in ROM (also see esp_rom/${target}/ld/${target}.rom.ld)
@@ -53,6 +55,9 @@ public:
   }
 
   uint16_t *getFrameBuffer(int16_t w, int16_t h);
+  uint16_t *getBackFrameBuffer() { return _fb[1]; }
+  bool presentFrameBuffer(uint16_t *fb, int16_t w, int16_t h);
+  bool onFrameCompleteISR(BaseType_t *high_task_awoken);
 
 protected:
 private:
@@ -76,6 +81,9 @@ private:
   uint16_t _pclk_idle_high;
 
   esp_lcd_panel_handle_t _panel_handle = NULL;
+  uint16_t *_fb[2] = {nullptr, nullptr};
+  SemaphoreHandle_t _frame_complete_sem = nullptr;
+  volatile bool _swap_armed = false;
 };
 
 #endif // #if defined(ESP32) && (CONFIG_IDF_TARGET_ESP32S3)

@@ -81,7 +81,11 @@ bool CamperRGBDisplay::begin(int32_t speed)
   }
 
   _rgbpanel->begin(speed);
-  _framebuffer = _rgbpanel->getFrameBuffer(_fb_width, _fb_height);
+  _front_fb = _rgbpanel->getFrameBuffer(_fb_width, _fb_height);
+  _back_fb = _rgbpanel->getBackFrameBuffer();
+  _framebuffer = (_back_fb != nullptr) ? _back_fb : _front_fb;
+  _dirty_min = _framebuffer_size;
+  _dirty_max = 0;
 
   if (!_framebuffer)
   {
@@ -566,29 +570,41 @@ void CamperRGBDisplay::draw16bitRGBBitmap(int16_t x, int16_t y,
 
   if (result)
   {
-    if (_auto_flush)
+    int32_t r0 = 0, r1 = _fb_height;
+    switch (_rotation)
     {
-      uint32_t cachePos;
-      size_t cache_size;
-      switch (_rotation)
+    case 1:
+      r0 = x;
+      r1 = x + w;
+      break;
+    case 2:
+      r0 = _fb_height - y - h;
+      r1 = _fb_height - y;
+      break;
+    case 3:
+      r0 = _fb_height - x - w;
+      r1 = _fb_height - x;
+      break;
+    default: // case 0:
+      r0 = y;
+      r1 = y + h;
+      break;
+    }
+    if (r0 < 0) r0 = 0;
+    if (r1 > _fb_height) r1 = _fb_height;
+    if (r1 > r0)
+    {
+      size_t start_off = (size_t)r0 * _fb_width * sizeof(uint16_t);
+      size_t end_off   = (size_t)r1 * _fb_width * sizeof(uint16_t);
+      if (isDoubleBuffered())
       {
-      case 1:
-        cachePos = (uint32_t)(_framebuffer + (x * _fb_width));
-        cache_size = _fb_width * w * 2;
-        break;
-      case 2:
-        cachePos = (uint32_t)(_framebuffer + ((HEIGHT - y - h) * _fb_width));
-        cache_size = _fb_width * h * 2;
-        break;
-      case 3:
-        cachePos = (uint32_t)(_framebuffer + ((HEIGHT - x - w) * _fb_width));
-        cache_size = _fb_width * w * 2;
-        break;
-      default: // case 0:
-        cachePos = (uint32_t)(_framebuffer + (y * _fb_width));
-        cache_size = _fb_width * h * 2;
+        if (start_off < _dirty_min) _dirty_min = start_off;
+        if (end_off   > _dirty_max) _dirty_max = end_off;
       }
-      Cache_WriteBack_Addr(cachePos, cache_size);
+      else if (_auto_flush)
+      {
+        Cache_WriteBack_Addr((uint32_t)_framebuffer + start_off, end_off - start_off);
+      }
     }
   }
 }
@@ -661,11 +677,41 @@ void CamperRGBDisplay::draw16bitBeRGBBitmap(int16_t x, int16_t y,
   }
 }
 
+void CamperRGBDisplay::presentFrame()
+{
+  if (!isDoubleBuffered())
+  {
+    return;
+  }
+  if (_dirty_max <= _dirty_min)
+  {
+    return;
+  }
+  // Atomically switch hardware scanout to _back_fb at frame boundary and wait
+  // until the old _front_fb is completely free.
+  _rgbpanel->presentFrameBuffer(_back_fb, _fb_width, _fb_height);
+
+  uint16_t *new_front = _back_fb;
+  uint16_t *new_back  = _front_fb;
+  _front_fb = new_front;
+  _back_fb  = new_back;
+  _framebuffer = _back_fb;
+
+  // Keep the new back buffer in sync with only the physical rows modified this frame.
+  memcpy((uint8_t *)_back_fb + _dirty_min,
+         (uint8_t *)_front_fb + _dirty_min,
+         _dirty_max - _dirty_min);
+
+  _dirty_min = _framebuffer_size;
+  _dirty_max = 0;
+}
+
 void CamperRGBDisplay::flush(bool force_flush)
 {
   if (force_flush || (!_auto_flush))
   {
-    Cache_WriteBack_Addr((uint32_t)_framebuffer, _framebuffer_size);
+    if (_front_fb) Cache_WriteBack_Addr((uint32_t)_front_fb, _framebuffer_size);
+    if (_back_fb && _back_fb != _front_fb) Cache_WriteBack_Addr((uint32_t)_back_fb, _framebuffer_size);
   }
 }
 

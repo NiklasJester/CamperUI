@@ -80,6 +80,32 @@ static bool IRAM_ATTR rgb_vsync_bounce_guard_cb(esp_lcd_panel_handle_t panel,
   }
   return false;
 }
+
+static bool IRAM_ATTR rgb_frame_buf_complete_cb(esp_lcd_panel_handle_t panel,
+                                                const esp_lcd_rgb_panel_event_data_t *edata,
+                                                void *user_ctx)
+{
+  (void)panel;
+  (void)edata;
+  CamperRGBPanel *self = static_cast<CamperRGBPanel *>(user_ctx);
+  BaseType_t high_task_awoken = pdFALSE;
+  if (self && self->onFrameCompleteISR(&high_task_awoken))
+  {
+    return high_task_awoken == pdTRUE;
+  }
+  return false;
+}
+
+bool IRAM_ATTR CamperRGBPanel::onFrameCompleteISR(BaseType_t *high_task_awoken)
+{
+  if (_swap_armed && _frame_complete_sem)
+  {
+    _swap_armed = false;
+    xSemaphoreGiveFromISR(_frame_complete_sem, high_task_awoken);
+    return true;
+  }
+  return false;
+}
 #endif
 
 uint16_t *CamperRGBPanel::getFrameBuffer(int16_t w, int16_t h)
@@ -112,7 +138,7 @@ uint16_t *CamperRGBPanel::getFrameBuffer(int16_t w, int16_t h)
 #if (!defined(ESP_ARDUINO_VERSION_MAJOR)) || (ESP_ARDUINO_VERSION_MAJOR < 3)
 #else
       .bits_per_pixel = 16,
-      .num_fbs = 1,
+      .num_fbs = 2,
       .bounce_buffer_size_px = 20 * w,
 #endif
       .sram_trans_align = 8,
@@ -175,8 +201,12 @@ uint16_t *CamperRGBPanel::getFrameBuffer(int16_t w, int16_t h)
   ESP_ERROR_CHECK(esp_lcd_new_rgb_panel(&panel_config, &_panel_handle));
 
 #if (defined(ESP_ARDUINO_VERSION_MAJOR)) && (ESP_ARDUINO_VERSION_MAJOR >= 3)
+  if (!_frame_complete_sem) {
+    _frame_complete_sem = xSemaphoreCreateBinary();
+  }
   esp_lcd_rgb_panel_event_callbacks_t cbs = {};
   cbs.on_vsync = rgb_vsync_bounce_guard_cb;
+  cbs.on_frame_buf_complete = rgb_frame_buf_complete_cb;
   ESP_ERROR_CHECK(esp_lcd_rgb_panel_register_event_callbacks(_panel_handle, &cbs, this));
 #endif
 
@@ -189,16 +219,41 @@ uint16_t *CamperRGBPanel::getFrameBuffer(int16_t w, int16_t h)
 
   return (uint16_t *)_rgb_panel->fb;
 #else
-  void *frame_buffer = nullptr;
-  ESP_ERROR_CHECK(esp_lcd_rgb_panel_get_frame_buffer(_panel_handle, 1, &frame_buffer));
+  void *fb0 = nullptr;
+  void *fb1 = nullptr;
+  ESP_ERROR_CHECK(esp_lcd_rgb_panel_get_frame_buffer(_panel_handle, 2, &fb0, &fb1));
+  _fb[0] = (uint16_t *)fb0;
+  _fb[1] = (uint16_t *)fb1;
+  size_t fb_bytes = (size_t)w * (size_t)h * sizeof(uint16_t);
+  if (_fb[0]) memset(_fb[0], 0, fb_bytes);
+  if (_fb[1]) memset(_fb[1], 0, fb_bytes);
 
-  return ((uint16_t *)frame_buffer);
+  return _fb[0];
 #endif
 }
 
 #endif // #if defined(ESP32) && (CONFIG_IDF_TARGET_ESP32S3)
 
 #if defined(ESP32) && CONFIG_IDF_TARGET_ESP32S3
+bool CamperRGBPanel::presentFrameBuffer(uint16_t *fb, int16_t w, int16_t h) {
+  if (!_panel_handle || !fb) return false;
+  if (_frame_complete_sem) {
+    _swap_armed = false;
+    xSemaphoreTake(_frame_complete_sem, 0);
+  }
+  // In ESP-IDF 5.x bounce-buffer mode, passing a driver-owned FB pointer does a
+  // zero-copy update of cur_fb_index; the bounce ISR switches bb_fb_index atomically
+  // at frame end and invokes on_frame_buf_complete.
+  esp_err_t err = esp_lcd_panel_draw_bitmap(_panel_handle, 0, 0, w, h, fb);
+  if (err != ESP_OK) return false;
+  if (_frame_complete_sem) {
+    _swap_armed = true;
+    xSemaphoreTake(_frame_complete_sem, pdMS_TO_TICKS(50));
+    _swap_armed = false;
+  }
+  return true;
+}
+
 esp_err_t CamperRGBPanel::restartTransmission() {
   if (!_panel_handle) return ESP_ERR_INVALID_STATE;
 #if (defined(ESP_ARDUINO_VERSION_MAJOR)) && (ESP_ARDUINO_VERSION_MAJOR >= 3)

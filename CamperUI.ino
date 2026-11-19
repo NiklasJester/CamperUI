@@ -71,6 +71,10 @@ void my_disp_flush(lv_disp_drv_t *disp_drv, const lv_area_t *area, lv_color_t *c
     gfx->draw16bitRGBBitmap(area->x1, area->y1, (uint16_t *)&color_p->full, w, h);
 #endif
 
+    if (lv_disp_flush_is_last(disp_drv)) {
+        gfx->presentFrame();
+    }
+
     lv_disp_flush_ready(disp_drv);
 }
 
@@ -547,7 +551,7 @@ void setup() {
 
     USBSerial.println("CamperUI ready!");
     USBSerial.println("[DISPLAY " CAMPERUI_VERSION "] Adaptive internal draw buffer active; f=framebuffer cache flush, s=RGB resync");
-    USBSerial.println("[DISPLAY " CAMPERUI_VERSION "] RGB pixel clock: 12 MHz (original panel timing)");
+    USBSerial.printf("[DISPLAY " CAMPERUI_VERSION "] RGB pixel clock: 12 MHz | double_fb=%s (VSYNC anti-tearing)\n", gfx->isDoubleBuffered() ? "ON" : "OFF");
     USBSerial.println("[TOUCH " CAMPERUI_VERSION "] n=geometry/memory, t=touch on/off, r=full screen redraw");
 }
 
