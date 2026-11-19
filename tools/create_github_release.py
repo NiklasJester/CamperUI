@@ -56,7 +56,7 @@ Release **{version}** bringt echtes **Hardware-Double-Buffering (Anti-Tearing)**
 
 ### 🛠️ 3. Bugfixes aus dem Forum (PR #8)
 * **VanPi SOC-Dezimalwerte:** Numerische Dezimal-SOC-Werte im `/batt`-Endpoint (z. B. `96.5`) werden über `jsonBatterySoc()` korrekt verarbeitet statt auf `0 %` zu springen.
-* **WLAN-Relais Ausschalten:** `/wrelay/`-PUT-Befehle senden `Content-Type: text/plain; charset=utf-8` mit Body `{}`, um Node-RED `.includes()`-Fehler beim Ausschalten zu vermeiden.
+* **WLAN-Relais Ausschalten:** `/wrelay/`-PUT-Befehle senden `Content-Type: text/plain; charset=utf-8` mit Body `{{}}`, um Node-RED `.includes()`-Fehler beim Ausschalten zu vermeiden.
 * **Webasto & Autoterm Telemetrie:** Autoterm-Diagnose (Stethoskop) wird nur noch bei ausgewählter Autoterm-Heizung eingeblendet; Webasto-Temperatur und -Spannung werden auf Aktualität (45 s) und Gültigkeit (`> 5 V`) geprüft.
 * **Energie- & Temperaturverläufe:** Aktualitätsprüfung auf 45 s angepasst (kompatibel mit Bildschirmschoner-Polling); Temperaturverlauf startet im Live-Modus ohne Demo-Kurven und markiert isolierte Messpunkte.
 
