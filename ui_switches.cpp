@@ -538,7 +538,7 @@ void ui_build_switches(lv_obj_t *parent) {
 void ui_build_dimmers(lv_obj_t *parent) {
     ui_setup_tab_page(parent);
     lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_style_pad_row(parent, 10, 0);
+    lv_obj_set_style_pad_row(parent, 7, 0);
 
     int max_dim = state.dimmy_pro ? 10 : 8;
     for (int i = 0; i < 10; i++) {
@@ -547,27 +547,27 @@ void ui_build_dimmers(lv_obj_t *parent) {
         lbl_dim_pct[i] = NULL;
         if (i >= max_dim || !state.dimmer_visible[i]) continue;
 
-        // Modern Home Assistant Style Card: Width 440px, Height 80px
-        // 4 cards * 80px + 3 gaps * 10px = 350px <= 360px (Exactly 4 dimmers fit without scrollbar!)
-        lv_obj_t *dim_card = ui_create_card(parent, 440, 80);
-        lv_obj_set_style_pad_hor(dim_card, 16, 0);
+        // Compact Modern Card: Width 440px, Height 54px
+        // 6 cards * 54px + 5 gaps * 7px = 359px <= 360px (Exactly 6 dimmers fit without scrollbar!)
+        lv_obj_t *dim_card = ui_create_card(parent, 440, 54);
+        lv_obj_set_style_pad_hor(dim_card, 14, 0);
         lv_obj_set_style_pad_ver(dim_card, 0, 0);
         
         // 1. Name label (Left side, vertically centered)
         lbl_dim_name[i] = lv_label_create(dim_card);
         lv_label_set_text(lbl_dim_name[i], state.dimmer_names[i].c_str());
-        lv_obj_set_style_text_font(lbl_dim_name[i], &lv_font_montserrat_18, 0);
+        lv_obj_set_style_text_font(lbl_dim_name[i], &lv_font_montserrat_14, 0);
         lv_obj_set_style_text_color(lbl_dim_name[i], ui_theme_text(), 0);
         lv_label_set_long_mode(lbl_dim_name[i], LV_LABEL_LONG_DOT);
-        lv_obj_set_width(lbl_dim_name[i], 120);
+        lv_obj_set_width(lbl_dim_name[i], 132);
         lv_obj_align(lbl_dim_name[i], LV_ALIGN_LEFT_MID, 0, 0);
         
-        // 2. Modern Bar Slider (Middle, 32px thick, no knob/ball, fills like a level bar)
+        // 2. Modern Bar Slider (Middle, 26px thick, no knob/ball, fills like a level bar)
         dimmers[i] = lv_slider_create(dim_card);
-        lv_obj_set_size(dimmers[i], 225, 32);
+        lv_obj_set_size(dimmers[i], 222, 26);
         lv_slider_set_range(dimmers[i], 0, 100);
         lv_slider_set_value(dimmers[i], state.dimmer_val[i], LV_ANIM_OFF);
-        lv_obj_align(dimmers[i], LV_ALIGN_LEFT_MID, 130, 0);
+        lv_obj_align(dimmers[i], LV_ALIGN_LEFT_MID, 138, 0);
         lv_obj_clear_flag(dimmers[i], LV_OBJ_FLAG_SCROLL_ON_FOCUS);
         
         // Track styling (capsule pill shape)
@@ -590,16 +590,16 @@ void ui_build_dimmers(lv_obj_t *parent) {
         lv_obj_set_style_outline_width(dimmers[i], 0, LV_PART_KNOB);
 
         // Extended click area for easy fingertip touch interaction
-        lv_obj_set_ext_click_area(dimmers[i], 6);
+        lv_obj_set_ext_click_area(dimmers[i], 10);
 
         lv_obj_add_event_cb(dimmers[i], dimmer_slider_event_cb, LV_EVENT_ALL, (void*)(intptr_t)i);
 
         // 3. Percentage / State label (Right side, vertically centered)
         lbl_dim_pct[i] = lv_label_create(dim_card);
         lv_label_set_text_fmt(lbl_dim_pct[i], "%d%%", state.dimmer_val[i]);
-        lv_obj_set_style_text_font(lbl_dim_pct[i], &lv_font_montserrat_18, 0);
+        lv_obj_set_style_text_font(lbl_dim_pct[i], &lv_font_montserrat_14, 0);
         lv_obj_set_style_text_align(lbl_dim_pct[i], LV_TEXT_ALIGN_RIGHT, 0);
-        lv_obj_set_width(lbl_dim_pct[i], 48);
+        lv_obj_set_width(lbl_dim_pct[i], 46);
         lv_obj_align(lbl_dim_pct[i], LV_ALIGN_RIGHT_MID, 0, 0);
 
         update_dimmer_visuals(i);
