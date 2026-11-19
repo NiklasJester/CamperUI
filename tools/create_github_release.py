@@ -30,38 +30,41 @@ def create_release():
     version = get_version()
     tag = version
     title = f"CamperUI_{version}"
-    body = f"""# 🚐 CamperUI Release {version} (Bugfix & Hardware Extension)
+    body = f"""# 🚐 CamperUI Release {version}
 
-Release **{version}** erweitert die Hardware-Kompatibilität von CamperUI um das **Dimmy Pro**-Gerät sowie das **out-x-in Pro**-Relais-Erweiterungsmodul, behebt ein wichtiges Datumsformat-Problem bei neueren VanPi CorePro Systemen und ergänzt Zeitstempel in der Debug-Konsole.
-
----
-
-### ⏱️ 1. VanPi Core & CorePro Zeitformat-Kompatibilität
-* **Unterstützung beider Datumsformate im `/info`-Endpoint:**
-  * VanPi Core (alt): `DD/MM/YYYY, HH:MM:SS` (z. B. `28/10/2026, 08:35:51`)
-  * VanPi CorePro (neu): `DD.MM.YYYY, HH:MM:SS` (z. B. `28.10.2026, 08:35:51`)
-  * CamperUI erkennt und parst nun beide Formate sowie ISO- und Leerzeichen-Varianten zuverlässig, sodass Uhrzeit und RTC-Synchronisation auf allen Systemen stabil laufen.
+Release **{version}** bringt echtes **Hardware-Double-Buffering (Anti-Tearing)** für spürbar flüssigeres Scrollen, kompaktere Relais- und Dimmer-Ansichten sowie alle Bugfixes und Erweiterungen aus [PR #8](https://github.com/NiklasJester/CamperUI/pull/8) (vielen Dank an **@RV3Dtech**!).
 
 ---
 
-### 💡 2. Dimmy Pro Hardware-Unterstützung
-* **Umschaltbare Dimmer-Hardware:**
-  * In den Einstellungen (Display-Menü & Web-UI) kann zwischen **Dimmy** (Kanäle 1–8) und **Dimmy Pro** (Kanäle 8–15) umgeschaltet werden.
-  * Beim Dimmy Pro werden automatisch die Keys `dimmer8` bis `dimmer15` ausgelesen und Steuerbefehle an `/dimmer/<Kanal>/<Wert>` gesendet.
-  * Namen und Dimmwerte werden nahtlos übernommen.
+### 🚀 1. Display-Performance & Anti-Tearing
+* **Hardware-Double-Buffering (`num_fbs = 2`) mit Frame-End-Sync:**
+  * LVGL rendert jeden Frame vollständig in einen zweiten Framebuffer im 8 MB Octal-PSRAM; der Umschaltvorgang erfolgt atomar am exakten Frame-Ende (`on_frame_buf_complete`).
+  * Vertikales und horizontales Scrollen läuft dadurch komplett **ohne Tearing** und sichtbar geschmeidiger.
+  * Optimierter Dirty-Range-Sync überträgt nach dem Swap nur den tatsächlich veränderten Zeilenbereich.
 
 ---
 
-### 🔘 3. out-x-in Pro Modul (Relais 9–16)
-* **Erweiterung auf 16 Hauptrelais:**
-  * Optionaler Schalter in den Einstellungen schaltet Relais 9–16 frei.
-  * Volle Integration in die Schalter-Kacheln, Sperrfunktion (Lock gegen Fehlbedienung) und Web-Oberfläche.
-  * Wasserpumpen- und Abwasserventil-Zuordnung unterstützt nun alle 16 Hauptrelais sowie die 8 WLAN-Relais.
+### 🎨 2. Kompaktere UI, Einstellungen & Theme-Vereinheitlichung
+* **Relais-Tab:** Kacheln auf `212 × 82 px` (16 pt) optimiert – alle **8 Relais** (4 × 2) passen nun ohne Scrollen auf eine Seite (gilt auch für WLAN-Relais).
+* **Dimmer-Tab:** Kompaktere Kacheln (`54 px` hoch, 14 pt) mit großer Touch-Fläche – **6 Dimmer** passen gleichzeitig ohne Scrollen auf eine Seite.
+* **Dynamische Sichtbarkeits-Einstellungen:** Deaktivierte Bereiche (*out-x-in Pro*, *WiFi-Relais*, *Dimmy Pro*) reservieren keinen leeren Platz mehr; typografische Gedankenstriche durch saubere ASCII-Bindestriche (`9-16`, `8-15`) ersetzt.
+* **Master-Schalter „Dimmer anzeigen“:** Synchronisierte Ein-/Ausblendung des Dimmer-Tabs in Display-Einstellungen und Web-UI unter Erhalt der Einzelauswahl.
+* **Navigationsleiste mit Scrollpfeilen:** Bei mehr als 6 aktiven Tabs erleichtern seitliche Pfeiltasten die Navigation.
+* **Einheitliches Theming:** Home, Victron GX (inkl. scrollbarer Ansicht), Energie-Verläufe, Autoterm-Diagnose und Einstellungen übernehmen konsequent alle Farben, Rundungen und Rahmenstärken aus dem Theme-Editor.
 
 ---
 
-### 🖥️ 4. Zeitstempel in der Debug-Konsole
-* Jeder Log-Eintrag in der Debug-Konsole (`/status` und Download `/api/log`) sowie über USB-Serial wird ab sofort mit einem präzisen Zeitstempel im Format `[HH:MM:SS]` versehen.
+### 🛠️ 3. Bugfixes aus dem Forum (PR #8)
+* **VanPi SOC-Dezimalwerte:** Numerische Dezimal-SOC-Werte im `/batt`-Endpoint (z. B. `96.5`) werden über `jsonBatterySoc()` korrekt verarbeitet statt auf `0 %` zu springen.
+* **WLAN-Relais Ausschalten:** `/wrelay/`-PUT-Befehle senden `Content-Type: text/plain; charset=utf-8` mit Body `{}`, um Node-RED `.includes()`-Fehler beim Ausschalten zu vermeiden.
+* **Webasto & Autoterm Telemetrie:** Autoterm-Diagnose (Stethoskop) wird nur noch bei ausgewählter Autoterm-Heizung eingeblendet; Webasto-Temperatur und -Spannung werden auf Aktualität (45 s) und Gültigkeit (`> 5 V`) geprüft.
+* **Energie- & Temperaturverläufe:** Aktualitätsprüfung auf 45 s angepasst (kompatibel mit Bildschirmschoner-Polling); Temperaturverlauf startet im Live-Modus ohne Demo-Kurven und markiert isolierte Messpunkte.
+
+---
+
+### 🔋 4. Display-Akku & Laufzeittest (Waveshare V4)
+* Optionale **Display-Akku-Kachel** auf dem Home-Dashboard für die lokale Waveshare-CH32-Akkuspannung inkl. manuellem Laufzeittest (NVS-Sicherung alle 5 min) und Diagnose-Overlay.
+* Optionale Statusleisten-Anzeige (`DA XX%`) in den Home-Einstellungen aktivierbar.
 
 ---
 
