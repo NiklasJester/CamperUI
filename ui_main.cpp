@@ -320,7 +320,7 @@ static void rebuild_ui(void *) {
     rebuild_pending = false;
     lv_obj_t *old_main = scr_main;
     lv_obj_t *old_settings = scr_settings;
-    if (home_nav) nav_scroll_x = lv_obj_get_scroll_x(nav_strip);
+    if (nav_strip) nav_scroll_x = lv_obj_get_scroll_x(nav_strip);
     lv_obj_t *temporary = lv_obj_create(nullptr);
     lv_scr_load(temporary);
     ui_energy_history_destroy();

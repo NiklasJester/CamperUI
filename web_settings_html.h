@@ -1420,7 +1420,7 @@ static const char SETTINGS_HTML[] PROGMEM = R"rawliteral(
       fetch('/api/settings')
         .then(r => r.json())
         .then(data => {
-          document.getElementById('badgeVer').innerText = data.version || 'V1.9.1';
+          document.getElementById('badgeVer').innerText = data.version || 'V1.9.2';
           
           // Network
           document.getElementById('wifi_ssid').value = data.wifi_ssid || '';
