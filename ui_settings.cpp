@@ -578,10 +578,84 @@ void ui_build_settings(lv_obj_t *parent) {
     lv_obj_center(lbl_debug_info);
 }
 
+static lv_obj_t *vis_tab = nullptr;
+static lv_obj_t *vis_rext_head = nullptr;
+static lv_obj_t *vis_rext_card = nullptr;
+static lv_obj_t *vis_rext_cont = nullptr;
+static lv_obj_t *vis_wr_head = nullptr;
+static lv_obj_t *vis_wr_card = nullptr;
+static lv_obj_t *vis_wr_cont = nullptr;
+static lv_obj_t *vis_dim_head = nullptr;
+static lv_obj_t *vis_dim_card = nullptr;
+static lv_obj_t *vis_dim_cont = nullptr;
+
+static void update_vis_layout() {
+    if (!vis_tab) return;
+    // Left column (8 relays): 178 + 7*48 + 42 = 556.
+    // Right column (Dimmer master + 8 dimmers if enabled): 226 + 7*48 + 42 = 604.
+    lv_coord_t y = state.tab_enabled[TAB_DIMMERS] ? 618 : 572;
+
+    // 3. out-x-in Pro (Relais 9-16)
+    if (vis_rext_head) lv_obj_set_pos(vis_rext_head, 0, y);
+    if (vis_rext_card) lv_obj_set_pos(vis_rext_card, 0, y + 26);
+    y += 78; // 26 + 44 + 8
+    if (vis_rext_cont) {
+        if (state.show_relay_ext) {
+            lv_obj_clear_flag(vis_rext_cont, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_set_pos(vis_rext_cont, 0, y);
+            y += 198; // 186 content + 12 gap
+        } else {
+            lv_obj_add_flag(vis_rext_cont, LV_OBJ_FLAG_HIDDEN);
+            y += 10;
+        }
+    }
+
+    // 4. WiFi-Relais
+    if (vis_wr_head) lv_obj_set_pos(vis_wr_head, 0, y);
+    if (vis_wr_card) lv_obj_set_pos(vis_wr_card, 0, y + 26);
+    y += 78;
+    if (vis_wr_cont) {
+        if (state.show_wrelay) {
+            lv_obj_clear_flag(vis_wr_cont, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_set_pos(vis_wr_cont, 0, y);
+            y += 198;
+        } else {
+            lv_obj_add_flag(vis_wr_cont, LV_OBJ_FLAG_HIDDEN);
+            y += 10;
+        }
+    }
+
+    // 5. Dimmer-Hardware (Dimmy Pro)
+    if (vis_dim_head) lv_obj_set_pos(vis_dim_head, 0, y);
+    if (vis_dim_card) lv_obj_set_pos(vis_dim_card, 0, y + 26);
+    y += 78;
+    if (vis_dim_cont) {
+        if (state.dimmy_pro) {
+            lv_obj_clear_flag(vis_dim_cont, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_set_pos(vis_dim_cont, 0, y);
+        } else {
+            lv_obj_add_flag(vis_dim_cont, LV_OBJ_FLAG_HIDDEN);
+        }
+    }
+
+    lv_obj_update_layout(vis_tab);
+    lv_coord_t scroll_y = lv_obj_get_scroll_y(vis_tab);
+    lv_coord_t scroll_bottom = lv_obj_get_scroll_bottom(vis_tab);
+    if (scroll_bottom < 0) {
+        lv_coord_t target = scroll_y + scroll_bottom;
+        if (target < 0) target = 0;
+        lv_obj_scroll_to_y(vis_tab, target, LV_ANIM_OFF);
+    }
+}
+
 // ==========================================
 // The Dedicated Settings Screen
 // ==========================================
 void ui_settings_reset() {
+    vis_tab = nullptr;
+    vis_rext_head = vis_rext_card = vis_rext_cont = nullptr;
+    vis_wr_head = vis_wr_card = vis_wr_cont = nullptr;
+    vis_dim_head = vis_dim_card = vis_dim_cont = nullptr;
     settings_tabview = nullptr;
     victron_settings_index = 0;
     ui_victron_settings_reset();
@@ -963,9 +1037,10 @@ void ui_settings_screen_init() {
     // ==========================================
     // TAB 3: SICHTBARKEIT (ANZEIGE - GROSSE TOGGLE SWITCHES)
     // ==========================================
+    vis_tab = t_vis;
     lv_obj_add_flag(t_vis, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_scroll_dir(t_vis, LV_DIR_VER);
-    lv_obj_set_style_pad_bottom(t_vis, 200, 0);
+    lv_obj_set_style_pad_bottom(t_vis, 24, 0);
     
     // Helper for creating generous, finger-friendly toggle rows with clickable cards
     auto make_toggle_row = [](lv_obj_t *parent, lv_coord_t x, lv_coord_t y, lv_coord_t w, lv_coord_t h,
@@ -1090,6 +1165,7 @@ void ui_settings_screen_init() {
             auto *list = static_cast<lv_obj_t *>(lv_event_get_user_data(e));
             if (state.tab_enabled[TAB_DIMMERS]) lv_obj_clear_flag(list, LV_OBJ_FLAG_HIDDEN);
             else lv_obj_add_flag(list, LV_OBJ_FLAG_HIDDEN);
+            update_vis_layout();
         }, cont_dimmers);
 
     for (int i = 0; i < 8; i++) {
@@ -1112,57 +1188,48 @@ void ui_settings_screen_init() {
             }, (void *)(intptr_t)i);
     }
 
-    // 3. out-x-in Pro (Relais 9-16) Section at y = 570
-    lv_obj_t *l_rext_head = lv_label_create(t_vis);
-    lv_label_set_text(l_rext_head, "out-x-in Pro (Relais 9–16)");
-    lv_obj_set_style_text_font(l_rext_head, &lv_font_montserrat_16, 0);
-    lv_obj_set_style_text_color(l_rext_head, ui_theme_primary(), 0);
-    lv_obj_align(l_rext_head, LV_ALIGN_TOP_LEFT, 0, 618);
+    // 3. out-x-in Pro (Relais 9-16) Section (dynamically positioned by update_vis_layout)
+    vis_rext_head = lv_label_create(t_vis);
+    lv_label_set_text(vis_rext_head, "out-x-in Pro (Relais 9-16)");
+    lv_obj_set_style_text_font(vis_rext_head, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_color(vis_rext_head, ui_theme_primary(), 0);
 
-    lv_obj_t *cont_rext = lv_obj_create(t_vis);
-    lv_obj_set_size(cont_rext, 440, 210);
-    lv_obj_align(cont_rext, LV_ALIGN_TOP_LEFT, 0, 696);
-    lv_obj_set_style_bg_opa(cont_rext, 0, 0);
-    lv_obj_set_style_border_width(cont_rext, 0, 0);
-    lv_obj_set_style_pad_all(cont_rext, 0, 0);
-    lv_obj_clear_flag(cont_rext, LV_OBJ_FLAG_SCROLLABLE);
-    if (!state.show_relay_ext) lv_obj_add_flag(cont_rext, LV_OBJ_FLAG_HIDDEN);
+    vis_rext_cont = lv_obj_create(t_vis);
+    lv_obj_set_size(vis_rext_cont, 440, 186);
+    lv_obj_set_style_bg_opa(vis_rext_cont, 0, 0);
+    lv_obj_set_style_border_width(vis_rext_cont, 0, 0);
+    lv_obj_set_style_pad_all(vis_rext_cont, 0, 0);
+    lv_obj_clear_flag(vis_rext_cont, LV_OBJ_FLAG_SCROLLABLE);
 
-    lv_obj_t *card_master_rext = lv_obj_create(t_vis);
-    lv_obj_set_pos(card_master_rext, 0, 644);
-    lv_obj_set_size(card_master_rext, 440, 44);
-    lv_obj_set_style_radius(card_master_rext, ui_radius_card(), 0);
-    lv_obj_set_style_bg_color(card_master_rext, ui_theme_card(), 0);
-    lv_obj_set_style_border_width(card_master_rext, ui_border_width(), 0);
-    lv_obj_set_style_border_color(card_master_rext, ui_theme_border(), 0);
-    lv_obj_set_style_pad_hor(card_master_rext, 8, 0);
-    lv_obj_clear_flag(card_master_rext, LV_OBJ_FLAG_SCROLLABLE);
+    vis_rext_card = lv_obj_create(t_vis);
+    lv_obj_set_size(vis_rext_card, 440, 44);
+    lv_obj_set_style_radius(vis_rext_card, ui_radius_card(), 0);
+    lv_obj_set_style_bg_color(vis_rext_card, ui_theme_card(), 0);
+    lv_obj_set_style_border_width(vis_rext_card, ui_border_width(), 0);
+    lv_obj_set_style_border_color(vis_rext_card, ui_theme_border(), 0);
+    lv_obj_set_style_pad_hor(vis_rext_card, 8, 0);
+    lv_obj_clear_flag(vis_rext_card, LV_OBJ_FLAG_SCROLLABLE);
 
-    lv_obj_t *sw_rext = lv_switch_create(card_master_rext);
+    lv_obj_t *sw_rext = lv_switch_create(vis_rext_card);
     lv_obj_set_size(sw_rext, 46, 26);
     lv_obj_align(sw_rext, LV_ALIGN_LEFT_MID, 0, 0);
     if (state.show_relay_ext) lv_obj_add_state(sw_rext, LV_STATE_CHECKED);
     lv_obj_add_event_cb(sw_rext, [](lv_event_t * e) {
         lv_obj_t *sw = lv_event_get_target(e);
-        lv_obj_t *cont = (lv_obj_t *)lv_event_get_user_data(e);
         state.show_relay_ext = lv_obj_has_state(sw, LV_STATE_CHECKED);
-        if (state.show_relay_ext) {
-            lv_obj_clear_flag(cont, LV_OBJ_FLAG_HIDDEN);
-        } else {
-            lv_obj_add_flag(cont, LV_OBJ_FLAG_HIDDEN);
-        }
+        update_vis_layout();
         update_water_relay_dropdowns();
         state_save();
         ui_rebuild_switches();
-    }, LV_EVENT_VALUE_CHANGED, cont_rext);
+    }, LV_EVENT_VALUE_CHANGED, NULL);
 
-    lv_obj_t *l_sw_rext = lv_label_create(card_master_rext);
+    lv_obj_t *l_sw_rext = lv_label_create(vis_rext_card);
     lv_label_set_text(l_sw_rext, "out-x-in Pro aktivieren");
     lv_obj_set_style_text_font(l_sw_rext, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(l_sw_rext, ui_theme_text(), 0);
     lv_obj_align(l_sw_rext, LV_ALIGN_LEFT_MID, 58, 0);
 
-    lv_obj_add_event_cb(card_master_rext, [](lv_event_t *e) {
+    lv_obj_add_event_cb(vis_rext_card, [](lv_event_t *e) {
         lv_obj_t *s = (lv_obj_t *)lv_event_get_user_data(e);
         if (lv_obj_has_state(s, LV_STATE_CHECKED)) lv_obj_clear_state(s, LV_STATE_CHECKED);
         else lv_obj_add_state(s, LV_STATE_CHECKED);
@@ -1174,7 +1241,7 @@ void ui_settings_screen_init() {
         lv_coord_t wx = (i < 4 ? 0 : 225);
         lv_coord_t wy = (i % 4) * 48;
         int sw_idx = 8 + i;
-        make_toggle_row(cont_rext, wx, wy, 215, 42, state.switch_names[sw_idx].c_str(), state.switch_visible[sw_idx],
+        make_toggle_row(vis_rext_cont, wx, wy, 215, 42, state.switch_names[sw_idx].c_str(), state.switch_visible[sw_idx],
             [](lv_event_t *e) {
                 lv_obj_t *obj = lv_event_get_target(e);
                 int idx = (int)(intptr_t)lv_event_get_user_data(e);
@@ -1182,56 +1249,47 @@ void ui_settings_screen_init() {
             }, (void *)(intptr_t)sw_idx);
     }
 
-    // 4. WiFi Relais Section at y = 870
-    lv_obj_t *l_wr_head = lv_label_create(t_vis);
-    lv_label_set_text(l_wr_head, "WiFi-Relais");
-    lv_obj_set_style_text_font(l_wr_head, &lv_font_montserrat_16, 0);
-    lv_obj_set_style_text_color(l_wr_head, ui_theme_primary(), 0);
-    lv_obj_align(l_wr_head, LV_ALIGN_TOP_LEFT, 0, 918);
+    // 4. WiFi Relais Section (dynamically positioned by update_vis_layout)
+    vis_wr_head = lv_label_create(t_vis);
+    lv_label_set_text(vis_wr_head, "WiFi-Relais");
+    lv_obj_set_style_text_font(vis_wr_head, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_color(vis_wr_head, ui_theme_primary(), 0);
 
-    lv_obj_t *cont_wr = lv_obj_create(t_vis);
-    lv_obj_set_size(cont_wr, 440, 210);
-    lv_obj_align(cont_wr, LV_ALIGN_TOP_LEFT, 0, 996);
-    lv_obj_set_style_bg_opa(cont_wr, 0, 0);
-    lv_obj_set_style_border_width(cont_wr, 0, 0);
-    lv_obj_set_style_pad_all(cont_wr, 0, 0);
-    lv_obj_clear_flag(cont_wr, LV_OBJ_FLAG_SCROLLABLE);
-    if (!state.show_wrelay) lv_obj_add_flag(cont_wr, LV_OBJ_FLAG_HIDDEN);
+    vis_wr_cont = lv_obj_create(t_vis);
+    lv_obj_set_size(vis_wr_cont, 440, 186);
+    lv_obj_set_style_bg_opa(vis_wr_cont, 0, 0);
+    lv_obj_set_style_border_width(vis_wr_cont, 0, 0);
+    lv_obj_set_style_pad_all(vis_wr_cont, 0, 0);
+    lv_obj_clear_flag(vis_wr_cont, LV_OBJ_FLAG_SCROLLABLE);
 
     // Master Switch Row for WiFi Relais
-    lv_obj_t *card_master_wr = lv_obj_create(t_vis);
-    lv_obj_set_pos(card_master_wr, 0, 944);
-    lv_obj_set_size(card_master_wr, 440, 44);
-    lv_obj_set_style_radius(card_master_wr, ui_radius_card(), 0);
-    lv_obj_set_style_bg_color(card_master_wr, ui_theme_card(), 0);
-    lv_obj_set_style_border_width(card_master_wr, ui_border_width(), 0);
-    lv_obj_set_style_border_color(card_master_wr, ui_theme_border(), 0);
-    lv_obj_set_style_pad_hor(card_master_wr, 8, 0);
-    lv_obj_clear_flag(card_master_wr, LV_OBJ_FLAG_SCROLLABLE);
+    vis_wr_card = lv_obj_create(t_vis);
+    lv_obj_set_size(vis_wr_card, 440, 44);
+    lv_obj_set_style_radius(vis_wr_card, ui_radius_card(), 0);
+    lv_obj_set_style_bg_color(vis_wr_card, ui_theme_card(), 0);
+    lv_obj_set_style_border_width(vis_wr_card, ui_border_width(), 0);
+    lv_obj_set_style_border_color(vis_wr_card, ui_theme_border(), 0);
+    lv_obj_set_style_pad_hor(vis_wr_card, 8, 0);
+    lv_obj_clear_flag(vis_wr_card, LV_OBJ_FLAG_SCROLLABLE);
 
-    lv_obj_t *sw_wrelay = lv_switch_create(card_master_wr);
+    lv_obj_t *sw_wrelay = lv_switch_create(vis_wr_card);
     lv_obj_set_size(sw_wrelay, 46, 26);
     lv_obj_align(sw_wrelay, LV_ALIGN_LEFT_MID, 0, 0);
     if (state.show_wrelay) lv_obj_add_state(sw_wrelay, LV_STATE_CHECKED);
     lv_obj_add_event_cb(sw_wrelay, [](lv_event_t * e) {
         lv_obj_t *sw = lv_event_get_target(e);
-        lv_obj_t *cont = (lv_obj_t *)lv_event_get_user_data(e);
         state.show_wrelay = lv_obj_has_state(sw, LV_STATE_CHECKED);
-        if (state.show_wrelay) {
-            lv_obj_clear_flag(cont, LV_OBJ_FLAG_HIDDEN);
-        } else {
-            lv_obj_add_flag(cont, LV_OBJ_FLAG_HIDDEN);
-        }
+        update_vis_layout();
         update_water_relay_dropdowns();
-    }, LV_EVENT_VALUE_CHANGED, cont_wr);
+    }, LV_EVENT_VALUE_CHANGED, NULL);
 
-    lv_obj_t *l_sw_wr = lv_label_create(card_master_wr);
+    lv_obj_t *l_sw_wr = lv_label_create(vis_wr_card);
     lv_label_set_text(l_sw_wr, "WiFi-Relais anzeigen");
     lv_obj_set_style_text_font(l_sw_wr, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(l_sw_wr, ui_theme_text(), 0);
     lv_obj_align(l_sw_wr, LV_ALIGN_LEFT_MID, 58, 0);
 
-    lv_obj_add_event_cb(card_master_wr, [](lv_event_t *e) {
+    lv_obj_add_event_cb(vis_wr_card, [](lv_event_t *e) {
         lv_obj_t *s = (lv_obj_t *)lv_event_get_user_data(e);
         if (lv_obj_has_state(s, LV_STATE_CHECKED)) lv_obj_clear_state(s, LV_STATE_CHECKED);
         else lv_obj_add_state(s, LV_STATE_CHECKED);
@@ -1242,7 +1300,7 @@ void ui_settings_screen_init() {
     for (int i = 0; i < 8; i++) {
         lv_coord_t wx = (i < 4 ? 0 : 225);
         lv_coord_t wy = (i % 4) * 48;
-        make_toggle_row(cont_wr, wx, wy, 215, 42, state.wrelay_names[i].c_str(), state.wrelay_visible[i],
+        make_toggle_row(vis_wr_cont, wx, wy, 215, 42, state.wrelay_names[i].c_str(), state.wrelay_visible[i],
             [](lv_event_t *e) {
                 lv_obj_t *obj = lv_event_get_target(e);
                 int idx = (int)(intptr_t)lv_event_get_user_data(e);
@@ -1250,73 +1308,66 @@ void ui_settings_screen_init() {
             }, (void *)(intptr_t)i);
     }
 
-    // 5. Dimmer Hardware Section at y = 1170
-    lv_obj_t *l_dim_head = lv_label_create(t_vis);
-    lv_label_set_text(l_dim_head, "Dimmer-Hardware");
-    lv_obj_set_style_text_font(l_dim_head, &lv_font_montserrat_16, 0);
-    lv_obj_set_style_text_color(l_dim_head, ui_theme_primary(), 0);
-    lv_obj_align(l_dim_head, LV_ALIGN_TOP_LEFT, 0, 1218);
+    // 5. Dimmer Hardware Section (dynamically positioned by update_vis_layout)
+    vis_dim_head = lv_label_create(t_vis);
+    lv_label_set_text(vis_dim_head, "Dimmer-Hardware");
+    lv_obj_set_style_text_font(vis_dim_head, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_color(vis_dim_head, ui_theme_primary(), 0);
 
-    lv_obj_t *cont_dimpro = lv_obj_create(t_vis);
-    lv_obj_set_size(cont_dimpro, 440, 60);
-    lv_obj_align(cont_dimpro, LV_ALIGN_TOP_LEFT, 0, 1296);
-    lv_obj_set_style_bg_opa(cont_dimpro, 0, 0);
-    lv_obj_set_style_border_width(cont_dimpro, 0, 0);
-    lv_obj_set_style_pad_all(cont_dimpro, 0, 0);
-    lv_obj_clear_flag(cont_dimpro, LV_OBJ_FLAG_SCROLLABLE);
-    if (!state.dimmy_pro) lv_obj_add_flag(cont_dimpro, LV_OBJ_FLAG_HIDDEN);
+    vis_dim_cont = lv_obj_create(t_vis);
+    lv_obj_set_size(vis_dim_cont, 440, 44);
+    lv_obj_set_style_bg_opa(vis_dim_cont, 0, 0);
+    lv_obj_set_style_border_width(vis_dim_cont, 0, 0);
+    lv_obj_set_style_pad_all(vis_dim_cont, 0, 0);
+    lv_obj_clear_flag(vis_dim_cont, LV_OBJ_FLAG_SCROLLABLE);
 
-    lv_obj_t *card_master_dim = lv_obj_create(t_vis);
-    lv_obj_set_pos(card_master_dim, 0, 1244);
-    lv_obj_set_size(card_master_dim, 440, 44);
-    lv_obj_set_style_radius(card_master_dim, ui_radius_card(), 0);
-    lv_obj_set_style_bg_color(card_master_dim, ui_theme_card(), 0);
-    lv_obj_set_style_border_width(card_master_dim, ui_border_width(), 0);
-    lv_obj_set_style_border_color(card_master_dim, ui_theme_border(), 0);
-    lv_obj_set_style_pad_hor(card_master_dim, 8, 0);
-    lv_obj_clear_flag(card_master_dim, LV_OBJ_FLAG_SCROLLABLE);
+    vis_dim_card = lv_obj_create(t_vis);
+    lv_obj_set_size(vis_dim_card, 440, 44);
+    lv_obj_set_style_radius(vis_dim_card, ui_radius_card(), 0);
+    lv_obj_set_style_bg_color(vis_dim_card, ui_theme_card(), 0);
+    lv_obj_set_style_border_width(vis_dim_card, ui_border_width(), 0);
+    lv_obj_set_style_border_color(vis_dim_card, ui_theme_border(), 0);
+    lv_obj_set_style_pad_hor(vis_dim_card, 8, 0);
+    lv_obj_clear_flag(vis_dim_card, LV_OBJ_FLAG_SCROLLABLE);
 
-    lv_obj_t *sw_dimpro = lv_switch_create(card_master_dim);
+    lv_obj_t *sw_dimpro = lv_switch_create(vis_dim_card);
     lv_obj_set_size(sw_dimpro, 46, 26);
     lv_obj_align(sw_dimpro, LV_ALIGN_LEFT_MID, 0, 0);
     if (state.dimmy_pro) lv_obj_add_state(sw_dimpro, LV_STATE_CHECKED);
     lv_obj_add_event_cb(sw_dimpro, [](lv_event_t * e) {
         lv_obj_t *sw = lv_event_get_target(e);
-        lv_obj_t *cont = (lv_obj_t *)lv_event_get_user_data(e);
         state.dimmy_pro = lv_obj_has_state(sw, LV_STATE_CHECKED);
-        if (state.dimmy_pro) {
-            lv_obj_clear_flag(cont, LV_OBJ_FLAG_HIDDEN);
-        } else {
-            lv_obj_add_flag(cont, LV_OBJ_FLAG_HIDDEN);
-        }
+        update_vis_layout();
         state_save();
         ui_rebuild_dimmers();
-    }, LV_EVENT_VALUE_CHANGED, cont_dimpro);
+    }, LV_EVENT_VALUE_CHANGED, NULL);
 
-    lv_obj_t *l_sw_dimpro = lv_label_create(card_master_dim);
-    lv_label_set_text(l_sw_dimpro, "Dimmy Pro Modus (8–15 + RGBW)");
+    lv_obj_t *l_sw_dimpro = lv_label_create(vis_dim_card);
+    lv_label_set_text(l_sw_dimpro, "Dimmy Pro Modus (8-15 + RGBW)");
     lv_obj_set_style_text_font(l_sw_dimpro, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(l_sw_dimpro, ui_theme_text(), 0);
     lv_obj_align(l_sw_dimpro, LV_ALIGN_LEFT_MID, 58, 0);
 
-    lv_obj_add_event_cb(card_master_dim, [](lv_event_t *e) {
+    lv_obj_add_event_cb(vis_dim_card, [](lv_event_t *e) {
         lv_obj_t *s = (lv_obj_t *)lv_event_get_user_data(e);
         if (lv_obj_has_state(s, LV_STATE_CHECKED)) lv_obj_clear_state(s, LV_STATE_CHECKED);
         else lv_obj_add_state(s, LV_STATE_CHECKED);
         lv_event_send(s, LV_EVENT_VALUE_CHANGED, NULL);
     }, LV_EVENT_CLICKED, sw_dimpro);
 
-    // RGBW 1 and RGBW 2 individual toggle rows inside cont_dimpro
-    make_toggle_row(cont_dimpro, 0, 0, 215, 42, state.dimmer_names[8].c_str(), state.dimmer_visible[8],
+    // RGBW 1 and RGBW 2 individual toggle rows inside vis_dim_cont
+    make_toggle_row(vis_dim_cont, 0, 0, 215, 42, state.dimmer_names[8].c_str(), state.dimmer_visible[8],
         [](lv_event_t *e) {
             lv_obj_t *obj = lv_event_get_target(e);
             state.dimmer_visible[8] = lv_obj_has_state(obj, LV_STATE_CHECKED);
         }, (void *)(intptr_t)8);
-    make_toggle_row(cont_dimpro, 225, 0, 215, 42, state.dimmer_names[9].c_str(), state.dimmer_visible[9],
+    make_toggle_row(vis_dim_cont, 225, 0, 215, 42, state.dimmer_names[9].c_str(), state.dimmer_visible[9],
         [](lv_event_t *e) {
             lv_obj_t *obj = lv_event_get_target(e);
             state.dimmer_visible[9] = lv_obj_has_state(obj, LV_STATE_CHECKED);
         }, (void *)(intptr_t)9);
+
+    update_vis_layout();
     
     // ==========================================
     // TAB 4: WERTE (GROSSE DROPDOWNS & EINGABEN)
